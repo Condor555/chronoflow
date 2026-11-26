@@ -140,3 +140,43 @@ test("Impostazioni governano applicabilità e preferenze senza eliminare lo stor
   assert.match(app, /summary_preferences/);
   assert.match(app, /causeHasUsage\(type\)/);
 });
+
+
+test("schermate operative prive di riferimenti al foglio di sviluppo e numeri di release", () => {
+  assert.doesNotMatch(html, /excel|foglio excel|baseline excel|versione\s+2\./i);
+  assert.doesNotMatch(app, /excel|foglio excel|baseline excel|versione\s+2\./i);
+  assert.match(html, /Storico mensile dell’anno/);
+  assert.match(html, /12 mesi · valori consolidati/);
+});
+
+test("tabella annuale usa solo colonne comprensibili e mantiene gli istituti distinti", () => {
+  for (const label of [
+    "Giorni lavorativi teorici", "Ferie", "Festività soppresse", "Recupero riposo festività",
+    "Malattia", "Malattia bambino", "Maternità obbligatoria", "Paternità obbligatoria",
+    "Congedo parentale", "Giorni lavorativi effettivi", "Giorni smart",
+    "Buoni pasto (competenza −2 mesi)", "Ore straordinario", "Recupero maggiori prestazioni",
+    "Ore straordinario nette"
+  ]) assert.match(app, new RegExp(label.replace(/[()]/g, "\\$&")));
+  assert.doesNotMatch(app, /\["Teorici"|Fest\. sopp\.|Rec\. riposo|Mal\. bambino|Cong\. parentale|Pat\. obbl\.|Straord\./);
+});
+
+test("genitorialità separa limite legale e quota personale configurata", () => {
+  for (const id of [
+    "parental-family-situation", "parental-custom-legal-role", "parental-father-three-months",
+    "parental-individual-limit", "parental-couple-limit", "child-parental-quota-months"
+  ]) assert.match(html, new RegExp(`id=["']${id}["']`));
+  assert.match(html, /Limite legale individuale|Limiti legali applicabili/);
+  assert.match(html, /Quota personale da monitorare/);
+  assert.match(app, /validateParentalLeaveQuota/);
+  assert.doesNotMatch(app, /parentalLeave[^\n]*60|Congedo parentale[^\n]*\/\s*60/);
+});
+
+test("ferie cambia automaticamente anno e conserva la navigazione storica", () => {
+  for (const id of ["leave-previous-year", "leave-next-year", "leave-go-current-year", "leave-current-year-status"]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(app, /function ensureCurrentLeaveSettingsYear\(\)/);
+  assert.match(app, /visibilitychange[\s\S]*ensureCurrentLeaveSettingsYear/);
+  assert.match(app, /selectLeaveSettingsYear/);
+  assert.match(html, /residuo dell’anno concluso diventa il riporto/);
+});

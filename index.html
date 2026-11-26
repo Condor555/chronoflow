@@ -567,10 +567,16 @@
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
             </summary>
             <div id="leave-settings-panel" class="settings-disclosure-body">
-              <p class="supporting">Imposta i massimali dell’anno. Le ferie dell’anno precedente sono calcolate automaticamente dal residuo dell’anno prima.</p>
-              <div class="field">
-                <label for="leave-settings-year">Anno di riferimento</label>
-                <input id="leave-settings-year" type="number" min="2000" max="2100" inputmode="numeric" required>
+              <p class="supporting">L’anno corrente cambia automaticamente il 1° gennaio. Il residuo dell’anno concluso diventa il riporto del nuovo anno; massimali e storico restano separati per anno.</p>
+              <div class="leave-year-navigator" aria-label="Anno consultato">
+                <button id="leave-previous-year" class="icon-button ghost" type="button" aria-label="Anno precedente"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+                <div class="field">
+                  <label for="leave-settings-year">Anno consultato</label>
+                  <input id="leave-settings-year" type="number" min="2000" max="2100" inputmode="numeric" readonly required>
+                  <span id="leave-current-year-status" class="status-chip">Anno corrente</span>
+                </div>
+                <button id="leave-next-year" class="icon-button ghost" type="button" aria-label="Anno successivo"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+                <button id="leave-go-current-year" class="button secondary" type="button" hidden>Vai all’anno corrente</button>
               </div>
               <div class="field-grid">
                 <div class="field">
@@ -679,9 +685,30 @@
               </select>
               <p class="field-hint">Serve solo a mostrare gli istituti pertinenti. Chrono Flow non salva il sesso dell’utente.</p>
             </div>
+            <div class="parental-policy-grid" aria-labelledby="parental-policy-title">
+              <div class="parental-policy-heading">
+                <strong id="parental-policy-title">Limiti del congedo parentale</strong>
+                <span id="parental-legal-summary">Configura il profilo</span>
+              </div>
+              <div class="field">
+                <label for="parental-family-situation">Situazione familiare</label>
+                <select id="parental-family-situation"><option value="couple">Coppia di genitori</option><option value="single_parent">Genitore solo</option></select>
+              </div>
+              <div id="parental-custom-role-field" class="field" hidden>
+                <label for="parental-custom-legal-role">Limite individuale da applicare</label>
+                <select id="parental-custom-legal-role"><option value="mother">Madre</option><option value="father">Padre</option></select>
+              </div>
+              <label id="parental-father-extension-field" class="check-row"><input id="parental-father-three-months" type="checkbox"> <span>Il padre fruisce di almeno 3 mesi complessivi</span></label>
+              <dl class="legal-limit-grid" aria-label="Limiti legali applicabili">
+                <div><dt>Limite individuale</dt><dd id="parental-individual-limit">6 mesi</dd></div>
+                <div><dt>Limite della coppia</dt><dd id="parental-couple-limit">10 mesi</dd></div>
+                <div><dt>Fruizione</dt><dd>Entro 14 anni</dd></div>
+              </dl>
+              <p class="field-hint">Il limite legale è un controllo; la quota personale da monitorare si sceglie separatamente per ciascun figlio.</p>
+            </div>
             <label id="alternative-paternity-field" class="check-row" hidden><input id="show-paternity-alternative" type="checkbox"> <span>Mostra la paternità alternativa quando applicabile</span></label>
-            <p class="supporting">Per ciascun figlio Chrono Flow applica automaticamente la fascia corretta. Fino al 3° compleanno l’assenza segue la durata della malattia e i primi 30 giorni retribuiti si rinnovano per anno di vita, non per anno solare. Dai 3 ai 14 anni il limite è 10 giorni lavorativi per anno solare.</p>
-            <p class="supporting">Il congedo parentale facoltativo è associato al figlio e può essere registrato fino ai 14 anni. Il contatore dell’app mostra le giornate inserite, ma i limiti legali in mesi (individuali e di coppia) dipendono anche dalle fruizioni dell’altro genitore e restano da verificare con INPS/Ufficio del Personale.</p>
+            <p class="supporting"><strong>Malattia bambino:</strong> fino al terzo compleanno Chrono Flow mostra solo l’anno di vita in corso e monitora al massimo 30 giorni nel singolo periodo. Dai 3 ai 14 anni applica la fascia successiva già configurata. I periodi conclusi restano nello storico.</p>
+            <p class="supporting"><strong>Congedo parentale:</strong> scegli una quota personale in mesi per ciascun figlio. Chrono Flow la valida rispetto al limite individuale del profilo e mostra separatamente quota scelta, limite legale, utilizzi registrati e scadenza.</p>
             <div id="children-list" class="children-list"></div>
             <div class="field-grid align-end">
               <div class="field">
@@ -709,6 +736,11 @@
                 <legend>Istituti da monitorare</legend>
                 <label class="check-row"><input id="child-enable-sickness" type="checkbox" checked> <span>Malattia bambino</span></label>
                 <label class="check-row"><input id="child-enable-parental" type="checkbox"> <span>Congedo parentale</span></label>
+                <div id="child-parental-quota-field" class="field quota-choice" hidden>
+                  <label for="child-parental-quota-months">Quota personale da monitorare</label>
+                  <div class="input-with-suffix"><input id="child-parental-quota-months" type="number" min="0" max="6" step="0.5" inputmode="decimal"><span>mesi</span></div>
+                  <p id="child-parental-quota-help" class="field-hint">Scegli una quota entro il limite individuale.</p>
+                </div>
                 <label id="child-enable-maternity-field" class="check-row" hidden><input id="child-enable-maternity" type="checkbox"> <span>Maternità obbligatoria</span></label>
                 <label id="child-enable-paternity-field" class="check-row" hidden><input id="child-enable-paternity" type="checkbox"> <span>Paternità obbligatoria</span></label>
                 <label id="child-enable-paternity-alternative-field" class="check-row" hidden><input id="child-enable-paternity-alternative" type="checkbox"> <span>Paternità alternativa</span></label>

@@ -10,6 +10,15 @@ Le Impostazioni determinano quali modalità, causali e istituti sono applicabili
 
 Il Riepilogo mostra in primo piano solo ore lavorate, straordinario residuo e buoni pasto. Maturato, compensazioni, rettifiche, date e dati da classificare restano disponibili nei dettagli espandibili. Per Malattia bambino viene mostrato un solo periodo attivo per figlio; i periodi conclusi rimangono nello storico.
 
+
+### Quote di congedo parentale
+
+In **Impostazioni → Famiglia e genitorialità** il limite legale è distinto dalla quota personale scelta per ogni figlio. La quota può restare vuota: in quel caso Chrono Flow mostra soltanto le giornate registrate e non costruisce un totale artificiale. I controlli applicano 6 mesi alla madre, 6 al padre elevabili a 7 nelle condizioni previste, 10 mesi complessivi elevabili a 11 e 11 mesi al genitore solo. Dal 2026 la scadenza per i lavoratori dipendenti è a 14 anni.
+
+### Cambio anno ferie
+
+La vista Ferie passa automaticamente al nuovo anno il 1° gennaio. Il residuo dell’anno concluso alimenta il riporto; i massimali del nuovo anno derivano dalla configurazione annuale o dai valori predefiniti. Gli anni passati restano consultabili con i controlli precedente/successivo e la rettifica manuale resta un’eccezione.
+
 ## Funzioni incluse
 
 - registrazione rapida di Entrata, Inizia pausa, Termina pausa e Uscita;
@@ -60,13 +69,13 @@ Browser / PWA
 
 La chiave `anon` è progettata per essere usata nel browser ed è quindi pubblica. La protezione dipende dalle policy RLS incluse in `supabase/schema.sql`. **Non inserire mai la chiave `service_role` nel sito o nella repository.**
 
-## Aggiornamento dalla 2.8.1 alla 2.9.0
+## Aggiornamento dalla 2.8.1 alla 2.9.1
 
 1. Non rieseguire l’importazione iniziale dei dati.
 2. Non serve una nuova query SQL: questa release aggiorna interfaccia e configurazione personale senza modificare lo schema Supabase o i totali consolidati.
 3. Sostituisci nella repository GitHub i file con quelli di questo pacchetto, mantenendo `src/config.js` già configurato.
 4. Esegui il commit e attendi GitHub Pages.
-5. Riapri Chrono Flow e aggiorna la pagina. La cache PWA passa automaticamente a `chrono-flow-v2.9.0`.
+5. Riapri Chrono Flow e aggiorna la pagina. La cache PWA passa automaticamente a `chrono-flow-v2.9.1`.
 
 Le giornate, le timbrature, i dati importati e le impostazioni già salvate non vengono modificati. Non serve alcuna query SQL: massimali e rettifiche del nuovo bilancio annuale vengono salvati nel JSON protetto del profilo già esistente.
 

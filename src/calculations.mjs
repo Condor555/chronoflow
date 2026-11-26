@@ -620,6 +620,30 @@ function previousDay(date) {
   return result;
 }
 
+export function parentalLeaveLimits({ role = "mother", familySituation = "couple", fatherAtLeastThreeMonths = false } = {}) {
+  const normalizedRole = role === "father" ? "father" : "mother";
+  const singleParent = familySituation === "single_parent";
+  const individualMonths = singleParent ? 11 : normalizedRole === "father" && fatherAtLeastThreeMonths ? 7 : 6;
+  const coupleMonths = singleParent ? 11 : fatherAtLeastThreeMonths ? 11 : 10;
+  return {
+    role: normalizedRole,
+    familySituation: singleParent ? "single_parent" : "couple",
+    fatherAtLeastThreeMonths: Boolean(fatherAtLeastThreeMonths),
+    individualMonths,
+    coupleMonths,
+    childAgeLimitYears: 14
+  };
+}
+
+export function validateParentalLeaveQuota(months, limits) {
+  if (months === null || months === undefined || months === "") return { valid: true, value: null, reason: "" };
+  const value = Number(months);
+  const maximum = Math.max(0, Number(limits?.individualMonths) || 0);
+  if (!Number.isFinite(value) || value < 0) return { valid: false, value: null, reason: "Inserisci una quota valida in mesi." };
+  if (value > maximum) return { valid: false, value, reason: `La quota personale non può superare ${maximum} mesi per il profilo selezionato.` };
+  return { valid: true, value: Math.round(value * 10) / 10, reason: "" };
+}
+
 export function childSicknessEntitlement(child, onDate = new Date(), usedInApp = 0, usedOutsideApp = 0) {
   const birthDate = localDate(child?.birth_date || child?.birthDate);
   const currentDate = localDate(onDate) || localDate(isoDateLocal(onDate instanceof Date ? onDate : new Date()));
@@ -657,6 +681,8 @@ export function childSicknessEntitlement(child, onDate = new Date(), usedInApp =
       totalDaysLimit: null,
       paidDaysLimit: 30,
       usedDays: used,
+      quotaUsedDays: Math.min(30, used),
+      excessDays: Math.max(0, used - 30),
       remainingPaidDays: Math.max(0, 30 - used),
       isPaidQuotaExceeded: used >= 30
     };
@@ -676,6 +702,8 @@ export function childSicknessEntitlement(child, onDate = new Date(), usedInApp =
       totalDaysLimit: 10,
       paidDaysLimit: 0,
       usedDays: used,
+      quotaUsedDays: Math.min(10, used),
+      excessDays: Math.max(0, used - 10),
       remainingDays: Math.max(0, 10 - used),
       isTotalQuotaExceeded: used >= 10
     };

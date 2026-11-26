@@ -21,10 +21,12 @@ import {
   isoDateLocal,
   minutesToDuration,
   maternityMandatoryEntitlement,
+  parentalLeaveLimits,
   paternityMandatoryEntitlement,
   recognizedItalianHolidays,
   secondsToDuration,
   SUNDAY_HOLIDAY_RULES,
+  validateParentalLeaveQuota,
   ticketForDay,
   workbookMonthlySummary
 } from "./calculations.mjs";
@@ -61,6 +63,11 @@ const DEFAULT_PROFILE = {
   family_settings: {
     children: [],
     parental_role: "unspecified",
+    parental_leave_policy: {
+      family_situation: "couple",
+      custom_legal_role: "mother",
+      father_at_least_three_months: false
+    },
     show_paternity_alternative: false,
     work_modes: { office: true, smart: true, travel: true, saturday: true },
     absence_features: { vacation: true, sickness: false, marriage_leave: false, recovery: false },
@@ -177,6 +184,11 @@ function normalizeFamilySettings(value) {
     ...input,
     children: Array.isArray(input.children) ? input.children : [],
     parental_role: ["father", "mother", "custom"].includes(input.parental_role) ? input.parental_role : "unspecified",
+    parental_leave_policy: {
+      family_situation: input.parental_leave_policy?.family_situation === "single_parent" ? "single_parent" : "couple",
+      custom_legal_role: input.parental_leave_policy?.custom_legal_role === "father" ? "father" : "mother",
+      father_at_least_three_months: input.parental_leave_policy?.father_at_least_three_months === true
+    },
     show_paternity_alternative: input.show_paternity_alternative === true,
     work_modes: {
       office: input.work_modes?.office !== false,
@@ -217,6 +229,28 @@ function familyChildren() {
 function parentalRole() {
   const role = normalizeFamilySettings(state.profile.family_settings).parental_role;
   return ["father", "mother", "custom"].includes(role) ? role : "unspecified";
+}
+
+function parentalLeavePolicy() {
+  const settings = normalizeFamilySettings(state.profile.family_settings);
+  const configuredRole = settings.parental_role === "custom"
+    ? settings.parental_leave_policy.custom_legal_role
+    : settings.parental_role === "father" ? "father" : "mother";
+  return {
+    ...settings.parental_leave_policy,
+    legalRole: configuredRole,
+    limits: parentalLeaveLimits({
+      role: configuredRole,
+      familySituation: settings.parental_leave_policy.family_situation,
+      fatherAtLeastThreeMonths: settings.parental_leave_policy.father_at_least_three_months
+    })
+  };
+}
+
+function parentalQuotaForChild(child) {
+  const raw = child?.parental_leave_quota_months;
+  const validation = validateParentalLeaveQuota(raw, parentalLeavePolicy().limits);
+  return validation.valid ? validation.value : null;
 }
 
 function applicabilitySettings() {
@@ -1384,7 +1418,6 @@ function renderAbsenceBreakdown(target, counts) {
 }
 
 const MONTH_DETAIL_METRICS = [
-  ["Giorni lavorativi teorici", "theoreticalWorkdays", "days"],
   ["Ferie", "vacation", "days", "vacation"],
   ["Festività soppresse", "suppressedHolidays", "days", "holiday"],
   ["Recupero riposo festività", "holidayRecovery", "days", "sunday_holiday_recovery"],
@@ -1395,30 +1428,26 @@ const MONTH_DETAIL_METRICS = [
   ["Paternità obbligatoria", "paternityMandatory", "days", "paternity_mandatory"],
   ["Paternità alternativa", "paternityAlternative", "days", "paternity_alternative"],
   ["Congedo matrimoniale", "marriageLeave", "days", "marriage_leave"],
-  ["Giorni lavorativi effettivi", "effectiveWorkdays", "days"],
-  ["Giorni smart", "smartDays", "days"],
+  ["Giornate in Smart Working", "smartDays", "days"],
   ["Sabati lavorativi", "workingSaturdays", "days"]
 ];
 
 const ANNUAL_TABLE_METRICS = [
-  ["Teorici", "theoreticalWorkdays", "days"],
-  ["Ferie", "vacation", "days", "vacation"],
-  ["Fest. sopp.", "suppressedHolidays", "days", "holiday"],
-  ["Rec. riposo", "holidayRecovery", "days", "sunday_holiday_recovery"],
-  ["Malattia", "sickness", "days", "sickness"],
-  ["Mal. bambino", "childSickness", "days", "child_sickness"],
-  ["Cong. parentale", "parentalLeave", "days", "parental_leave"],
-  ["Maternità", "maternityLeave", "days", "maternity_leave"],
-  ["Pat. obbl.", "paternityMandatory", "days", "paternity_mandatory"],
-  ["Pat. alternativa", "paternityAlternative", "days", "paternity_alternative"],
-  ["Matrimoniale", "marriageLeave", "days", "marriage_leave"],
-  ["Effettivi", "effectiveWorkdays", "days"],
-  ["Smart", "smartDays", "days"],
-  ["Sabati", "workingSaturdays", "days"],
-  ["Buoni pasto", "mealVouchers", "count"],
-  ["Straord. maturato", "overtimeMinutes", "duration"],
-  ["Compensato", "performanceRecoveryMinutes", "duration"],
-  ["Residuo", "netOvertimeMinutes", "duration"]
+  ["Giorni lavorativi teorici", "theoreticalWorkdays", "days"],
+  ["Ferie", "vacation", "days"],
+  ["Festività soppresse", "suppressedHolidays", "days"],
+  ["Recupero riposo festività", "holidayRecovery", "days"],
+  ["Malattia", "sickness", "days"],
+  ["Malattia bambino", "childSickness", "days"],
+  ["Maternità obbligatoria", "maternityLeave", "days", "maternity_leave"],
+  ["Paternità obbligatoria", "paternityMandatory", "days", "paternity_mandatory"],
+  ["Congedo parentale", "parentalLeave", "days", "parental_leave"],
+  ["Giorni lavorativi effettivi", "effectiveWorkdays", "days"],
+  ["Giorni smart", "smartDays", "days"],
+  ["Buoni pasto (competenza −2 mesi)", "mealVouchers", "count"],
+  ["Ore straordinario", "overtimeMinutes", "duration"],
+  ["Recupero maggiori prestazioni", "performanceRecoveryMinutes", "duration"],
+  ["Ore straordinario nette", "netOvertimeMinutes", "duration"]
 ];
 
 function visibleMetrics(metrics, rows = [], yearDays = state.summaryYearDays) {
@@ -1468,7 +1497,13 @@ function summaryRowsForYear(year) {
 function renderMonthDetail(selected, rows) {
   const monthMetrics = visibleMetrics(MONTH_DETAIL_METRICS, rows);
   const grid = $("#month-detail-metrics");
-  grid.replaceChildren(...monthMetrics.map(([label, key, format]) => {
+  const workdays = document.createElement("div");
+  const workdaysTerm = document.createElement("dt");
+  const workdaysValue = document.createElement("dd");
+  workdaysTerm.textContent = "Giornate lavorative";
+  workdaysValue.textContent = `${selected.effectiveWorkdays} effettive / ${selected.theoreticalWorkdays} previste`;
+  workdays.append(workdaysTerm, workdaysValue);
+  grid.replaceChildren(workdays, ...monthMetrics.map(([label, key, format]) => {
     const item = document.createElement("div");
     const term = document.createElement("dt");
     const value = document.createElement("dd");
@@ -1536,21 +1571,35 @@ function renderFamilyLimits(year) {
   const deadlines = [];
 
   const sicknessChildren = children.filter((child) => childInstituteEnabled(child, "child_sickness"));
-  const activeSickness = sicknessChildren.map((child) => ({ child, entitlement: childSicknessEntitlement(child, new Date()) }))
-    .filter(({ entitlement }) => entitlement.eligible);
-  const childUsed = activeSickness.reduce((total, { child, entitlement }) => total
-    + childAbsenceCount(child.id, "child_sickness", entitlement.periodStart, entitlement.periodEnd)
-    + Number(child.external_usage?.[entitlement.periodKey] || 0), 0);
-  const childLimit = activeSickness.reduce((total, { entitlement }) => total
-    + (entitlement.tier === "under_three" ? entitlement.paidDaysLimit : entitlement.totalDaysLimit), 0);
-  if (childUsed || activeSickness.length) {
-    metrics.push(["Malattia bambino", `${childUsed} / ${childLimit}`, "solo periodi attualmente attivi, distinti per figlio"]);
+  for (const child of sicknessChildren) {
+    const active = childSicknessEntitlement(child, new Date());
+    if (!active.eligible) continue;
+    const usedInApp = childAbsenceCount(child.id, "child_sickness", active.periodStart, active.periodEnd);
+    const outside = Number(child.external_usage?.[active.periodKey] || 0);
+    const entitlement = childSicknessEntitlement(child, new Date(), usedInApp, outside);
+    const limit = entitlement.tier === "under_three" ? entitlement.paidDaysLimit : entitlement.totalDaysLimit;
+    const periodLabel = entitlement.tier === "under_three"
+      ? `${entitlement.lifeYear}° anno di vita`
+      : `fascia 3–14 · ${entitlement.periodStart.slice(0, 4)}`;
+    metrics.push([
+      `Malattia bambino · ${child.name}`,
+      `${entitlement.quotaUsedDays} / ${limit}`,
+      `${periodLabel} · ${Math.max(0, limit - entitlement.quotaUsedDays)} residui · ${entitlement.periodStart}–${entitlement.periodEnd}${entitlement.excessDays ? ` · ${entitlement.excessDays} oltre quota nello storico` : ""}`
+    ]);
   }
 
-  const parentalUsed = annual.filter((day) => day.absence_type === "parental_leave").length;
   const parentalChildren = children.filter((child) => childInstituteEnabled(child, "parental_leave"));
-  if (parentalUsed || parentalChildren.length) {
-    metrics.push(["Congedo parentale", String(parentalUsed), "giornate registrate; verifica i limiti complessivi con INPS/Ufficio del Personale"]);
+  const parentalLimits = parentalLeavePolicy().limits;
+  for (const child of parentalChildren) {
+    const used = childAbsenceCount(child.id, "parental_leave");
+    const quota = parentalQuotaForChild(child);
+    metrics.push([
+      `Congedo parentale · ${child.name}`,
+      `${used} giornat${used === 1 ? "a" : "e"}`,
+      quota === null
+        ? `Quota personale non configurata · limite legale ${parentalLimits.individualMonths} mesi · entro 14 anni`
+        : `Quota personale ${quota} mesi · limite legale ${parentalLimits.individualMonths} mesi · coppia ${parentalLimits.coupleMonths} mesi · entro 14 anni`
+    ]);
   }
 
   const paternityUsed = annual.filter((day) => day.absence_type === "paternity_mandatory").length;
@@ -1578,13 +1627,19 @@ function renderFamilyLimits(year) {
       if (active.eligible) {
         const usedInApp = childAbsenceCount(child.id, "child_sickness", active.periodStart, active.periodEnd);
         const outside = Number(child.external_usage?.[active.periodKey] || 0);
-        const used = usedInApp + outside;
-        const limit = active.tier === "under_three" ? active.paidDaysLimit : active.totalDaysLimit;
+        const entitlement = childSicknessEntitlement(child, new Date(), usedInApp, outside);
+        const used = entitlement.quotaUsedDays;
+        const limit = entitlement.tier === "under_three" ? entitlement.paidDaysLimit : entitlement.totalDaysLimit;
         const label = active.tier === "under_three" ? `${active.lifeYear}° anno di vita` : `fascia 3–14 · anno ${active.periodStart.slice(0, 4)}`;
-        lines.push(`${label}: ${used}/${limit}, residui ${Math.max(0, limit - used)} · ${active.periodStart}–${active.periodEnd}`);
+        lines.push(`${label}: ${used}/${limit}, residui ${Math.max(0, limit - used)} · ${active.periodStart}–${active.periodEnd}${entitlement.excessDays ? ` · ${entitlement.excessDays} oltre quota conservati nello storico` : ""}`);
       }
     }
-    if (childInstituteEnabled(child, "parental_leave")) lines.push(`Congedo parentale: termine indicativo ${addYears(child.birth_date, 14)}`);
+    if (childInstituteEnabled(child, "parental_leave")) {
+      const quota = parentalQuotaForChild(child);
+      const limits = parentalLeavePolicy().limits;
+      const used = childAbsenceCount(child.id, "parental_leave");
+      lines.push(`Congedo parentale: ${used} giornat${used === 1 ? "a" : "e"} registrat${used === 1 ? "a" : "e"} · quota personale ${quota === null ? "non configurata" : `${quota} mesi`} · limite legale ${limits.individualMonths} mesi · termine ${addYears(child.birth_date, 14)}`);
+    }
     if (childInstituteEnabled(child, "paternity_mandatory") && (parentalRole() === "father" || parentalRole() === "custom")) {
       const entitlement = paternityMandatoryEntitlement(child, `${year}-12-31`, childAbsenceCount(child.id, "paternity_mandatory"));
       lines.push(`Paternità obbligatoria: ${entitlement.usedDays}/${entitlement.totalDays}, residui ${entitlement.remainingDays} · termine ${entitlement.windowEnd}${entitlement.status === "expired" ? ` · ${entitlement.expiredUnusedDays} non più fruibili` : ""}`);
@@ -1754,14 +1809,16 @@ function renderHistoricalUnclassified(yearDays, year) {
       const days = sorted.filter((day) => day.absence_type === "child_sickness" && day.child_id === child.id
         && day.work_date >= period.periodStart && day.work_date <= period.periodEnd);
       const outside = Number(child.external_usage?.[period.periodKey] || 0);
-      const used = days.length + outside;
-      if (!used) continue;
+      const rawUsed = days.length + outside;
+      if (!rawUsed) continue;
+      const used = Math.min(period.limit, rawUsed);
+      const excess = Math.max(0, rawUsed - period.limit);
       const label = period.tier === "under_three" ? `${period.lifeYear}° anno di vita` : `anno ${year}`;
       items.push({
         label: `Storico malattia bambino · ${child.name} · ${label}`,
         value: `${used} / ${period.limit}`,
         entries: days.map((day) => `${shortDate(day.work_date)}${day.child_link_reconciled ? " · riconciliata" : ""}`),
-        note: `Periodo concluso ${period.periodStart}–${period.periodEnd}; dati conservati.`
+        note: `Periodo concluso ${period.periodStart}–${period.periodEnd}; dati conservati${excess ? `, inclusi ${excess} giorni oltre quota` : ""}.`
       });
     }
   }
@@ -1849,14 +1906,15 @@ function renderTraceabilityLedger(yearDays, year) {
       const sicknessDays = sorted.filter((day) => day.absence_type === "child_sickness"
         && day.child_id === child.id && day.work_date >= activeSickness.periodStart && day.work_date <= activeSickness.periodEnd);
       const outside = Number(child.external_usage?.[activeSickness.periodKey] || 0);
-      const used = sicknessDays.length + outside;
-      const limit = activeSickness.tier === "under_three" ? activeSickness.paidDaysLimit : activeSickness.totalDaysLimit;
-      const periodLabel = activeSickness.tier === "under_three" ? `${activeSickness.lifeYear}° anno di vita` : `anno ${activeSickness.periodStart.slice(0, 4)}`;
+      const entitlement = childSicknessEntitlement(child, new Date(), sicknessDays.length, outside);
+      const used = entitlement.quotaUsedDays;
+      const limit = entitlement.tier === "under_three" ? entitlement.paidDaysLimit : entitlement.totalDaysLimit;
+      const periodLabel = entitlement.tier === "under_three" ? `${entitlement.lifeYear}° anno di vita` : `anno ${entitlement.periodStart.slice(0, 4)}`;
       items.push({
         label: `Malattia bambino · ${child.name} · ${periodLabel}`,
         value: `${used} / ${limit}`,
         entries: sicknessDays.map((day) => `${shortDate(day.work_date)}${day.child_link_reconciled ? " · riconciliata dallo storico" : ""}`),
-        note: `${Math.max(0, limit - used)} giorni disponibili · periodo ${activeSickness.periodStart}–${activeSickness.periodEnd}${outside ? ` · ${outside} registrati fuori app` : ""}.`
+        note: `${Math.max(0, limit - used)} giorni disponibili · periodo ${entitlement.periodStart}–${entitlement.periodEnd}${outside ? ` · ${outside} registrati fuori app` : ""}${entitlement.excessDays ? ` · ${entitlement.excessDays} oltre quota conservati nello storico` : ""}.`
       });
     }
 
@@ -1887,7 +1945,9 @@ function renderTraceabilityLedger(yearDays, year) {
         applicableWithoutUsage = ["active", "upcoming"].includes(entitlement.status);
       } else if (type === "parental_leave") {
         applicableWithoutUsage = configured;
-        note = `Utilizzi registrati; termine indicativo ${addYears(child.birth_date, 14)}.`;
+        const quota = parentalQuotaForChild(child);
+        const limits = parentalLeavePolicy().limits;
+        note = `Quota personale ${quota === null ? "non configurata" : `${quota} mesi`} · limite legale individuale ${limits.individualMonths} mesi · limite complessivo ${limits.coupleMonths} mesi · termine ${addYears(child.birth_date, 14)}.`;
       } else if (type === "paternity_alternative") {
         applicableWithoutUsage = configured || paternityAlternativeEnabled();
         note = "Mostrata perché attivata esplicitamente o già utilizzata.";
@@ -2063,6 +2123,57 @@ function renderChildren() {
     }
     info.append(fieldset);
 
+    if (institutes.parental_leave || childAbsenceCount(child.id, "parental_leave") > 0) {
+      const limits = parentalLeavePolicy().limits;
+      const quotaField = document.createElement("div");
+      quotaField.className = "parental-quota-editor";
+      const limitCard = document.createElement("div");
+      limitCard.className = "legal-limit-card";
+      limitCard.innerHTML = `<span>Limite legale individuale</span><strong>${limits.individualMonths} mesi</strong><small>${limits.coupleMonths} mesi complessivi · entro ${limits.childAgeLimitYears} anni</small>`;
+      const chosenCard = document.createElement("div");
+      chosenCard.className = "chosen-quota-card";
+      const quotaLabel = document.createElement("label");
+      const quotaId = `parental-quota-${child.id}`;
+      quotaLabel.htmlFor = quotaId;
+      quotaLabel.textContent = "Quota personale scelta";
+      const quotaControl = document.createElement("div");
+      quotaControl.className = "input-with-suffix";
+      const quotaInput = document.createElement("input");
+      quotaInput.id = quotaId;
+      quotaInput.type = "number";
+      quotaInput.min = "0";
+      quotaInput.max = String(limits.individualMonths);
+      quotaInput.step = "0.5";
+      quotaInput.inputMode = "decimal";
+      const quotaValidation = validateParentalLeaveQuota(child.parental_leave_quota_months, limits);
+      const currentQuota = quotaValidation.valid ? quotaValidation.value : null;
+      quotaInput.value = child.parental_leave_quota_months ?? "";
+      const suffix = document.createElement("span");
+      suffix.textContent = "mesi";
+      const help = document.createElement("small");
+      help.textContent = !quotaValidation.valid
+        ? quotaValidation.reason
+        : currentQuota === null
+          ? "Nessuna quota scelta: gli utilizzi restano tracciati senza un totale artificiale."
+          : `Quota monitorata: ${currentQuota} mesi.`;
+      quotaInput.addEventListener("change", () => {
+        const validation = validateParentalLeaveQuota(quotaInput.value, limits);
+        if (!validation.valid) {
+          showToast(validation.reason);
+          quotaInput.value = child.parental_leave_quota_months ?? "";
+          quotaInput.focus();
+          return;
+        }
+        child.parental_leave_quota_months = validation.value;
+        renderChildren();
+        announce("Quota personale di congedo parentale aggiornata. Salva le impostazioni per confermare.");
+      });
+      quotaControl.append(quotaInput, suffix);
+      chosenCard.append(quotaLabel, quotaControl, help);
+      quotaField.append(limitCard, chosenCard);
+      info.append(quotaField);
+    }
+
     if (institutes.child_sickness || childAbsenceCount(child.id, "child_sickness") > 0) {
       const entitlementPreview = childSicknessEntitlement(child, new Date());
       const policy = document.createElement("p");
@@ -2072,8 +2183,8 @@ function renderChildren() {
         const outside = Number(child.external_usage?.[entitlementPreview.periodKey] || 0);
         const entitlement = childSicknessEntitlement(child, new Date(), inApp, outside);
         policy.textContent = entitlement.tier === "under_three"
-          ? `Malattia bambino: ${entitlement.remainingPaidDays}/30 giorni retribuiti residui nel ${entitlement.lifeYear}° anno di vita.`
-          : `Malattia bambino: ${entitlement.remainingDays}/10 giorni lavorativi residui nel ${entitlement.periodStart.slice(0, 4)}.`;
+          ? `Malattia bambino · periodo corrente: ${entitlement.quotaUsedDays}/30 usati, ${entitlement.remainingPaidDays} residui · ${entitlement.lifeYear}° anno di vita (${entitlement.periodStart}–${entitlement.periodEnd}).${entitlement.excessDays ? ` ${entitlement.excessDays} giorni oltre quota restano nello storico.` : ""}`
+          : `Malattia bambino · periodo corrente: ${entitlement.quotaUsedDays}/10 usati, ${entitlement.remainingDays} residui · fascia 3–14 (${entitlement.periodStart}–${entitlement.periodEnd}).${entitlement.excessDays ? ` ${entitlement.excessDays} giorni oltre quota restano nello storico.` : ""}`;
         const usageField = document.createElement("div");
         usageField.className = "child-usage-field";
         const usageLabel = document.createElement("label");
@@ -2084,10 +2195,10 @@ function renderChildren() {
         usageInput.id = usageId;
         usageInput.type = "number";
         usageInput.min = "0";
-        usageInput.max = "366";
-        usageInput.value = String(outside);
+        usageInput.max = String(Math.max(0, (entitlement.tier === "under_three" ? 30 : 10) - inApp));
+        usageInput.value = String(Math.min(outside, Number(usageInput.max)));
         usageInput.addEventListener("change", () => {
-          child.external_usage = { ...(child.external_usage || {}), [entitlement.periodKey]: clampInt(usageInput.value, 0, 366, 0) };
+          child.external_usage = { ...(child.external_usage || {}), [entitlement.periodKey]: clampInt(usageInput.value, 0, Number(usageInput.max), 0) };
           renderChildren();
           announce("Utilizzi esterni aggiornati. Salva le impostazioni per confermare.");
         });
@@ -2204,6 +2315,13 @@ function leaveSettingsDraft() {
 }
 
 function fillLeaveSettingsFields(year) {
+  const currentYear = new Date().getFullYear();
+  const isCurrent = Number(year) === currentYear;
+  if ($("#leave-current-year-status")) {
+    $("#leave-current-year-status").textContent = isCurrent ? "Anno corrente" : "Anno storico";
+    $("#leave-current-year-status").dataset.tone = isCurrent ? "current" : "history";
+  }
+  if ($("#leave-go-current-year")) $("#leave-go-current-year").hidden = isCurrent;
   const settings = annualLeaveSettings();
   const annual = settings.years[String(year)] || {};
   $("#leave-current-days").value = String(clampInt(annual.vacation_days, 0, 366, settings.default_vacation_days));
@@ -2212,6 +2330,27 @@ function fillLeaveSettingsFields(year) {
     ? ""
     : String(clampInt(annual.carryover_override, 0, 366, 0));
   updateLeaveSettingsPreview();
+}
+
+async function selectLeaveSettingsYear(year) {
+  const selectedYear = clampInt(year, 2000, 2100, new Date().getFullYear());
+  $("#leave-settings-year").value = String(selectedYear);
+  fillLeaveSettingsFields(selectedYear);
+  updateSettingsSummaries();
+  try {
+    await fetchSummaryYear(selectedYear);
+    updateLeaveSettingsPreview();
+  } catch {
+    $("#leave-carryover-preview").textContent = "Non disponibile offline";
+  }
+}
+
+function ensureCurrentLeaveSettingsYear() {
+  if ($("#settings-screen")?.hidden) return;
+  const currentYear = new Date().getFullYear();
+  const selectedYear = clampInt($("#leave-settings-year")?.value, 2000, 2100, currentYear);
+  const statusWasCurrent = $("#leave-current-year-status")?.dataset.tone !== "history";
+  if (statusWasCurrent && selectedYear !== currentYear) selectLeaveSettingsYear(currentYear);
 }
 
 function updateLeaveSettingsPreview() {
@@ -2274,6 +2413,38 @@ function causeHasUsage(type) {
     .some((day) => (day.actual_type || day.planned_type) === "absence" && day.absence_type === type);
 }
 
+function updateParentalLeavePolicyUi() {
+  const role = $("#parental-role")?.value || parentalRole();
+  const customRole = $("#parental-custom-legal-role")?.value || "mother";
+  const familySituation = $("#parental-family-situation")?.value || "couple";
+  const fatherAtLeastThreeMonths = $("#parental-father-three-months")?.checked === true;
+  const legalRole = role === "custom" ? customRole : role === "father" ? "father" : "mother";
+  const limits = parentalLeaveLimits({ role: legalRole, familySituation, fatherAtLeastThreeMonths });
+  if ($("#parental-custom-role-field")) $("#parental-custom-role-field").hidden = role !== "custom";
+  if ($("#parental-father-extension-field")) $("#parental-father-extension-field").hidden = familySituation === "single_parent";
+  if ($("#parental-individual-limit")) $("#parental-individual-limit").textContent = `${limits.individualMonths} mesi`;
+  if ($("#parental-couple-limit")) $("#parental-couple-limit").textContent = `${limits.coupleMonths} mesi`;
+  if ($("#parental-legal-summary")) $("#parental-legal-summary").textContent = role === "unspecified"
+    ? "Configura il profilo"
+    : `${limits.individualMonths} mesi individuali · ${limits.coupleMonths} complessivi`;
+  if ($("#child-parental-quota-months")) {
+    $("#child-parental-quota-months").max = String(limits.individualMonths);
+    $("#child-parental-quota-help").textContent = `Quota scelta dall’utente, massimo ${limits.individualMonths} mesi. Limite complessivo ${limits.coupleMonths} mesi.`;
+  }
+}
+
+function syncParentalPolicyDraft() {
+  state.profile.family_settings = {
+    ...state.profile.family_settings,
+    parental_role: $("#parental-role")?.value || parentalRole(),
+    parental_leave_policy: {
+      family_situation: $("#parental-family-situation")?.value || "couple",
+      custom_legal_role: $("#parental-custom-legal-role")?.value || "mother",
+      father_at_least_three_months: $("#parental-father-three-months")?.checked === true
+    }
+  };
+}
+
 function updateParentalRoleUi() {
   const role = $("#parental-role")?.value || parentalRole();
   const showMother = role === "mother" || role === "custom";
@@ -2284,6 +2455,8 @@ function updateParentalRoleUi() {
   if ($("#child-enable-maternity-field")) $("#child-enable-maternity-field").hidden = !showMother;
   if ($("#child-enable-paternity-field")) $("#child-enable-paternity-field").hidden = !showFather;
   if ($("#child-enable-paternity-alternative-field")) $("#child-enable-paternity-alternative-field").hidden = !showFather;
+  if ($("#child-parental-quota-field")) $("#child-parental-quota-field").hidden = !$("#child-enable-parental")?.checked;
+  updateParentalLeavePolicyUi();
 }
 
 function applyApplicabilityToUi() {
@@ -2354,6 +2527,9 @@ function renderSettings() {
   $("#summary-show-distribution").checked = applicability.summary_preferences.show_distribution;
   $("#summary-show-annual-table").checked = applicability.summary_preferences.show_annual_table;
   $("#parental-role").value = applicability.parental_role;
+  $("#parental-family-situation").value = applicability.parental_leave_policy.family_situation;
+  $("#parental-custom-legal-role").value = applicability.parental_leave_policy.custom_legal_role;
+  $("#parental-father-three-months").checked = applicability.parental_leave_policy.father_at_least_three_months;
   $("#show-paternity-alternative").checked = applicability.show_paternity_alternative;
   $("#ticket-office").checked = Boolean(profile.ticket_office);
   $("#ticket-smart").checked = Boolean(profile.ticket_smart);
@@ -2684,9 +2860,10 @@ async function initialize() {
   registerServiceWorker();
   document.addEventListener("visibilitychange", () => {
     syncHomeClock();
+    if (!document.hidden) ensureCurrentLeaveSettingsYear();
   });
-  window.addEventListener("pageshow", syncHomeClock);
-  window.addEventListener("focus", syncHomeClock);
+  window.addEventListener("pageshow", () => { syncHomeClock(); ensureCurrentLeaveSettingsYear(); });
+  window.addEventListener("focus", () => { syncHomeClock(); ensureCurrentLeaveSettingsYear(); });
   window.addEventListener("pagehide", () => homeClock.stop());
 }
 
@@ -2908,9 +3085,9 @@ function bindEvents() {
   });
 
   $("#parental-role").addEventListener("change", () => {
+    syncParentalPolicyDraft();
     state.profile.family_settings = {
       ...state.profile.family_settings,
-      parental_role: $("#parental-role").value,
       show_paternity_alternative: $("#show-paternity-alternative").checked
     };
     updateParentalRoleUi();
@@ -2920,6 +3097,18 @@ function bindEvents() {
     renderChildren();
     applyApplicabilityToUi();
     updateSettingsSummaries();
+  });
+  ["#parental-family-situation", "#parental-custom-legal-role", "#parental-father-three-months"].forEach((selector) => {
+    $(selector).addEventListener("change", () => {
+      syncParentalPolicyDraft();
+      updateParentalLeavePolicyUi();
+      renderChildren();
+      updateSettingsSummaries();
+    });
+  });
+  $("#child-enable-parental").addEventListener("change", () => {
+    $("#child-parental-quota-field").hidden = !$("#child-enable-parental").checked;
+    updateParentalLeavePolicyUi();
   });
   $("#show-paternity-alternative").addEventListener("change", () => {
     state.profile.family_settings = { ...state.profile.family_settings, show_paternity_alternative: $("#show-paternity-alternative").checked };
@@ -2935,6 +3124,14 @@ function bindEvents() {
       (!name ? $("#child-name") : $("#child-birth-date")).focus();
       return;
     }
+    const parentalQuota = $("#child-enable-parental").checked
+      ? validateParentalLeaveQuota($("#child-parental-quota-months").value, parentalLeavePolicy().limits)
+      : { valid: true, value: null };
+    if (!parentalQuota.valid) {
+      showToast(parentalQuota.reason);
+      $("#child-parental-quota-months").focus();
+      return;
+    }
     state.profile.family_settings = {
       ...state.profile.family_settings,
       children: [...familyChildren(), {
@@ -2947,6 +3144,7 @@ function bindEvents() {
         paternity_event_type: $("#child-event-type").value,
         multiple_birth: $("#child-multiple-birth").checked,
         maternity_mode: $("#child-maternity-mode").value,
+        parental_leave_quota_months: parentalQuota.value,
         institutes: {
           child_sickness: $("#child-enable-sickness").checked,
           parental_leave: $("#child-enable-parental").checked,
@@ -2965,6 +3163,8 @@ function bindEvents() {
     $("#child-maternity-mode").value = "2+3";
     $("#child-enable-sickness").checked = true;
     $("#child-enable-parental").checked = false;
+    $("#child-parental-quota-months").value = "";
+    $("#child-parental-quota-field").hidden = true;
     $("#child-enable-maternity").checked = false;
     $("#child-enable-paternity").checked = false;
     $("#child-enable-paternity-alternative").checked = false;
@@ -2991,17 +3191,9 @@ function bindEvents() {
     }
   });
 
-  $("#leave-settings-year").addEventListener("change", async (event) => {
-    const year = clampInt(event.target.value, 2000, 2100, new Date().getFullYear());
-    fillLeaveSettingsFields(year);
-    updateSettingsSummaries();
-    try {
-      await fetchSummaryYear(year);
-      updateLeaveSettingsPreview();
-    } catch {
-      $("#leave-carryover-preview").textContent = "Non disponibile offline";
-    }
-  });
+  $("#leave-previous-year").addEventListener("click", () => selectLeaveSettingsYear(Number($("#leave-settings-year").value) - 1));
+  $("#leave-next-year").addEventListener("click", () => selectLeaveSettingsYear(Number($("#leave-settings-year").value) + 1));
+  $("#leave-go-current-year").addEventListener("click", () => selectLeaveSettingsYear(new Date().getFullYear()));
   $("#sunday-holiday-adjustment-year").addEventListener("change", (event) => {
     const year = clampInt(event.target.value, 2000, 2100, new Date().getFullYear());
     fillSundayHolidayAdjustmentFields(year);
@@ -3044,6 +3236,28 @@ function bindEvents() {
       return;
     }
     familySettings.parental_role = $("#parental-role").value;
+    familySettings.parental_leave_policy = {
+      family_situation: $("#parental-family-situation").value,
+      custom_legal_role: $("#parental-custom-legal-role").value,
+      father_at_least_three_months: $("#parental-father-three-months").checked
+    };
+    const legalRole = familySettings.parental_role === "custom"
+      ? familySettings.parental_leave_policy.custom_legal_role
+      : familySettings.parental_role === "father" ? "father" : "mother";
+    const parentalLimits = parentalLeaveLimits({
+      role: legalRole,
+      familySituation: familySettings.parental_leave_policy.family_situation,
+      fatherAtLeastThreeMonths: familySettings.parental_leave_policy.father_at_least_three_months
+    });
+    for (const child of familySettings.children) {
+      if (!childInstitutes(child).parental_leave) continue;
+      const validation = validateParentalLeaveQuota(child.parental_leave_quota_months, parentalLimits);
+      if (!validation.valid) {
+        showToast(`${child.name}: ${validation.reason}`);
+        $("#family-settings").open = true;
+        return;
+      }
+    }
     familySettings.show_paternity_alternative = $("#show-paternity-alternative").checked;
     familySettings.work_modes = {
       office: $("#mode-office").checked,

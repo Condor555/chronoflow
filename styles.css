@@ -497,3 +497,44 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
   .reconciliation-metrics, .reconciliation-history, .technical-metrics { grid-template-columns: 1fr; }
   .summary-disclosure-value { margin-right: 8px; }
 }
+
+
+/* Genitorialità: limite legale distinto dalla quota personale. */
+.parental-policy-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; padding: 14px; background: #f5faf9; border: 1px solid #c9dfda; border-radius: 14px; }
+.parental-policy-heading { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.parental-policy-heading strong { color: var(--primary); }
+.parental-policy-heading span { color: var(--muted); font-size: .8rem; text-align: right; }
+.parental-policy-grid > .check-row, .parental-policy-grid > .legal-limit-grid, .parental-policy-grid > .field-hint { grid-column: 1 / -1; }
+.legal-limit-grid, .parental-quota-editor { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.legal-limit-grid div, .legal-limit-card, .chosen-quota-card { min-width: 0; padding: 11px; background: #fff; border: 1px solid var(--line); border-radius: 11px; }
+.legal-limit-grid dt, .legal-limit-card span { color: var(--muted); font-size: .76rem; }
+.legal-limit-grid dd { margin: 4px 0 0; color: var(--primary); font-weight: 850; }
+.parental-quota-editor { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 10px 0; }
+.legal-limit-card, .chosen-quota-card { display: grid; gap: 5px; }
+.legal-limit-card strong { color: var(--primary); font-size: 1.25rem; }
+.legal-limit-card small, .chosen-quota-card small { color: var(--muted); font-size: .76rem; }
+.input-with-suffix { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.input-with-suffix span { color: var(--muted); font-size: .86rem; }
+.quota-choice { margin: 6px 0 10px 32px; }
+
+@media (max-width: 560px) {
+  .parental-policy-grid, .parental-quota-editor { grid-template-columns: 1fr; }
+  .parental-policy-grid > *, .parental-policy-heading { grid-column: 1; }
+  .parental-policy-heading { display: grid; gap: 3px; }
+  .parental-policy-heading span { text-align: left; }
+  .legal-limit-grid { grid-template-columns: 1fr; }
+  .quota-choice { margin-left: 0; }
+}
+
+
+/* Navigazione annuale automatica per ferie e recuperi. */
+.leave-year-navigator { display: grid; grid-template-columns: 44px minmax(150px, 1fr) 44px auto; align-items: end; gap: 8px; margin: 14px 0; }
+.leave-year-navigator .field { position: relative; margin: 0; }
+.leave-year-navigator input { padding-right: 116px; font-variant-numeric: tabular-nums; font-weight: 800; }
+.leave-year-navigator .status-chip { position: absolute; right: 8px; bottom: 9px; pointer-events: none; }
+.leave-year-navigator .status-chip[data-tone="history"] { color: var(--muted); background: #edf1f4; }
+
+@media (max-width: 560px) {
+  .leave-year-navigator { grid-template-columns: 44px minmax(0, 1fr) 44px; }
+  .leave-year-navigator #leave-go-current-year { grid-column: 1 / -1; width: 100%; }
+}

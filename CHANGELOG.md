@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.9.1 — quote genitorialità e cambio anno automatico
+
+- congedo parentale configurabile con quota personale in mesi per figlio, separata dai limiti legali individuali e complessivi;
+- validazione dei profili madre, padre, padre con estensione, coppia e genitore solo;
+- scadenza del congedo parentale a 14 anni per lavoratori dipendenti dal 2026;
+- Malattia bambino limitata nel Riepilogo al solo periodo corrente e a 30 giorni per anno di vita nella fascia 0–3;
+- tabella annuale compatta con microcopy esplicita e maternità, paternità obbligatoria e congedo parentale separati;
+- cambio automatico dell’anno corrente nelle Impostazioni Ferie, riporto calcolato dal residuo e navigazione storica tramite controlli dedicati;
+- nessun riferimento al foglio di sviluppo o a numeri di release nelle schermate operative.
+
 ## 2.9.0 — configurazione personale e Riepilogo essenziale
 
 - Impostazioni come sorgente unica di applicabilità per modalità di lavoro, buoni pasto, assenze, famiglia e preferenze del Riepilogo;

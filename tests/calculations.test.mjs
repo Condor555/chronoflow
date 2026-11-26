@@ -23,6 +23,7 @@ import {
   minutesToDuration,
   maternityMandatoryEntitlement,
   overtimeEnabledForType,
+  parentalLeaveLimits,
   paternityMandatoryEntitlement,
   recognizedItalianHolidays,
   secondsToDuration,
@@ -30,6 +31,7 @@ import {
   SUNDAY_HOLIDAY_RULES,
   theoreticalWorkdays,
   ticketForDay,
+  validateParentalLeaveQuota,
   workbookMonthlySummary
 } from "../src/calculations.mjs";
 
@@ -526,4 +528,44 @@ test("più figli mantengono periodi attivi e saldi indipendenti", () => {
   assert.equal(elena.remainingPaidDays, 23);
   assert.equal(marco.lifeYear, 3);
   assert.equal(marco.remainingPaidDays, 28);
+});
+
+
+test("congedo parentale: limiti individuali, di coppia e genitore solo", () => {
+  assert.deepEqual(parentalLeaveLimits({ role: "mother", familySituation: "couple" }), {
+    role: "mother", familySituation: "couple", fatherAtLeastThreeMonths: false,
+    individualMonths: 6, coupleMonths: 10, childAgeLimitYears: 14
+  });
+  assert.equal(parentalLeaveLimits({ role: "father", familySituation: "couple" }).individualMonths, 6);
+  const extendedFather = parentalLeaveLimits({ role: "father", familySituation: "couple", fatherAtLeastThreeMonths: true });
+  assert.equal(extendedFather.individualMonths, 7);
+  assert.equal(extendedFather.coupleMonths, 11);
+  const motherWithExtendedCouple = parentalLeaveLimits({ role: "mother", familySituation: "couple", fatherAtLeastThreeMonths: true });
+  assert.equal(motherWithExtendedCouple.individualMonths, 6);
+  assert.equal(motherWithExtendedCouple.coupleMonths, 11);
+  const single = parentalLeaveLimits({ role: "mother", familySituation: "single_parent" });
+  assert.equal(single.individualMonths, 11);
+  assert.equal(single.coupleMonths, 11);
+});
+
+test("congedo parentale: la quota scelta è esplicita e validata sul limite individuale", () => {
+  const motherLimits = parentalLeaveLimits({ role: "mother", familySituation: "couple" });
+  assert.deepEqual(validateParentalLeaveQuota("", motherLimits), { valid: true, value: null, reason: "" });
+  assert.equal(validateParentalLeaveQuota(5.5, motherLimits).value, 5.5);
+  assert.equal(validateParentalLeaveQuota(6, motherLimits).valid, true);
+  assert.equal(validateParentalLeaveQuota(6.5, motherLimits).valid, false);
+  const singleLimits = parentalLeaveLimits({ role: "father", familySituation: "single_parent" });
+  assert.equal(validateParentalLeaveQuota(11, singleLimits).valid, true);
+});
+
+test("malattia bambino: il conteggio principale non supera la quota del periodo", () => {
+  const child = { id: "elena", birth_date: "2025-11-30" };
+  const underThree = childSicknessEntitlement(child, "2026-11-26", 34, 2);
+  assert.equal(underThree.usedDays, 36);
+  assert.equal(underThree.quotaUsedDays, 30);
+  assert.equal(underThree.excessDays, 6);
+  assert.equal(underThree.remainingPaidDays, 0);
+  const older = childSicknessEntitlement({ birth_date: "2020-01-01" }, "2026-11-26", 12, 0);
+  assert.equal(older.quotaUsedDays, 10);
+  assert.equal(older.excessDays, 2);
 });

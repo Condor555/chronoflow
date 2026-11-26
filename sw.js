@@ -1,4 +1,4 @@
-const CACHE = "chrono-flow-v2.9.0";
+const CACHE = "chrono-flow-v2.9.1";
 const APP_ASSETS = [
   "./",
   "./index.html",
