@@ -49,6 +49,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .auth-card { position: relative; width: min(100%, 440px); overflow: hidden; padding: clamp(24px, 6vw, 40px); background: var(--surface); border: 1px solid var(--line); border-radius: 28px; box-shadow: var(--shadow); }
 .auth-card::before { position: absolute; top: 0; right: 0; left: 0; height: 6px; content: ""; background: linear-gradient(90deg, var(--flow), var(--accent), var(--primary)); }
 .auth-card h1 { margin: 4px 0 10px; font-size: clamp(1.65rem, 7vw, 2.2rem); line-height: 1.12; }
+.loading-card { width: min(100%, 320px); padding: 32px; text-align: center; }
+.loading-card .brand-icon { margin-right: auto; margin-left: auto; }
+.loading-message { margin: 10px 0 0; color: var(--muted); font-weight: 700; }
 .brand-icon { display: block; margin-bottom: 16px; border-radius: 18px; box-shadow: 0 9px 22px rgba(16,42,67,.18); }
 .eyebrow { margin: 0 0 4px; color: var(--accent); font-size: .79rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .supporting, .field-hint { color: var(--muted); }
@@ -175,6 +178,11 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
 .dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
 .dialog-heading h2 { margin: 0; }
 .dialog-actions { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.migration-dialog { width: min(560px, calc(100% - 24px)); }
+.migration-list { padding-left: 1.25rem; color: var(--muted); }
+.migration-list li + li { margin-top: 7px; }
+.migration-actions { align-items: stretch; }
+.migration-actions .button { flex: 1 1 210px; }
 
 .toast { position: fixed; z-index: 100; right: 16px; bottom: calc(88px + var(--safe-bottom)); left: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 520px; margin: 0 auto; padding: 14px 16px; color: #fff; background: #142033; border-radius: 14px; box-shadow: var(--shadow); }
 .toast button { min-height: 38px; padding: 4px 8px; color: #bfe8ff; background: transparent; border: 0; font-weight: 850; text-decoration: underline; }

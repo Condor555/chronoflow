@@ -14,11 +14,13 @@ La versione 2 aggiunge **account personali e salvataggio nel cloud**: ogni utent
 - riepilogo mensile di ore, straordinario, ticket e tipologia delle giornate;
 - orario giornaliero, pause, soglia straordinario e ticket configurabili;
 - elenco figli e associazione alla malattia bambino;
-- account email/password e sessione persistente;
+- accesso email/password obbligatorio: senza una sessione valida l’app non mostra giornate o impostazioni;
+- sessione persistente sul dispositivo, revocabile con **Esci da questo dispositivo**;
 - dati sincronizzati tra dispositivi;
 - coda locale offline: le modifiche vengono inviate al ritorno della connessione;
 - annullamento rapido dell’ultima timbratura e del ripristino di una giornata eliminata;
 - esportazione e importazione di backup JSON;
+- migrazione guidata dei dati anonimi creati con l’MVP o con le prime versioni multiutente;
 - PWA installabile su Android/iPhone dopo la pubblicazione HTTPS;
 - interfaccia rivista per focus visibile, target touch, screen reader e microcopy esplicita.
 
@@ -109,6 +111,8 @@ Apri `http://localhost:4173/`, crea due account di prova e verifica che le giorn
 6. Salva e attendi l’indirizzo HTTPS.
 7. Riporta l’indirizzo esatto nelle impostazioni URL di Supabase, come descritto sopra.
 
+La versione 2.2 usa una cache PWA nuova e una strategia *network-first* per shell, configurazione e codice principale. Dopo il primo deploy della patch, apri il sito online e attendi il ricaricamento automatico; se una vecchia PWA era già aperta, chiudila e riaprila una volta.
+
 ## Verifica multiutente consigliata
 
 1. Crea `utente-a@example.com` e registra una giornata.
@@ -118,16 +122,29 @@ Apri `http://localhost:4173/`, crea due account di prova e verifica che le giorn
 5. Accedi di nuovo come utente A da un secondo browser e controlla che la giornata sia sincronizzata.
 6. In modalità offline registra una modifica, poi riattiva la rete: lo stato in alto deve passare da “modifiche da sincronizzare” a “Sincronizzato”.
 
-## Backup e passaggio dalla versione precedente
+## Backup e migrazione dei dati locali
 
 Da **Impostazioni → I tuoi dati** puoi:
 
 - scaricare tutte le giornate dell’account in JSON;
 - importare un backup della versione 2 senza cancellare le altre giornate.
 
-L’importazione usa la data come chiave: una giornata già presente viene aggiornata, una data nuova viene aggiunta.
+L’importazione manuale usa la data come chiave: una giornata già presente viene aggiornata, una data nuova viene aggiunta.
 
-I backup della precedente versione locale potrebbero avere una struttura diversa. Prima di importare dati importanti:
+Al primo accesso, Chrono Flow controlla anche la presenza di dati anonimi lasciati sullo stesso browser da:
+
+- `orari-mobile-mvp-v1`;
+- `orari:v2:*:anonymous`;
+- `chrono-flow:v2:*:anonymous`.
+
+Se trova dati validi, mostra una scelta esplicita:
+
+- **Importa nel mio account**: converte giornate, timbrature e impostazioni supportate, assegna i dati all’utente autenticato e mantiene la versione cloud quando la stessa data esiste già;
+- **Ignora**: non importa e non elimina nulla. La verifica può essere riaperta da **Impostazioni → I tuoi dati → Controlla dati locali precedenti**.
+
+Le vecchie chiavi locali vengono eliminate soltanto quando tutti i salvataggi richiesti sono stati confermati da Supabase. In caso di errore o assenza di rete restano intatte. I contenuti non leggibili non vengono cancellati automaticamente.
+
+Per dati importanti è comunque consigliato:
 
 1. conserva una copia del file originale;
 2. prova con un account di test;
@@ -188,13 +205,15 @@ La cartella `icons/` contiene l’icona vettoriale, le varianti PNG, l’icona a
 ├── src/
 │   ├── app.js
 │   ├── calculations.mjs
+│   ├── migration.mjs
 │   ├── config.js
 │   └── config.example.js
 ├── supabase/
 │   ├── schema.sql
 │   └── verify.sql
 ├── tests/
-│   └── calculations.test.mjs
+│   ├── calculations.test.mjs
+│   └── migration.test.mjs
 ├── CHANGELOG.md
 ├── LICENSE
 └── package.json

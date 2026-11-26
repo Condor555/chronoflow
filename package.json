@@ -1,6 +1,6 @@
 {
   "name": "chrono-flow",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "description": "Chrono Flow: PWA mobile-first e multiutente per orari, smart working e assenze.",

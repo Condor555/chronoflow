@@ -16,6 +16,14 @@
 <body>
   <a class="skip-link" href="#main-content">Vai al contenuto</a>
 
+  <section id="loading-view" class="centered-view" aria-live="polite" aria-label="Caricamento">
+    <div class="loading-card">
+      <img class="brand-icon" src="icons/icon.svg" alt="" width="72" height="72">
+      <p class="eyebrow">Chrono Flow</p>
+      <p class="loading-message">Verifica dell’accesso in corso…</p>
+    </div>
+  </section>
+
   <section id="configuration-view" class="centered-view" hidden aria-labelledby="configuration-title">
     <div class="auth-card">
       <img class="brand-icon" src="icons/icon.svg" alt="" width="72" height="72">
@@ -348,6 +356,7 @@
           <div class="button-row">
             <button id="export-data" class="button secondary" type="button">Scarica backup JSON</button>
             <label class="button secondary file-button">Importa backup JSON<input id="import-data" type="file" accept="application/json,.json"></label>
+            <button id="review-local-data" class="button secondary" type="button">Controlla dati locali precedenti</button>
           </div>
           <p class="danger-note">L’importazione aggiunge o aggiorna le giornate presenti nel file, senza eliminare le altre.</p>
         </article>
@@ -425,6 +434,27 @@
         <button class="button primary" value="save" type="submit">Salva la giornata</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="migration-dialog" class="migration-dialog" aria-labelledby="migration-title" aria-describedby="migration-summary migration-status">
+    <div class="dialog-heading">
+      <div>
+        <p class="eyebrow">Passaggio sicuro al cloud</p>
+        <h2 id="migration-title">Dati locali trovati</h2>
+      </div>
+    </div>
+    <p id="migration-summary"></p>
+    <p>Vuoi associarli a questo account? Le giornate già presenti nel cloud non verranno sovrascritte.</p>
+    <ul class="migration-list">
+      <li>L’app resta accessibile solo dopo un accesso valido.</li>
+      <li>I dati vengono assegnati esclusivamente all’account attuale.</li>
+      <li>La vecchia copia viene rimossa solo dopo il salvataggio confermato.</li>
+    </ul>
+    <p id="migration-status" class="supporting" role="status"></p>
+    <div class="dialog-actions migration-actions">
+      <button id="ignore-local-data" class="button secondary" type="button">Ignora</button>
+      <button id="import-local-data" class="button primary" type="button">Importa nel mio account</button>
+    </div>
   </dialog>
 
   <div id="toast" class="toast" hidden role="status" aria-live="polite">

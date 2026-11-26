@@ -10,6 +10,7 @@ import {
   minutesToDuration,
   ticketForDay
 } from "./calculations.mjs";
+import { clearMigratedLegacyData, detectLegacyData } from "./migration.mjs";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -43,6 +44,7 @@ const state = {
   authMode: "login",
   calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   summaryMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  legacyMigration: null,
   toastTimer: null,
   undo: null,
   busy: false
@@ -131,6 +133,10 @@ function getQueue() {
 function setQueue(queue) {
   localStorage.setItem(queueKey(), JSON.stringify(queue));
   updateSyncStatus();
+}
+
+function migrationMarkerKey() {
+  return `chrono-flow:v2:migration:${state.user?.id || "anonymous"}`;
 }
 
 function queueOperation(operation) {
@@ -618,6 +624,107 @@ function showScreen(name) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function offerLegacyMigration({ force = false } = {}) {
+  if (!state.user) return false;
+  if (!force && localStorage.getItem(migrationMarkerKey())) return false;
+  const migration = detectLegacyData(localStorage);
+  if (!migration.hasData) {
+    if (force) showToast("Non ho trovato dati anonimi da importare su questo dispositivo.");
+    return false;
+  }
+  state.legacyMigration = migration;
+  const parts = [];
+  if (migration.days.length) parts.push(`${migration.days.length} giornat${migration.days.length === 1 ? "a" : "e"}`);
+  if (migration.profilePatch) parts.push("impostazioni personali");
+  $("#migration-summary").textContent = `Sul dispositivo sono presenti: ${parts.join(" e ")}.`;
+  $("#migration-status").textContent = migration.invalidKeys.length
+    ? "Alcuni dati non leggibili resteranno comunque sul dispositivo e non verranno eliminati."
+    : "La copia locale verrà eliminata solo dopo la conferma del salvataggio nel tuo account.";
+  $("#migration-dialog").showModal();
+  $("#import-local-data").focus();
+  return true;
+}
+
+async function importLegacyData() {
+  const migration = state.legacyMigration;
+  if (!state.user || !migration) return;
+  if (!navigator.onLine) {
+    $("#migration-status").textContent = "Per confermare l’importazione nel cloud devi essere online.";
+    showToast("Connettiti a Internet e riprova: i dati locali sono ancora al sicuro.");
+    return;
+  }
+
+  const button = $("#import-local-data");
+  const ignore = $("#ignore-local-data");
+  button.disabled = true;
+  ignore.disabled = true;
+  button.textContent = "Importazione…";
+  $("#migration-status").textContent = "Sto copiando i dati nel tuo account. Non chiudere questa pagina.";
+
+  try {
+    const existingDates = new Set();
+    for (let index = 0; index < migration.days.length; index += 100) {
+      const dates = migration.days.slice(index, index + 100).map((day) => day.work_date);
+      const result = await state.supabase.from("work_days").select("work_date").in("work_date", dates);
+      if (result.error) throw result.error;
+      (result.data || []).forEach((day) => existingDates.add(day.work_date));
+    }
+    const pending = migration.days.filter((day) => !existingDates.has(day.work_date));
+    const imported = [];
+
+    for (let index = 0; index < pending.length; index += 200) {
+      const batch = pending.slice(index, index + 200).map(asCloudDay);
+      const result = await state.supabase
+        .from("work_days")
+        .upsert(batch, { onConflict: "user_id,work_date" })
+        .select();
+      if (result.error) throw result.error;
+      imported.push(...(result.data || []));
+    }
+
+    if (migration.profilePatch) {
+      const profilePayload = {
+        ...state.profile,
+        ...migration.profilePatch,
+        id: state.user.id,
+        display_name: state.profile.display_name || state.user.user_metadata?.display_name || state.user.email.split("@")[0]
+      };
+      const result = await state.supabase.from("profiles").upsert(profilePayload).select().single();
+      if (result.error) throw result.error;
+      state.profile = { ...DEFAULT_PROFILE, ...result.data };
+    }
+
+    imported.forEach((day) => state.days.set(day.work_date, normalizeDay(day)));
+    persistLocalCache();
+    clearMigratedLegacyData(localStorage, migration.sourceKeys);
+    localStorage.setItem(migrationMarkerKey(), "completed");
+    state.legacyMigration = null;
+    $("#migration-dialog").close();
+    renderAccount();
+    renderCurrentViews();
+    const skipped = migration.days.length - imported.length;
+    const messages = [`${imported.length} giornat${imported.length === 1 ? "a importata" : "e importate"}`];
+    if (skipped) messages.push(`${skipped} già present${skipped === 1 ? "e" : "i"} nel cloud`);
+    if (migration.profilePatch) messages.push("impostazioni importate");
+    showToast(`${messages.join(" · ")}.`);
+  } catch (error) {
+    $("#migration-status").textContent = "Importazione interrotta. La copia locale non è stata eliminata: puoi riprovare.";
+    showToast(`Importazione non riuscita: ${friendlyError(error)}`);
+  } finally {
+    button.disabled = false;
+    ignore.disabled = false;
+    button.textContent = "Importa nel mio account";
+  }
+}
+
+function ignoreLegacyMigration() {
+  if (!state.user) return;
+  localStorage.setItem(migrationMarkerKey(), "ignored");
+  state.legacyMigration = null;
+  $("#migration-dialog").close();
+  showToast("Dati locali ignorati. Restano sul dispositivo e potrai importarli dalle Impostazioni.");
+}
+
 async function loadApplication(user) {
   state.user = user;
   state.days.clear();
@@ -629,6 +736,7 @@ async function loadApplication(user) {
       showToast(`Non riesco a caricare i dati: ${friendlyError(error)}`);
     }
   }
+  $("#loading-view").hidden = true;
   $("#auth-view").hidden = true;
   $("#configuration-view").hidden = true;
   $("#app-shell").hidden = false;
@@ -639,11 +747,16 @@ async function loadApplication(user) {
   renderToday();
   updateSyncStatus();
   flushQueue();
+  offerLegacyMigration();
 }
 
 function showAuth() {
   state.user = null;
   state.days.clear();
+  state.profile = { ...DEFAULT_PROFILE };
+  state.legacyMigration = null;
+  if ($("#migration-dialog").open) $("#migration-dialog").close();
+  $("#loading-view").hidden = true;
   $("#app-shell").hidden = true;
   $("#configuration-view").hidden = true;
   $("#auth-view").hidden = false;
@@ -704,9 +817,24 @@ async function handleAuthSubmit(event) {
   }
 }
 
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+  navigator.serviceWorker
+    .register("./sw.js", { updateViaCache: "none" })
+    .then((registration) => registration.update())
+    .catch(() => {});
+}
+
 async function initialize() {
   bindEvents();
   if (!configured || !window.supabase?.createClient) {
+    $("#loading-view").hidden = true;
     $("#configuration-view").hidden = false;
     return;
   }
@@ -733,7 +861,7 @@ async function initialize() {
   if (error) showToast(friendlyError(error));
   if (data?.session?.user) await loadApplication(data.session.user);
   else showAuth();
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
+  registerServiceWorker();
   window.setInterval(() => {
     if (state.user && !$("#today-screen").hidden) renderToday();
   }, 60000);
@@ -743,6 +871,10 @@ function bindEvents() {
   $("#show-login").addEventListener("click", () => switchAuthMode("login"));
   $("#show-register").addEventListener("click", () => switchAuthMode("register"));
   $("#auth-form").addEventListener("submit", handleAuthSubmit);
+  $("#migration-dialog").addEventListener("cancel", (event) => event.preventDefault());
+  $("#import-local-data").addEventListener("click", importLegacyData);
+  $("#ignore-local-data").addEventListener("click", ignoreLegacyMigration);
+  $("#review-local-data").addEventListener("click", () => offerLegacyMigration({ force: true }));
   $("#reset-password").addEventListener("click", async () => {
     const email = $("#email").value.trim();
     if (!email) {

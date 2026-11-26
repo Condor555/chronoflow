@@ -1,4 +1,4 @@
-const CACHE = "chrono-flow-v2.1.0";
+const CACHE = "chrono-flow-v2.2.0";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -12,7 +12,8 @@ const APP_ASSETS = [
   "./icons/apple-touch-icon.png",
   "./src/config.js",
   "./src/app.js",
-  "./src/calculations.mjs"
+  "./src/calculations.mjs",
+  "./src/migration.mjs"
 ];
 
 self.addEventListener("install", (event) => {
@@ -32,15 +33,24 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
 
-  if (url.pathname.endsWith("/src/config.js")) {
+  const networkFirst = event.request.mode === "navigate"
+    || url.pathname.endsWith("/index.html")
+    || url.pathname.endsWith("/src/config.js")
+    || url.pathname.endsWith("/src/app.js")
+    || url.pathname.endsWith("/src/migration.mjs")
+    || url.pathname.endsWith("/sw.js");
+
+  if (networkFirst) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+          }
           return response;
         })
-        .catch(() => caches.match(event.request))
+        .catch(async () => (await caches.match(event.request)) || caches.match("./index.html"))
     );
     return;
   }

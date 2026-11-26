@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.2.0 — Accesso obbligatorio e migrazione locale
+
+- shell applicativa sempre nascosta finché non è presente una sessione Supabase;
+- schermata di verifica accesso durante l’avvio, senza comparsa temporanea dei dati;
+- rilevamento dei dati anonimi dell’MVP, della versione 2 e del prefisso Chrono Flow;
+- dialogo esplicito **Importa nel mio account / Ignora** dopo il login;
+- conversione di giornate, timbrature, assenze, figli e impostazioni supportate;
+- precedenza ai dati cloud in caso di data già esistente;
+- cancellazione della vecchia copia locale solo dopo la conferma del salvataggio cloud;
+- possibilità di riaprire la migrazione dalle Impostazioni dopo averla ignorata;
+- nuova cache `chrono-flow-v2.2.0`, aggiornamento service worker senza cache HTTP e strategia network-first per i file applicativi principali;
+- test automatici aggiunti per conversione, code anonime e conservazione dei dati malformati.
+
 ## 2.1.0 — Chrono Flow
 
 - nuovo nome Chrono Flow in interfaccia, metadati PWA, manifest e documentazione;
