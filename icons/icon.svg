@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">Chrono Flow</title>
+  <desc id="description">Una C aperta che diventa un orologio, simbolo del tempo che scorre.</desc>
+  <defs>
+    <linearGradient id="background" x1="72" y1="56" x2="440" y2="456" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#102A43"/>
+      <stop offset="1" stop-color="#155E63"/>
+    </linearGradient>
+    <linearGradient id="flow" x1="244" y1="166" x2="347" y2="315" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#53D6C7"/>
+      <stop offset="1" stop-color="#8DE8DB"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="118" fill="url(#background)"/>
+  <path d="M356 147a151 151 0 1 0 0 218" fill="none" stroke="#FFFFFF" stroke-width="42" stroke-linecap="round"/>
+  <path d="M249 169v92l89 54" fill="none" stroke="url(#flow)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="249" cy="261" r="18" fill="#FFFFFF"/>
+</svg>

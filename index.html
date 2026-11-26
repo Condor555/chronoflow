@@ -3,272 +3,438 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#123b66">
-  <meta name="description" content="Orari Mobile: presenze, smart working, assenze, straordinari e ticket.">
-  <title>Orari Mobile</title>
+  <meta name="theme-color" content="#102a43">
+  <meta name="description" content="Chrono Flow: organizza orari, smart working, trasferte e assenze in un unico ritmo.">
+  <meta name="apple-mobile-web-app-title" content="Chrono Flow">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Chrono Flow</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/icon-192.png">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="app-header">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true">OM</span>
-      <div><strong>Orari Mobile</strong><small id="headerProfile">Profilo 7:36</small></div>
-    </div>
-    <div class="header-actions">
-      <span id="networkBadge" class="network-badge"><i></i><span>Online</span></span>
-      <button id="installButton" class="icon-button" type="button" hidden aria-label="Installa l'app">↓</button>
-    </div>
-  </header>
+  <a class="skip-link" href="#main-content">Vai al contenuto</a>
 
-  <main id="appMain">
-    <section id="view-today" class="view active" aria-labelledby="todayTitle">
-      <div class="hero-card">
-        <div>
-          <p class="eyebrow">OGGI</p>
-          <h1 id="todayTitle">—</h1>
-          <p id="todayStatus" class="muted">Nessuna attività registrata</p>
-        </div>
-        <button id="editToday" class="secondary-button" type="button">Modifica</button>
+  <section id="configuration-view" class="centered-view" hidden aria-labelledby="configuration-title">
+    <div class="auth-card">
+      <img class="brand-icon" src="icons/icon.svg" alt="" width="72" height="72">
+      <p class="eyebrow">Chrono Flow</p>
+      <h1 id="configuration-title">Completa la configurazione</h1>
+      <p>Per attivare account e salvataggio personale nel cloud, collega questa copia dell’app a Supabase.</p>
+      <ol class="setup-list">
+        <li>Crea un progetto Supabase.</li>
+        <li>Esegui <code>supabase/schema.sql</code>.</li>
+        <li>Inserisci URL e chiave anon in <code>src/config.js</code>.</li>
+      </ol>
+      <p class="supporting">Le istruzioni complete sono nel README della repository.</p>
+    </div>
+  </section>
+
+  <section id="auth-view" class="centered-view" hidden aria-labelledby="auth-title">
+    <div class="auth-card">
+      <img class="brand-icon" src="icons/icon.svg" alt="" width="72" height="72">
+      <p class="eyebrow">Chrono Flow</p>
+      <h1 id="auth-title">Accedi alle tue giornate</h1>
+      <p id="auth-description">Usa il tuo account personale. Gli altri utenti non possono vedere i tuoi dati.</p>
+
+      <div class="segmented" role="group" aria-label="Tipo di accesso">
+        <button id="show-login" class="segment active" type="button" aria-pressed="true">Accedi</button>
+        <button id="show-register" class="segment" type="button" aria-pressed="false">Crea account</button>
       </div>
 
-      <section class="card" aria-labelledby="modeTitle">
-        <div class="section-heading">
-          <div><p class="eyebrow">MODALITÀ EFFETTIVA</p><h2 id="modeTitle">Dove lavori?</h2></div>
-          <span id="plannedBadge" class="pill neutral">Non pianificato</span>
+      <form id="auth-form" novalidate>
+        <div id="display-name-field" class="field" hidden>
+          <label for="display-name">Come vuoi essere chiamato?</label>
+          <input id="display-name" name="display-name" autocomplete="name" maxlength="80">
         </div>
-        <div class="segmented three" role="group" aria-label="Modalità di lavoro">
-          <button type="button" class="mode-button" data-mode="office"><span>🏢</span>Ufficio</button>
-          <button type="button" class="mode-button" data-mode="smart"><span>⌂</span>Smart</button>
-          <button type="button" class="mode-button" data-mode="travel"><span>✈</span>Trasferta</button>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" inputmode="email" autocomplete="email" required>
         </div>
-      </section>
-
-      <div class="metric-grid">
-        <article class="metric-card accent"><span>Uscita prevista</span><strong id="expectedExit">—</strong><small id="expectedHint">Registra l’ingresso</small></article>
-        <article class="metric-card"><span>Ore lavorate</span><strong id="workedTime">0h 00m</strong><small id="workedHint">su 7h 36m</small></article>
-        <article class="metric-card"><span>Straordinario</span><strong id="overtimeTime">0h 00m</strong><small id="overtimeHint">soglia 10 min</small></article>
-        <article class="metric-card"><span>Buono pasto</span><strong id="ticketValue">—</strong><small id="ticketHint">alla chiusura</small></article>
-      </div>
-
-      <section class="card action-card" aria-labelledby="actionsTitle">
-        <div class="section-heading"><h2 id="actionsTitle">Azioni rapide</h2><span id="liveClock" class="mono">—</span></div>
-        <div class="primary-actions">
-          <button id="checkInButton" class="primary-button big" type="button">Registra ingresso</button>
-          <button id="breakButton" class="secondary-button big" type="button" disabled>Inizia pausa</button>
-          <button id="checkOutButton" class="danger-button big" type="button" disabled>Registra uscita</button>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" minlength="8" required aria-describedby="password-hint">
+          <p id="password-hint" class="field-hint">Almeno 8 caratteri.</p>
         </div>
-        <p class="privacy-note">I dati restano su questo dispositivo. Esporta periodicamente un backup dalle Impostazioni.</p>
-      </section>
-
-      <section class="card" aria-labelledby="timelineTitle">
-        <div class="section-heading"><h2 id="timelineTitle">Giornata</h2><button id="clearToday" type="button" class="text-button danger-text">Azzera</button></div>
-        <ol id="todayTimeline" class="timeline"><li class="empty">Nessun evento</li></ol>
-      </section>
-    </section>
-
-    <section id="view-calendar" class="view" aria-labelledby="calendarTitle">
-      <div class="page-title"><div><p class="eyebrow">PIANIFICAZIONE</p><h1 id="calendarTitle">Calendario</h1></div></div>
-      <section class="card calendar-card">
-        <div class="calendar-toolbar">
-          <button id="prevMonth" class="icon-button" type="button" aria-label="Mese precedente">‹</button>
-          <h2 id="calendarMonth">—</h2>
-          <button id="nextMonth" class="icon-button" type="button" aria-label="Mese successivo">›</button>
-        </div>
-        <div class="weekdays" aria-hidden="true"><span>L</span><span>M</span><span>M</span><span>G</span><span>V</span><span>S</span><span>D</span></div>
-        <div id="calendarGrid" class="calendar-grid" role="grid" aria-label="Calendario mensile"></div>
-        <div class="legend">
-          <span><i class="dot office"></i>Ufficio</span><span><i class="dot smart"></i>Smart</span><span><i class="dot travel"></i>Trasferta</span>
-          <span><i class="dot vacation"></i>Ferie/congedo</span><span><i class="dot sick"></i>Malattia</span><span><i class="dot child"></i>Malattia bambino</span>
-        </div>
-      </section>
-
-      <section class="card" aria-labelledby="bulkTitle">
-        <div class="section-heading"><div><p class="eyebrow">PIANIFICA IN BLOCCO</p><h2 id="bulkTitle">Applica a più giorni</h2></div></div>
-        <form id="bulkPlanForm" class="form-grid">
-          <label>Dal<input id="bulkStart" type="date" required></label>
-          <label>Al<input id="bulkEnd" type="date" required></label>
-          <label class="full">Tipo<select id="bulkType">
-            <option value="office">Ufficio</option><option value="smart">Smart working</option><option value="travel">Trasferta</option>
-            <option value="vacation">Ferie</option><option value="sick">Malattia</option><option value="childSick">Malattia bambino</option>
-            <option value="mandatoryLeave">Congedo obbligatorio</option><option value="optionalLeave">Congedo facoltativo</option>
-            <option value="suppressedHoliday">Festività soppressa</option><option value="restRecovery">Recupero riposo</option><option value="publicHoliday">Festivo</option>
-          </select></label>
-          <fieldset class="weekday-picker full"><legend>Giorni da includere</legend>
-            <label><input type="checkbox" name="weekday" value="1" checked>Lun</label><label><input type="checkbox" name="weekday" value="2" checked>Mar</label>
-            <label><input type="checkbox" name="weekday" value="3" checked>Mer</label><label><input type="checkbox" name="weekday" value="4" checked>Gio</label>
-            <label><input type="checkbox" name="weekday" value="5" checked>Ven</label><label><input type="checkbox" name="weekday" value="6">Sab</label>
-            <label><input type="checkbox" name="weekday" value="0">Dom</label>
-          </fieldset>
-          <label id="bulkChildWrap" class="full" hidden>Figlio<select id="bulkChild"></select></label>
-          <button class="primary-button full" type="submit">Salva pianificazione</button>
-        </form>
-      </section>
-    </section>
-
-    <section id="view-summary" class="view" aria-labelledby="summaryTitle">
-      <div class="page-title"><div><p class="eyebrow">RIEPILOGO</p><h1 id="summaryTitle">Consuntivo</h1></div></div>
-      <section class="card filter-card">
-        <label>Anno<select id="summaryYear"></select></label>
-        <label>Periodo<select id="summaryMonth"><option value="0">Intero anno</option></select></label>
-        <button id="exportCsv" class="secondary-button" type="button">Esporta CSV</button>
-      </section>
-      <div id="summaryKpis" class="metric-grid summary-grid"></div>
-      <section class="card">
-        <div class="section-heading"><h2>Presenze e assenze</h2></div>
-        <div id="summaryBreakdown" class="breakdown"></div>
-      </section>
-      <section class="card">
-        <div class="section-heading"><h2>Saldo disponibilità</h2><span class="pill neutral">Configurabile</span></div>
-        <div id="allowanceSummary" class="allowance-grid"></div>
-      </section>
-      <section class="card">
-        <div class="section-heading"><h2>Malattia bambino</h2></div>
-        <div id="childSummary" class="stack-list"><p class="empty">Nessun figlio configurato.</p></div>
-      </section>
-    </section>
-
-    <section id="view-settings" class="view" aria-labelledby="settingsTitle">
-      <div class="page-title"><div><p class="eyebrow">CONFIGURAZIONE</p><h1 id="settingsTitle">Impostazioni</h1></div></div>
-      <form id="settingsForm">
-        <section class="card settings-section">
-          <div class="section-heading"><div><p class="eyebrow">PROFILO DI LAVORO</p><h2>Giornata tipo</h2></div></div>
-          <div class="form-grid">
-            <label class="full">Nome profilo<input id="profileName" type="text" maxlength="50"></label>
-            <label>Durata<input id="workDuration" type="time" step="60" required></label>
-            <label>Modalità predefinita<select id="defaultMode"><option value="office">Ufficio</option><option value="smart">Smart</option><option value="travel">Trasferta</option></select></label>
-            <label>Pausa ufficio (min)<input id="pauseOffice" type="number" min="0" max="240"></label>
-            <label>Pausa smart (min)<input id="pauseSmart" type="number" min="0" max="240"></label>
-            <label>Pausa trasferta (min)<input id="pauseTravel" type="number" min="0" max="240"></label>
-            <label>Ingresso smart suggerito<input id="smartDefaultStart" type="time"></label>
-          </div>
-        </section>
-
-        <section class="card settings-section">
-          <div class="section-heading"><div><p class="eyebrow">BUONI PASTO</p><h2>Regole ticket</h2></div></div>
-          <div class="toggle-list">
-            <label><span>Ticket in ufficio</span><input id="ticketOffice" type="checkbox" role="switch"></label>
-            <label><span>Ticket in smart working</span><input id="ticketSmart" type="checkbox" role="switch"></label>
-            <label><span>Ticket in trasferta</span><input id="ticketTravel" type="checkbox" role="switch"></label>
-          </div>
-          <div class="form-grid top-gap">
-            <label>Durata minima (min)<input id="ticketMinMinutes" type="number" min="0" max="1440"></label>
-            <label>Competenza differita (mesi)<input id="ticketDelayMonths" type="number" min="0" max="12"></label>
-          </div>
-        </section>
-
-        <section class="card settings-section">
-          <div class="section-heading"><div><p class="eyebrow">STRAORDINARIO</p><h2>Soglia e trattamento</h2></div></div>
-          <div class="toggle-list"><label><span>Calcolo attivo</span><input id="overtimeEnabled" type="checkbox" role="switch"></label></div>
-          <div class="form-grid top-gap">
-            <label>Soglia (min)<input id="overtimeThreshold" type="number" min="0" max="240"></label>
-            <label>Comportamento<select id="overtimeThresholdMode"><option value="activation">Superata: conta tutto</option><option value="franchise">Conta solo l’eccedenza</option></select></label>
-            <label>Arrotondamento<select id="overtimeRounding"><option value="0">Nessuno</option><option value="5">5 minuti</option><option value="10">10 minuti</option><option value="15">15 minuti</option><option value="30">30 minuti</option></select></label>
-            <label>Metodo<select id="overtimeRoundingMode"><option value="down">Per difetto</option><option value="nearest">Più vicino</option><option value="up">Per eccesso</option></select></label>
-            <label>Trattamento<select id="overtimeTreatment"><option value="paid">Pagato</option><option value="recovery">Banca ore / recupero</option><option value="info">Solo informativo</option><option value="none">Non conteggiato</option></select></label>
-            <label>Limite giornaliero (min, 0 = nessuno)<input id="overtimeDailyLimit" type="number" min="0" max="720"></label>
-          </div>
-        </section>
-
-        <section class="card settings-section">
-          <div class="section-heading"><div><p class="eyebrow">DISPONIBILITÀ</p><h2>Ferie e recuperi</h2></div></div>
-          <div class="form-grid">
-            <label>Ferie anno precedente<input id="vacationPrevious" type="number" min="0" step="0.5"></label>
-            <label>Ferie anno corrente<input id="vacationCurrent" type="number" min="0" step="0.5"></label>
-            <label>Festività soppresse<input id="suppressedHolidayAllowance" type="number" min="0" step="0.5"></label>
-            <label>Recuperi riposo<input id="restRecoveryAllowance" type="number" min="0" step="0.5"></label>
-          </div>
-        </section>
-        <button class="primary-button sticky-save" type="submit">Salva impostazioni</button>
+        <p id="auth-error" class="form-error" role="alert" tabindex="-1" hidden></p>
+        <button id="auth-submit" class="button primary full" type="submit">Accedi</button>
       </form>
+      <button id="reset-password" class="button text-button" type="button">Invia link per reimpostare la password</button>
+    </div>
+  </section>
 
-      <section class="card settings-section">
-        <div class="section-heading"><div><p class="eyebrow">FAMIGLIA</p><h2>Figli</h2></div><button id="addChild" type="button" class="secondary-button">Aggiungi</button></div>
-        <p class="help-text">Salva solo i dati necessari. Le regole non sono precompilate: configurale in base alla policy applicabile.</p>
-        <div id="childrenList" class="stack-list"><p class="empty">Nessun figlio configurato.</p></div>
-      </section>
-
-      <section class="card settings-section">
-        <div class="section-heading"><div><p class="eyebrow">POLICY CONFIGURABILI</p><h2>Malattia bambino</h2></div><button id="addPolicy" type="button" class="secondary-button">Aggiungi fascia</button></div>
-        <p class="help-text">Definisci fasce d’età e limiti annuali secondo normativa, contratto e accordi applicabili. L’app calcola il residuo, ma non sostituisce una verifica amministrativa.</p>
-        <div id="policiesList" class="stack-list"><p class="empty">Nessuna fascia configurata.</p></div>
-      </section>
-
-      <section class="card settings-section">
-        <div class="section-heading"><div><p class="eyebrow">DATI</p><h2>Backup e ripristino</h2></div></div>
-        <div class="data-actions">
-          <button id="exportBackup" class="secondary-button" type="button">Esporta backup JSON</button>
-          <label class="secondary-button file-button">Importa backup<input id="importBackup" type="file" accept="application/json,.json"></label>
-          <button id="clearAll" class="danger-button" type="button">Cancella tutti i dati</button>
+  <div id="app-shell" hidden>
+    <header class="topbar">
+      <div class="brand-lockup">
+        <img src="icons/icon.svg" alt="" width="36" height="36">
+        <span class="brand-wordmark">Chrono <strong>Flow</strong></span>
+      </div>
+      <div class="account-area">
+        <span id="sync-status" class="sync-status" role="status">Sincronizzato</span>
+        <button id="account-button" class="icon-button" type="button" aria-expanded="false" aria-controls="account-panel" aria-label="Apri menu account">
+          <span id="account-initial" aria-hidden="true">U</span>
+        </button>
+        <div id="account-panel" class="account-panel" hidden>
+          <strong id="account-name">Utente</strong>
+          <span id="account-email"></span>
+          <button id="sign-out" class="button secondary full" type="button">Esci da questo dispositivo</button>
         </div>
-        <p class="privacy-note">La pubblicazione su GitHub Pages distribuisce solo l’app vuota. I tuoi dati non vengono caricati su GitHub.</p>
+      </div>
+    </header>
+
+    <main id="main-content" tabindex="-1">
+      <section id="today-screen" class="screen" data-screen="today" aria-labelledby="today-title">
+        <div class="screen-heading">
+          <div>
+            <p class="eyebrow">La tua giornata</p>
+            <h1 id="today-title">Oggi</h1>
+            <p id="today-date" class="supporting"></p>
+          </div>
+          <span id="today-type-badge" class="type-badge">🏢 Ufficio</span>
+        </div>
+
+        <article class="hero-card" aria-labelledby="work-state-label">
+          <p id="work-state-label" class="status-label">Giornata non iniziata</p>
+          <p id="work-main-value" class="hero-time">—</p>
+          <p id="work-main-caption" class="supporting">Registra l’entrata quando inizi.</p>
+          <div class="action-stack">
+            <button id="primary-action" class="button primary action-button" type="button">Registra entrata</button>
+            <button id="exit-action" class="button secondary action-button" type="button" hidden>Registra uscita</button>
+          </div>
+        </article>
+
+        <div class="metrics-grid" aria-label="Riepilogo di oggi">
+          <article class="metric-card">
+            <span>Ore lavorate</span>
+            <strong id="worked-value">0:00</strong>
+          </article>
+          <article class="metric-card">
+            <span>Uscita prevista</span>
+            <strong id="forecast-value">—</strong>
+          </article>
+          <article class="metric-card">
+            <span>Straordinario</span>
+            <strong id="overtime-value">0:00</strong>
+          </article>
+          <article class="metric-card">
+            <span>Buono pasto</span>
+            <strong id="ticket-value">No</strong>
+          </article>
+        </div>
+
+        <details class="details-card">
+          <summary>Dettagli e correzioni</summary>
+          <form id="today-details-form">
+            <div class="field-grid">
+              <div class="field">
+                <label for="today-planned-type">Pianificato</label>
+                <select id="today-planned-type" name="planned-type">
+                  <option value="office">Ufficio</option>
+                  <option value="smart">Smart working</option>
+                  <option value="travel">Trasferta</option>
+                  <option value="absence">Assenza</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="today-actual-type">Effettivo</label>
+                <select id="today-actual-type" name="actual-type">
+                  <option value="office">Ufficio</option>
+                  <option value="smart">Smart working</option>
+                  <option value="travel">Trasferta</option>
+                  <option value="absence">Assenza</option>
+                </select>
+              </div>
+            </div>
+            <div id="today-absence-field" class="field" hidden>
+              <label for="today-absence-type">Tipo di assenza</label>
+              <select id="today-absence-type" name="absence-type">
+                <option value="vacation">Ferie</option>
+                <option value="sickness">Malattia</option>
+                <option value="child_sickness">Malattia bambino</option>
+                <option value="leave">Congedo</option>
+                <option value="recovery">Recupero</option>
+                <option value="holiday">Festività</option>
+              </select>
+            </div>
+            <div id="today-child-field" class="field" hidden>
+              <label for="today-child-id">Figlio</label>
+              <select id="today-child-id" name="child-id"></select>
+              <p class="field-hint">Aggiungi i figli in Impostazioni → Famiglia.</p>
+            </div>
+            <div class="field">
+              <label for="today-ticket">Buono pasto</label>
+              <select id="today-ticket" name="ticket">
+                <option value="auto">Usa la regola automatica</option>
+                <option value="yes">Forza: spetta</option>
+                <option value="no">Forza: non spetta</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="today-notes">Note</label>
+              <textarea id="today-notes" name="notes" rows="3" maxlength="1000" placeholder="Facoltative"></textarea>
+            </div>
+            <button class="button primary" type="submit">Salva i dettagli di oggi</button>
+          </form>
+        </details>
       </section>
-    </section>
-  </main>
 
-  <nav class="bottom-nav" aria-label="Navigazione principale">
-    <button type="button" class="nav-button active" data-view="today"><span>◷</span>Oggi</button>
-    <button type="button" class="nav-button" data-view="calendar"><span>▦</span>Calendario</button>
-    <button type="button" class="nav-button" data-view="summary"><span>▤</span>Riepilogo</button>
-    <button type="button" class="nav-button" data-view="settings"><span>⚙</span>Impostazioni</button>
-  </nav>
+      <section id="calendar-screen" class="screen" data-screen="calendar" aria-labelledby="calendar-title" hidden>
+        <div class="screen-heading">
+          <div>
+            <p class="eyebrow">Pianifica e consulta</p>
+            <h1 id="calendar-title">Calendario</h1>
+          </div>
+        </div>
+        <details class="details-card bulk-planner">
+          <summary>Pianifica più giorni</summary>
+          <form id="bulk-plan-form">
+            <div class="field-grid">
+              <div class="field">
+                <label for="bulk-start">Dal</label>
+                <input id="bulk-start" type="date" required>
+              </div>
+              <div class="field">
+                <label for="bulk-end">Al</label>
+                <input id="bulk-end" type="date" required>
+              </div>
+            </div>
+            <fieldset class="weekday-choice">
+              <legend>Giorni della settimana</legend>
+              <label><input type="checkbox" name="bulk-weekday" value="1" checked> Lun</label>
+              <label><input type="checkbox" name="bulk-weekday" value="2" checked> Mar</label>
+              <label><input type="checkbox" name="bulk-weekday" value="3" checked> Mer</label>
+              <label><input type="checkbox" name="bulk-weekday" value="4" checked> Gio</label>
+              <label><input type="checkbox" name="bulk-weekday" value="5" checked> Ven</label>
+              <label><input type="checkbox" name="bulk-weekday" value="6"> Sab</label>
+              <label><input type="checkbox" name="bulk-weekday" value="0"> Dom</label>
+            </fieldset>
+            <div class="field">
+              <label for="bulk-type">Pianifica come</label>
+              <select id="bulk-type">
+                <option value="office">Ufficio</option>
+                <option value="smart">Smart working</option>
+                <option value="travel">Trasferta</option>
+                <option value="absence">Assenza</option>
+              </select>
+            </div>
+            <button class="button primary" type="submit">Applica la pianificazione</button>
+          </form>
+        </details>
+        <div class="calendar-toolbar">
+          <button id="previous-month" class="icon-button light" type="button" aria-label="Mese precedente">‹</button>
+          <h2 id="calendar-month-label" aria-live="polite"></h2>
+          <button id="next-month" class="icon-button light" type="button" aria-label="Mese successivo">›</button>
+        </div>
+        <div class="calendar-card">
+          <div class="weekday-grid" aria-hidden="true">
+            <span>Lun</span><span>Mar</span><span>Mer</span><span>Gio</span><span>Ven</span><span>Sab</span><span>Dom</span>
+          </div>
+          <div id="calendar-grid" class="calendar-grid" role="grid" aria-label="Giornate del mese"></div>
+        </div>
+        <ul class="legend" aria-label="Legenda">
+          <li><span class="legend-mark office">U</span>Ufficio</li>
+          <li><span class="legend-mark smart">S</span>Smart</li>
+          <li><span class="legend-mark travel">T</span>Trasferta</li>
+          <li><span class="legend-mark absence">A</span>Assenza</li>
+        </ul>
+      </section>
 
-  <dialog id="dayDialog" class="dialog">
-    <form id="dayForm" method="dialog">
-      <div class="dialog-header"><div><p class="eyebrow">DETTAGLIO GIORNO</p><h2 id="dayDialogTitle">—</h2></div><button type="button" class="icon-button" data-close-dialog aria-label="Chiudi">×</button></div>
-      <input id="dayKey" type="hidden">
-      <div class="form-grid">
-        <label>Modalità pianificata<select id="dayPlannedMode"><option value="">Non pianificata</option><option value="office">Ufficio</option><option value="smart">Smart</option><option value="travel">Trasferta</option><option value="absence">Assenza</option></select></label>
-        <label>Modalità effettiva<select id="dayActualMode"><option value="">Non consuntivata</option><option value="office">Ufficio</option><option value="smart">Smart</option><option value="travel">Trasferta</option><option value="absence">Assenza</option></select></label>
-        <label class="full">Assenza<select id="dayAbsenceType"><option value="">Nessuna</option><option value="vacation">Ferie</option><option value="sick">Malattia</option><option value="childSick">Malattia bambino</option><option value="mandatoryLeave">Congedo obbligatorio</option><option value="optionalLeave">Congedo facoltativo</option><option value="suppressedHoliday">Festività soppressa</option><option value="restRecovery">Recupero riposo</option><option value="publicHoliday">Festivo</option><option value="other">Altra assenza</option></select></label>
-        <label id="dayChildWrap" class="full" hidden>Figlio<select id="dayChild"></select></label>
-        <label>Stato<select id="dayStatus"><option value="planned">Pianificato</option><option value="confirmed">Confermato</option></select></label>
-        <label>Ingresso<input id="dayStart" type="time"></label>
-        <label>Inizio pausa<input id="dayBreakStart" type="time"></label>
-        <label>Fine pausa<input id="dayBreakEnd" type="time"></label>
-        <label>Uscita effettiva<input id="dayEnd" type="time"></label>
-        <label>Ticket<select id="dayTicketOverride"><option value="">Automatico</option><option value="true">Forza sì</option><option value="false">Forza no</option></select></label>
-        <label>Trattamento straordinario<select id="dayOvertimeTreatment"><option value="">Predefinito</option><option value="paid">Pagato</option><option value="recovery">Recupero</option><option value="info">Informativo</option><option value="none">Non conteggiato</option></select></label>
-        <label id="tripDestinationWrap" class="full">Destinazione trasferta<input id="dayTripDestination" type="text" maxlength="100"></label>
-        <label class="full">Note<textarea id="dayNotes" rows="3" maxlength="500"></textarea></label>
+      <section id="summary-screen" class="screen" data-screen="summary" aria-labelledby="summary-title" hidden>
+        <div class="screen-heading">
+          <div>
+            <p class="eyebrow">Il tuo mese</p>
+            <h1 id="summary-title">Riepilogo</h1>
+          </div>
+          <div class="field compact-field">
+            <label for="summary-month">Mese</label>
+            <input id="summary-month" type="month">
+          </div>
+        </div>
+        <div id="summary-cards" class="summary-grid"></div>
+        <article class="panel">
+          <h2>Distribuzione giornate</h2>
+          <div id="summary-types" class="bar-list"></div>
+        </article>
+      </section>
+
+      <section id="settings-screen" class="screen" data-screen="settings" aria-labelledby="settings-title" hidden>
+        <div class="screen-heading">
+          <div>
+            <p class="eyebrow">Regole personali</p>
+            <h1 id="settings-title">Impostazioni</h1>
+          </div>
+        </div>
+        <form id="settings-form">
+          <article class="panel">
+            <h2>Profilo lavorativo</h2>
+            <div class="field">
+              <label for="settings-name">Nome visualizzato</label>
+              <input id="settings-name" maxlength="80" autocomplete="name">
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label for="target-hours">Ore giornaliere</label>
+                <input id="target-hours" type="number" min="1" max="15" inputmode="numeric" required>
+              </div>
+              <div class="field">
+                <label for="target-minutes">Minuti aggiuntivi</label>
+                <input id="target-minutes" type="number" min="0" max="59" inputmode="numeric" required>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label for="office-break">Pausa ufficio (minuti)</label>
+                <input id="office-break" type="number" min="0" max="240" required>
+              </div>
+              <div class="field">
+                <label for="smart-break">Pausa smart (minuti)</label>
+                <input id="smart-break" type="number" min="0" max="240" required>
+              </div>
+              <div class="field">
+                <label for="travel-break">Pausa trasferta (minuti)</label>
+                <input id="travel-break" type="number" min="0" max="240" required>
+              </div>
+              <div class="field">
+                <label for="overtime-threshold">Soglia straordinario (minuti)</label>
+                <input id="overtime-threshold" type="number" min="0" max="240" required>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <h2>Buoni pasto</h2>
+            <p class="supporting">Scegli dove il buono spetta normalmente. Puoi cambiare il risultato per una singola giornata.</p>
+            <label class="check-row"><input id="ticket-office" type="checkbox"> <span>Spetta in ufficio</span></label>
+            <label class="check-row"><input id="ticket-smart" type="checkbox"> <span>Spetta in smart working</span></label>
+            <label class="check-row"><input id="ticket-travel" type="checkbox"> <span>Spetta in trasferta</span></label>
+          </article>
+
+          <article class="panel">
+            <h2>Famiglia</h2>
+            <p class="supporting">I dati servono solo per associare correttamente le giornate di malattia bambino.</p>
+            <div id="children-list" class="children-list"></div>
+            <div class="field-grid align-end">
+              <div class="field">
+                <label for="child-name">Nome o soprannome</label>
+                <input id="child-name" maxlength="80">
+              </div>
+              <div class="field">
+                <label for="child-birth-date">Data di nascita</label>
+                <input id="child-birth-date" type="date">
+              </div>
+              <button id="add-child" class="button secondary" type="button">Aggiungi figlio</button>
+            </div>
+          </article>
+
+          <button class="button primary full" type="submit">Salva le impostazioni</button>
+        </form>
+
+        <article class="panel data-panel">
+          <h2>Sicurezza account</h2>
+          <form id="password-form">
+            <div class="field">
+              <label for="new-password">Nuova password</label>
+              <input id="new-password" type="password" minlength="8" autocomplete="new-password" aria-describedby="new-password-hint" required>
+              <p id="new-password-hint" class="field-hint">Almeno 8 caratteri. Salva qui anche dopo aver aperto un link di recupero password.</p>
+            </div>
+            <button class="button secondary" type="submit">Aggiorna la password</button>
+          </form>
+        </article>
+
+        <article class="panel data-panel">
+          <h2>I tuoi dati</h2>
+          <p>Puoi scaricare una copia leggibile delle tue giornate o importare un backup creato da questa versione.</p>
+          <div class="button-row">
+            <button id="export-data" class="button secondary" type="button">Scarica backup JSON</button>
+            <label class="button secondary file-button">Importa backup JSON<input id="import-data" type="file" accept="application/json,.json"></label>
+          </div>
+          <p class="danger-note">L’importazione aggiunge o aggiorna le giornate presenti nel file, senza eliminare le altre.</p>
+        </article>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Navigazione principale">
+      <button class="nav-item active" data-target="today" type="button" aria-current="page"><span aria-hidden="true">◷</span><span>Oggi</span></button>
+      <button class="nav-item" data-target="calendar" type="button"><span aria-hidden="true">▦</span><span>Calendario</span></button>
+      <button class="nav-item" data-target="summary" type="button"><span aria-hidden="true">▥</span><span>Riepilogo</span></button>
+      <button class="nav-item" data-target="settings" type="button"><span aria-hidden="true">⚙</span><span>Impostazioni</span></button>
+    </nav>
+  </div>
+
+  <dialog id="day-dialog" aria-labelledby="day-dialog-title">
+    <form id="day-form" method="dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">Giornata</p>
+          <h2 id="day-dialog-title">Modifica giornata</h2>
+        </div>
+        <button id="close-day-dialog" class="icon-button light" type="button" aria-label="Chiudi">×</button>
       </div>
-      <div id="dayPreview" class="preview-box"></div>
-      <div class="dialog-actions"><button id="deleteDay" type="button" class="danger-button">Elimina</button><span></span><button type="button" class="secondary-button" data-close-dialog>Annulla</button><button type="submit" class="primary-button">Salva</button></div>
+      <input id="day-date" type="hidden">
+      <div class="field-grid">
+        <div class="field">
+          <label for="day-planned-type">Pianificato</label>
+          <select id="day-planned-type">
+            <option value="office">Ufficio</option>
+            <option value="smart">Smart working</option>
+            <option value="travel">Trasferta</option>
+            <option value="absence">Assenza</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="day-actual-type">Effettivo</label>
+          <select id="day-actual-type">
+            <option value="">Non ancora consuntivato</option>
+            <option value="office">Ufficio</option>
+            <option value="smart">Smart working</option>
+            <option value="travel">Trasferta</option>
+            <option value="absence">Assenza</option>
+          </select>
+        </div>
+      </div>
+      <div id="day-absence-field" class="field" hidden>
+        <label for="day-absence-type">Tipo di assenza</label>
+        <select id="day-absence-type">
+          <option value="vacation">Ferie</option>
+          <option value="sickness">Malattia</option>
+          <option value="child_sickness">Malattia bambino</option>
+          <option value="leave">Congedo</option>
+          <option value="recovery">Recupero</option>
+          <option value="holiday">Festività</option>
+        </select>
+      </div>
+      <div id="day-child-field" class="field" hidden>
+        <label for="day-child-id">Figlio</label>
+        <select id="day-child-id"></select>
+      </div>
+      <div class="field">
+        <label for="day-ticket">Buono pasto</label>
+        <select id="day-ticket">
+          <option value="auto">Usa la regola automatica</option>
+          <option value="yes">Forza: spetta</option>
+          <option value="no">Forza: non spetta</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="day-notes">Note</label>
+        <textarea id="day-notes" rows="4" maxlength="1000"></textarea>
+      </div>
+      <div class="dialog-actions">
+        <button id="delete-day" class="button danger" type="button">Elimina questa giornata</button>
+        <button class="button primary" value="save" type="submit">Salva la giornata</button>
+      </div>
     </form>
   </dialog>
 
-  <dialog id="childDialog" class="dialog small-dialog">
-    <form id="childForm" method="dialog">
-      <div class="dialog-header"><h2>Figlio</h2><button type="button" class="icon-button" data-close-dialog aria-label="Chiudi">×</button></div>
-      <input id="childId" type="hidden">
-      <div class="form-grid">
-        <label class="full">Nome o soprannome<input id="childName" required maxlength="50"></label>
-        <label class="full">Data di nascita<input id="childBirthDate" type="date" required></label>
-        <label>Usati fuori app<input id="childUsedExternal" type="number" min="0" step="0.5" value="0"></label>
-        <label>Usati altro genitore<input id="childUsedOtherParent" type="number" min="0" step="0.5" value="0"></label>
-        <label class="full">Note amministrative<textarea id="childNotes" rows="3" maxlength="300"></textarea></label>
-      </div>
-      <div class="dialog-actions"><button type="button" class="secondary-button" data-close-dialog>Annulla</button><button type="submit" class="primary-button">Salva</button></div>
-    </form>
-  </dialog>
+  <div id="toast" class="toast" hidden role="status" aria-live="polite">
+    <span id="toast-message"></span>
+    <button id="toast-action" type="button" hidden>Annulla</button>
+  </div>
+  <div id="live-region" class="sr-only" aria-live="polite"></div>
 
-  <dialog id="policyDialog" class="dialog small-dialog">
-    <form id="policyForm" method="dialog">
-      <div class="dialog-header"><h2>Fascia policy</h2><button type="button" class="icon-button" data-close-dialog aria-label="Chiudi">×</button></div>
-      <input id="policyId" type="hidden">
-      <div class="form-grid">
-        <label class="full">Nome fascia<input id="policyLabel" required maxlength="60" placeholder="es. Da 3 a 8 anni"></label>
-        <label>Età minima<input id="policyMinAge" type="number" min="0" max="30" required></label>
-        <label>Età massima<input id="policyMaxAge" type="number" min="0" max="30" required></label>
-        <label class="full">Limite annuo (giorni)<input id="policyLimitDays" type="number" min="0" max="365" step="0.5" required></label>
-      </div>
-      <div class="dialog-actions"><button type="button" class="secondary-button" data-close-dialog>Annulla</button><button type="submit" class="primary-button">Salva</button></div>
-    </form>
-  </dialog>
-
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.47.10/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
+  <script src="src/config.js"></script>
   <script type="module" src="src/app.js"></script>
 </body>
 </html>

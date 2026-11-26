@@ -1,132 +1,225 @@
-# Orari Mobile — MVP PWA
+# Chrono Flow — multiutente
 
-Applicazione web mobile-first installabile su smartphone per gestire:
+**Chrono Flow** è la PWA mobile-first per registrare entrata, pausa, uscita, Smart Working, ufficio, trasferte, assenze, straordinari e buoni pasto.
 
-- entrata, pause e uscita effettiva;
-- uscita prevista per giornate da 7:36, 8:00 o durata personalizzata;
-- pianificazione e consuntivo separati per ufficio, smart working e trasferta;
-- ferie, malattia, congedi, festività soppresse, recuperi e malattia bambino;
-- straordinari con soglia, franchigia, arrotondamento e trattamento pagato/recupero;
-- ticket configurabili per modalità e modificabili sul singolo giorno;
-- calendario mensile, pianificazione in blocco e riepilogo mensile/annuale;
-- figli e policy configurabili per il calcolo del residuo di malattia bambino;
-- esportazione CSV e backup/ripristino JSON;
-- uso offline dopo il primo caricamento.
+La versione 2 aggiunge **account personali e salvataggio nel cloud**: ogni utente accede con la propria email e vede esclusivamente le proprie giornate. La separazione è applicata nel database tramite **Row Level Security (RLS)**, non soltanto nell’interfaccia.
 
-Le **commesse sono volutamente escluse dalla versione 1**.
+## Funzioni incluse
 
-## Scelte dell’MVP
+- registrazione rapida di Entrata, Inizia pausa, Termina pausa e Uscita;
+- uscita prevista, ore lavorate e straordinario aggiornati durante la giornata;
+- pianificato ed effettivo separati: Ufficio, Smart Working, Trasferta, Assenza;
+- ferie, malattia, malattia bambino, congedo, recupero e festività;
+- calendario mensile con stato indicato da colore **e** sigla testuale;
+- riepilogo mensile di ore, straordinario, ticket e tipologia delle giornate;
+- orario giornaliero, pause, soglia straordinario e ticket configurabili;
+- elenco figli e associazione alla malattia bambino;
+- account email/password e sessione persistente;
+- dati sincronizzati tra dispositivi;
+- coda locale offline: le modifiche vengono inviate al ritorno della connessione;
+- annullamento rapido dell’ultima timbratura e del ripristino di una giornata eliminata;
+- esportazione e importazione di backup JSON;
+- PWA installabile su Android/iPhone dopo la pubblicazione HTTPS;
+- interfaccia rivista per focus visibile, target touch, screen reader e microcopy esplicita.
 
-L’app è una PWA statica senza framework, server, database o servizi a pagamento. I dati sono conservati nel `localStorage` del browser del dispositivo. Questa scelta rende la prima versione semplice da pubblicare e priva di costi infrastrutturali, ma implica che:
+## Architettura
 
-- i dati non si sincronizzano automaticamente tra dispositivi;
-- cancellare i dati del browser elimina anche i dati dell’app;
-- è importante esportare periodicamente il backup JSON;
-- il backup può essere importato su un altro dispositivo.
-
-La pubblicazione distribuisce **solo il codice dell’app vuota**: i dati personali inseriti sul telefono non vengono inviati a GitHub.
-
-## Pubblicazione gratuita su GitHub Pages
-
-### 1. Crea il repository
-
-1. Accedi a GitHub e scegli **New repository**.
-2. Nome consigliato: `orari-mobile`.
-3. Impostalo **Public**. GitHub Pages sui repository pubblici è disponibile senza acquistare servizi aggiuntivi.
-4. Non aggiungere README o altri file durante la creazione, perché sono già inclusi qui.
-
-### 2. Carica i file dal browser
-
-1. Estrai lo ZIP ricevuto.
-2. Apri il repository e scegli **Add file → Upload files**.
-3. Trascina **il contenuto della cartella** `orari-mobile-mvp`, non la cartella ZIP.
-4. Verifica che `index.html`, `styles.css`, `manifest.webmanifest`, `sw.js`, `src/` e `icons/` siano nella radice del repository.
-5. Conferma con **Commit changes**.
-
-Se il browser non mantiene le cartelle trascinate, crea prima `src` e `icons` nel repository oppure usa GitHub Desktop. Non modificare i percorsi dei file.
-
-### 3. Attiva GitHub Pages
-
-1. Vai in **Settings → Pages**.
-2. In **Build and deployment**, scegli **Deploy from a branch**.
-3. Seleziona branch `main` e cartella `/ (root)`.
-4. Premi **Save**.
-5. Attendi alcuni minuti e apri l’indirizzo mostrato da GitHub, simile a `https://NOMEUTENTE.github.io/orari-mobile/`.
-
-Non sono necessari GitHub Actions, database, token, domini personalizzati o carte di credito. Per evitare costi imprevisti, non attivare servizi cloud aggiuntivi e non trasformare il progetto in repository privato se il tuo piano non include Pages per repository privati.
-
-## Installazione sul telefono
-
-### Android / Chrome
-
-1. Apri l’URL GitHub Pages.
-2. Usa **Installa app** dal menu di Chrome o il pulsante di installazione mostrato nell’intestazione.
-3. Conferma **Installa**.
-
-### iPhone / Safari
-
-1. Apri l’URL in Safari.
-2. Tocca **Condividi**.
-3. Scegli **Aggiungi alla schermata Home**.
-
-Dopo il primo caricamento online, l’app può aprirsi anche offline. Quando pubblichi una nuova versione, chiudi e riapri l’app con connessione attiva per ricevere i file aggiornati.
-
-## Primo avvio consigliato
-
-1. Apri **Impostazioni → Giornata tipo** e verifica durata, pause e ingresso smart suggerito.
-2. Configura le regole ticket e straordinario.
-3. Inserisci ferie disponibili e recuperi.
-4. Se necessario, aggiungi i figli e poi le fasce della policy malattia bambino.
-5. Esporta un primo backup JSON dopo la configurazione.
-
-Le policy per malattia bambino non contengono limiti normativi preimpostati: vanno compilate in base alla normativa, al contratto e agli accordi applicabili. L’app effettua un conteggio operativo e non sostituisce la verifica dell’amministrazione del personale.
-
-## Avvio locale facoltativo
-
-Non aprire `index.html` con doppio clic: service worker e moduli JavaScript richiedono un server HTTP.
-
-```bash
-python3 -m http.server 8080
+```text
+Browser / PWA
+    │
+    ├── Supabase Auth (account e sessione)
+    │
+    └── PostgreSQL Supabase
+          ├── profiles
+          └── work_days
+                └── RLS: auth.uid() = user_id
 ```
 
-Poi apri `http://localhost:8080`.
+La chiave `anon` è progettata per essere usata nel browser ed è quindi pubblica. La protezione dipende dalle policy RLS incluse in `supabase/schema.sql`. **Non inserire mai la chiave `service_role` nel sito o nella repository.**
 
-## Test dei calcoli
+## Avvio rapido
 
-Con Node.js 20 o successivo:
+### 1. Crea il backend Supabase
+
+1. Crea un nuovo progetto dal pannello Supabase.
+2. Apri **SQL Editor**.
+3. Copia tutto il contenuto di `supabase/schema.sql`.
+4. Esegui lo script una sola volta.
+5. Facoltativo ma consigliato: esegui `supabase/verify.sql`. Per `profiles` e `work_days`, `rowsecurity` deve risultare `true` e devono comparire le policy create dallo script.
+
+Lo script crea:
+
+- profilo automatico per ogni nuovo account;
+- vincoli per i valori accettati;
+- indice sulle giornate;
+- trigger `updated_at`;
+- cancellazione dei dati collegati quando un account viene cancellato;
+- policy che impediscono a un utente di leggere o modificare dati di altri utenti.
+
+### 2. Configura l’autenticazione
+
+Nel pannello Supabase:
+
+1. apri **Authentication → URL Configuration**;
+2. imposta come **Site URL** l’indirizzo finale del sito, ad esempio `https://NOMEUTENTE.github.io/chrono-flow/`;
+3. aggiungi lo stesso indirizzo tra i **Redirect URLs**;
+4. in **Authentication → Providers → Email** scegli se richiedere la conferma email;
+5. decidi chi può registrarsi: per un sito aperto lascia attive le nuove registrazioni; per un gruppo chiuso disattivale e invita gli utenti dal pannello Supabase.
+
+Il link “reimposta password” riporta all’app: dopo l’apertura, vai alla sezione Sicurezza account (aperta automaticamente) e salva la nuova password.
+
+Durante lo sviluppo locale aggiungi anche `http://localhost:4173/` ai Redirect URLs.
+
+### 3. Collega il frontend
+
+Nel pannello Supabase apri le impostazioni API del progetto e recupera:
+
+- Project URL;
+- chiave `anon`/`publishable` destinata al client.
+
+Modifica `src/config.js`:
+
+```js
+window.CHRONO_FLOW_CONFIG = {
+  supabaseUrl: "https://TUO-PROGETTO.supabase.co",
+  supabaseAnonKey: "LA-TUA-CHIAVE-ANON-PUBBLICA"
+};
+```
+
+Non usare la chiave `service_role`.
+
+### 4. Prova in locale
+
+Serve un web server; non aprire `index.html` con `file://`.
+
+```bash
+npm test
+npm run serve
+```
+
+Apri `http://localhost:4173/`, crea due account di prova e verifica che le giornate create dal primo non siano visibili dal secondo.
+
+### 5. Pubblica con GitHub Pages
+
+1. Crea una repository, per esempio `chrono-flow`.
+2. Carica **il contenuto** di questa cartella nella root della repository.
+3. Controlla che `src/config.js` contenga i dati del progetto Supabase.
+4. In GitHub apri **Settings → Pages**.
+5. Seleziona **Deploy from a branch**, branch `main`, cartella `/ (root)`.
+6. Salva e attendi l’indirizzo HTTPS.
+7. Riporta l’indirizzo esatto nelle impostazioni URL di Supabase, come descritto sopra.
+
+## Verifica multiutente consigliata
+
+1. Crea `utente-a@example.com` e registra una giornata.
+2. Esci con **Esci da questo dispositivo**.
+3. Crea `utente-b@example.com`.
+4. Controlla che il calendario del secondo account non mostri la giornata del primo.
+5. Accedi di nuovo come utente A da un secondo browser e controlla che la giornata sia sincronizzata.
+6. In modalità offline registra una modifica, poi riattiva la rete: lo stato in alto deve passare da “modifiche da sincronizzare” a “Sincronizzato”.
+
+## Backup e passaggio dalla versione precedente
+
+Da **Impostazioni → I tuoi dati** puoi:
+
+- scaricare tutte le giornate dell’account in JSON;
+- importare un backup della versione 2 senza cancellare le altre giornate.
+
+L’importazione usa la data come chiave: una giornata già presente viene aggiornata, una data nuova viene aggiunta.
+
+I backup della precedente versione locale potrebbero avere una struttura diversa. Prima di importare dati importanti:
+
+1. conserva una copia del file originale;
+2. prova con un account di test;
+3. verifica date, timbrature, modalità e assenze.
+
+## Utilizzo offline
+
+Dopo il primo caricamento, la shell dell’app è disponibile offline. Le modifiche alle giornate vengono salvate nel browser e messe in coda per Supabase. Quando torna la connessione, l’app tenta la sincronizzazione.
+
+Limitazioni:
+
+- il primo accesso e la creazione dell’account richiedono la rete;
+- se lo stesso giorno viene modificato offline su due dispositivi, prevale l’ultima versione sincronizzata;
+- prima di cancellare dati del browser, verifica che lo stato mostri “Sincronizzato”.
+
+## Accessibilità e UX
+
+La UI include:
+
+- target interattivi principali di almeno 44 CSS px;
+- contrasto elevato e focus visibile;
+- etichette esplicite per tutti i campi;
+- stati del calendario comunicati con sigla, testo accessibile e colore;
+- regioni live per conferme ed errori;
+- supporto a `prefers-reduced-motion` e `prefers-contrast`;
+- azioni nominate in modo specifico: “Registra entrata”, “Termina pausa”, “Salva la giornata”;
+- feedback di sincronizzazione e annullamento rapido.
+
+Per un rilascio pubblico è comunque raccomandato un audit manuale con tastiera, VoiceOver/TalkBack, zoom 200% e un controllo automatico WCAG sulla versione pubblicata.
+
+## Identità visiva
+
+L’identità di Chrono Flow traduce i concetti di **tempo, continuità e controllo** in un sistema essenziale:
+
+- il simbolo è una **C aperta** che funziona anche come quadrante, con lancette color acqua che suggeriscono il flusso;
+- blu notte `#102A43` per affidabilità e concentrazione;
+- verde acqua `#0B7773` e menta `#53D6C7` per azioni, avanzamento e sincronizzazione;
+- superfici chiare e ombre contenute per mantenere leggibilità anche durante l’uso rapido da smartphone;
+- colore sempre accompagnato da testo, sigle o icone per non perdere informazione in condizioni di daltonismo.
+
+La cartella `icons/` contiene l’icona vettoriale, le varianti PNG, l’icona adattiva maskable e l’icona Apple Touch.
+
+## Struttura della repository
+
+```text
+.
+├── index.html
+├── styles.css
+├── sw.js
+├── manifest.webmanifest
+├── icons/
+│   ├── icon.svg
+│   ├── icon-192.png
+│   ├── icon-512.png
+│   ├── icon-maskable.svg
+│   ├── icon-maskable-512.png
+│   └── apple-touch-icon.png
+├── src/
+│   ├── app.js
+│   ├── calculations.mjs
+│   ├── config.js
+│   └── config.example.js
+├── supabase/
+│   ├── schema.sql
+│   └── verify.sql
+├── tests/
+│   └── calculations.test.mjs
+├── CHANGELOG.md
+├── LICENSE
+└── package.json
+```
+
+## Dati personali e produzione
+
+L’app può contenere informazioni su presenze, assenze e famiglia. Prima di usarla in un’organizzazione:
+
+- definisci titolare, finalità, base giuridica, tempi di conservazione e procedura di cancellazione;
+- valuta se i dati relativi alle assenze richiedono misure aggiuntive;
+- abilita MFA se coerente con il contesto d’uso;
+- limita l’accesso al progetto Supabase;
+- configura backup, monitoraggio e un dominio appropriato;
+- verifica periodicamente che RLS resti attiva;
+- non memorizzare diagnosi o dettagli sanitari non necessari nelle note.
+
+Questa repository implementa la separazione tecnica per utente, ma non sostituisce la valutazione privacy e sicurezza necessaria per un servizio di produzione.
+
+## Test
+
+I test non richiedono dipendenze esterne:
 
 ```bash
 npm test
 ```
 
-I test coprono gli esempi principali del foglio: uscita 16:41 da ingresso 08:35 con 7:36 + 30 minuti, uscita smart 17:36 da ingresso 09:00 con pausa di un’ora, straordinari, ticket, riepiloghi e residuo malattia bambino.
-
-## Struttura
-
-```text
-index.html                 interfaccia
-styles.css                 stile responsive
-manifest.webmanifest       installazione PWA
-sw.js                      cache offline
-src/app.js                 interazioni e schermate
-src/engine.js              motore dei calcoli
-src/storage.js             persistenza locale e valori iniziali
-icons/                     icone installabili
-tests/engine.test.mjs      test automatici
-```
-
-## Dati e privacy
-
-- Nessun dato viene inviato a un backend.
-- Non sono presenti analytics, cookie di profilazione o librerie di terze parti.
-- I dati di famiglia restano nel browser finché non vengono esportati manualmente.
-- Un repository pubblico espone il codice, non i dati inseriti nell’app.
-
-## Limiti noti della versione 1
-
-- niente sincronizzazione multi-dispositivo o autenticazione;
-- assenze conteggiate a giornata intera;
-- una pausa modificabile dal dettaglio giorno; durante la timbratura rapida sono ammesse più pause;
-- nessun flusso di approvazione;
-- nessuna commessa o allocazione ore;
-- nessuna importazione diretta del file XLSM; lo storico può essere ricostruito manualmente o aggiunto in una versione successiva con una procedura di migrazione dedicata.
+Coprono il calcolo della giornata da 7:36, la previsione `08:35 → 16:41`, le pause, la soglia straordinario, la formattazione delle durate e le regole ticket.

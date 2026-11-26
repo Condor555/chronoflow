@@ -1,635 +1,1008 @@
 import {
-  ABSENCE_TYPES, MODE_LABELS, minutesFromTime, timeFromMinutes, formatMinutes,
-  dateKeyLocal, dateFromKey, dayMode, getDayMetrics, eachDate, summarize,
-  childLeaveBalance, ageOnDate, validateTimeSequence
-} from './engine.js';
-import { loadState, saveState, replaceState, clearState, emptyState } from './storage.js';
+  ABSENCE_TYPES,
+  DAY_TYPES,
+  breakForType,
+  calculateDay,
+  clampInt,
+  forecastExit,
+  formatTime,
+  isoDateLocal,
+  minutesToDuration,
+  ticketForDay
+} from "./calculations.mjs";
 
-let state = loadState();
-let calendarDate = new Date();
-let installPrompt = null;
-let toastTimer = null;
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
+// ORARI_CONFIG resta supportato per non interrompere installazioni già configurate.
+const config = window.CHRONO_FLOW_CONFIG || window.ORARI_CONFIG || {};
+const configured = /^https?:\/\//.test(config.supabaseUrl || "")
+  && !String(config.supabaseUrl).includes("TUO-PROGETTO")
+  && typeof config.supabaseAnonKey === "string"
+  && config.supabaseAnonKey.length > 40
+  && !config.supabaseAnonKey.includes("LA-TUA");
 
-const $ = selector => document.querySelector(selector);
-const $$ = selector => [...document.querySelectorAll(selector)];
-const nowTime = () => new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', hour12: false });
-const uid = prefix => `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
-const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
+const DEFAULT_PROFILE = {
+  display_name: "",
+  target_minutes: 456,
+  office_break_minutes: 30,
+  smart_break_minutes: 60,
+  travel_break_minutes: 30,
+  overtime_threshold: 10,
+  ticket_office: true,
+  ticket_smart: false,
+  ticket_travel: false,
+  timezone: "Europe/Rome",
+  family_settings: { children: [] }
+};
 
-function showToast(message) {
-  const toast = $('#toast');
-  toast.textContent = message;
-  toast.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+const state = {
+  supabase: null,
+  user: null,
+  profile: { ...DEFAULT_PROFILE },
+  days: new Map(),
+  authMode: "login",
+  calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  summaryMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  toastTimer: null,
+  undo: null,
+  busy: false
+};
+
+function defaultDay(date) {
+  return {
+    work_date: date,
+    planned_type: "office",
+    actual_type: null,
+    absence_type: null,
+    child_id: null,
+    events: [],
+    ticket_override: null,
+    notes: ""
+  };
 }
 
-function persist(message = '') {
-  saveState(state);
-  renderAll();
-  if (message) showToast(message);
+function normalizeDay(day) {
+  const result = { ...defaultDay(day.work_date), ...day };
+  result.events = Array.isArray(result.events) ? result.events : [];
+  result.notes = typeof result.notes === "string" ? result.notes : "";
+  const effectiveType = result.actual_type || result.planned_type;
+  if (effectiveType !== "absence") {
+    result.absence_type = null;
+    result.child_id = null;
+  } else if (result.absence_type !== "child_sickness") {
+    result.child_id = null;
+  }
+  return result;
 }
 
-function ensureDay(key) {
-  if (!state.days[key]) state.days[key] = { plannedMode: '', actualMode: '', absenceType: '', status: 'confirmed', breaks: [] };
-  if (!Array.isArray(state.days[key].breaks)) state.days[key].breaks = [];
-  return state.days[key];
+function familyChildren() {
+  return Array.isArray(state.profile.family_settings?.children)
+    ? state.profile.family_settings.children
+    : [];
 }
 
-function formatDate(key, options = { weekday: 'long', day: 'numeric', month: 'long' }) {
-  return new Intl.DateTimeFormat('it-IT', options).format(dateFromKey(key));
+function cacheKey() {
+  return `chrono-flow:v2:days:${state.user?.id || "anonymous"}`;
 }
 
-function switchView(name) {
-  $$('.view').forEach(view => view.classList.toggle('active', view.id === `view-${name}`));
-  $$('.nav-button').forEach(button => button.classList.toggle('active', button.dataset.view === name));
-  if (name === 'calendar') renderCalendar();
-  if (name === 'summary') renderSummary();
-  if (name === 'settings') renderSettings();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+function queueKey() {
+  return `chrono-flow:v2:queue:${state.user?.id || "anonymous"}`;
 }
 
-function renderHeader() {
-  $('#headerProfile').textContent = state.settings.profileName || 'Profilo';
+function legacyStorageKey(kind) {
+  return `orari:v2:${kind}:${state.user?.id || "anonymous"}`;
+}
+
+function migrateLegacyStorage() {
+  if (!state.user) return;
+  [["days", cacheKey()], ["queue", queueKey()]].forEach(([kind, nextKey]) => {
+    const legacyKey = legacyStorageKey(kind);
+    if (localStorage.getItem(nextKey) === null && localStorage.getItem(legacyKey) !== null) {
+      localStorage.setItem(nextKey, localStorage.getItem(legacyKey));
+    }
+  });
+}
+
+function loadLocalCache() {
+  if (!state.user) return;
+  migrateLegacyStorage();
+  try {
+    const rows = JSON.parse(localStorage.getItem(cacheKey()) || "[]");
+    if (Array.isArray(rows)) rows.forEach((row) => state.days.set(row.work_date, normalizeDay(row)));
+  } catch {
+    localStorage.removeItem(cacheKey());
+  }
+}
+
+function persistLocalCache() {
+  if (!state.user) return;
+  localStorage.setItem(cacheKey(), JSON.stringify([...state.days.values()]));
+}
+
+function getQueue() {
+  try {
+    const queue = JSON.parse(localStorage.getItem(queueKey()) || "[]");
+    return Array.isArray(queue) ? queue : [];
+  } catch {
+    return [];
+  }
+}
+
+function setQueue(queue) {
+  localStorage.setItem(queueKey(), JSON.stringify(queue));
+  updateSyncStatus();
+}
+
+function queueOperation(operation) {
+  const queue = getQueue().filter((item) => item.work_date !== operation.work_date);
+  queue.push(operation);
+  setQueue(queue);
+}
+
+function updateSyncStatus(text) {
+  const element = $("#sync-status");
+  if (!element) return;
+  if (text) element.textContent = text;
+  else if (!navigator.onLine) element.textContent = "Offline · dati sul dispositivo";
+  else {
+    const count = getQueue().length;
+    element.textContent = count ? `${count} modifiche da sincronizzare` : "Sincronizzato";
+  }
+}
+
+function announce(message) {
+  $("#live-region").textContent = "";
+  window.setTimeout(() => { $("#live-region").textContent = message; }, 20);
+}
+
+function showToast(message, action) {
+  window.clearTimeout(state.toastTimer);
+  state.undo = typeof action === "function" ? action : null;
+  $("#toast-message").textContent = message;
+  $("#toast-action").hidden = !state.undo;
+  $("#toast").hidden = false;
+  state.toastTimer = window.setTimeout(() => {
+    $("#toast").hidden = true;
+    state.undo = null;
+  }, state.undo ? 7000 : 4500);
+  announce(message);
+}
+
+function friendlyError(error) {
+  const message = String(error?.message || error || "Errore sconosciuto");
+  if (/invalid login credentials/i.test(message)) return "Email o password non corretti.";
+  if (/email not confirmed/i.test(message)) return "Conferma l’email usando il link che hai ricevuto, poi accedi.";
+  if (/user already registered/i.test(message)) return "Esiste già un account con questa email.";
+  if (/password/i.test(message) && /characters|short|least/i.test(message)) return "La password deve contenere almeno 8 caratteri.";
+  if (/failed to fetch|network/i.test(message)) return "Connessione non disponibile. Riprova quando sei online.";
+  return message;
+}
+
+function formatLongDate(date) {
+  return new Intl.DateTimeFormat("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(date);
+}
+
+function monthBounds(date) {
+  const first = new Date(date.getFullYear(), date.getMonth(), 1);
+  const last = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  return { start: isoDateLocal(first), end: isoDateLocal(last) };
+}
+
+function asCloudDay(day) {
+  return {
+    user_id: state.user.id,
+    work_date: day.work_date,
+    planned_type: day.planned_type,
+    actual_type: day.actual_type,
+    absence_type: day.absence_type || null,
+    child_id: day.child_id || null,
+    events: day.events || [],
+    ticket_override: typeof day.ticket_override === "boolean" ? day.ticket_override : null,
+    notes: day.notes || ""
+  };
+}
+
+async function fetchProfile() {
+  const { data, error } = await state.supabase.from("profiles").select("*").eq("id", state.user.id).maybeSingle();
+  if (error) throw error;
+  if (data) state.profile = { ...DEFAULT_PROFILE, ...data, family_settings: data.family_settings || { children: [] } };
+  else {
+    const payload = { ...DEFAULT_PROFILE, id: state.user.id, display_name: state.user.user_metadata?.display_name || state.user.email.split("@")[0] };
+    const result = await state.supabase.from("profiles").upsert(payload).select().single();
+    if (result.error) throw result.error;
+    state.profile = { ...DEFAULT_PROFILE, ...result.data };
+  }
+}
+
+async function fetchMonth(date) {
+  const { start, end } = monthBounds(date);
+  const { data, error } = await state.supabase
+    .from("work_days")
+    .select("*")
+    .gte("work_date", start)
+    .lte("work_date", end)
+    .order("work_date");
+  if (error) {
+    if (state.days.size) {
+      updateSyncStatus("Offline · mostro i dati salvati");
+      return;
+    }
+    throw error;
+  }
+  (data || []).forEach((day) => state.days.set(day.work_date, normalizeDay(day)));
+  persistLocalCache();
+}
+
+async function saveDay(day, { silent = false } = {}) {
+  const normalized = normalizeDay(day);
+  state.days.set(normalized.work_date, normalized);
+  persistLocalCache();
+  renderCurrentViews();
+  updateSyncStatus("Salvataggio…");
+
+  if (!navigator.onLine) {
+    queueOperation({ op: "upsert", work_date: normalized.work_date, payload: asCloudDay(normalized) });
+    if (!silent) showToast("Salvato sul dispositivo. Sincronizzerò appena torni online.");
+    return normalized;
+  }
+
+  const { data, error } = await state.supabase
+    .from("work_days")
+    .upsert(asCloudDay(normalized), { onConflict: "user_id,work_date" })
+    .select()
+    .single();
+
+  if (error) {
+    queueOperation({ op: "upsert", work_date: normalized.work_date, payload: asCloudDay(normalized) });
+    if (!silent) showToast("Salvato sul dispositivo; la sincronizzazione è in attesa.");
+    return normalized;
+  }
+
+  state.days.set(data.work_date, normalizeDay(data));
+  persistLocalCache();
+  updateSyncStatus();
+  return data;
+}
+
+async function deleteDay(date, { silent = false } = {}) {
+  state.days.delete(date);
+  persistLocalCache();
+  renderCurrentViews();
+
+  if (!navigator.onLine) {
+    queueOperation({ op: "delete", work_date: date });
+    if (!silent) showToast("Eliminata sul dispositivo. La modifica verrà sincronizzata online.");
+    return;
+  }
+
+  const { error } = await state.supabase.from("work_days").delete().eq("user_id", state.user.id).eq("work_date", date);
+  if (error) queueOperation({ op: "delete", work_date: date });
+  updateSyncStatus();
+}
+
+async function flushQueue() {
+  if (!state.user || !navigator.onLine) return;
+  const queue = getQueue();
+  if (!queue.length) return updateSyncStatus();
+  updateSyncStatus("Sincronizzazione…");
+  const remaining = [];
+  for (const operation of queue) {
+    let result;
+    if (operation.op === "delete") {
+      result = await state.supabase.from("work_days").delete().eq("user_id", state.user.id).eq("work_date", operation.work_date);
+    } else {
+      result = await state.supabase.from("work_days").upsert(operation.payload, { onConflict: "user_id,work_date" });
+    }
+    if (result.error) remaining.push(operation);
+  }
+  setQueue(remaining);
+  if (!remaining.length) showToast("Modifiche sincronizzate.");
+}
+
+function fillChildSelect(select, selectedValue) {
+  const children = familyChildren();
+  select.replaceChildren();
+  if (!children.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "Nessun figlio configurato";
+    select.append(option);
+    select.disabled = true;
+    return;
+  }
+  select.disabled = false;
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "Seleziona un figlio";
+  select.append(empty);
+  for (const child of children) {
+    const option = document.createElement("option");
+    option.value = child.id;
+    option.textContent = child.name;
+    select.append(option);
+  }
+  select.value = selectedValue || "";
+}
+
+function toggleAbsenceFields(scope) {
+  const actual = $(`#${scope}-actual-type`).value || $(`#${scope}-planned-type`).value;
+  const absenceField = $(`#${scope}-absence-field`);
+  const absenceType = $(`#${scope}-absence-type`);
+  absenceField.hidden = actual !== "absence";
+  const childField = $(`#${scope}-child-field`);
+  childField.hidden = actual !== "absence" || absenceType.value !== "child_sickness";
+}
+
+function calculationNow(day) {
+  if (day.work_date === isoDateLocal()) return new Date();
+  const dates = (day.events || []).map((event) => new Date(event.at)).filter((date) => !Number.isNaN(date.getTime()));
+  return dates.length ? new Date(Math.max(...dates.map((date) => date.getTime()))) : new Date(`${day.work_date}T23:59:00`);
 }
 
 function renderToday() {
-  const key = dateKeyLocal();
-  const day = state.days[key] || {};
-  const settings = state.settings;
-  const metrics = getDayMetrics(day, settings, new Date());
-  $('#todayTitle').textContent = formatDate(key);
-  $('#liveClock').textContent = nowTime();
+  if (!state.user) return;
+  const now = new Date();
+  const date = isoDateLocal(now);
+  const day = state.days.get(date) || defaultDay(date);
+  const effectiveType = day.actual_type || day.planned_type || "office";
+  const result = calculateDay(day.events, state.profile.target_minutes, state.profile.overtime_threshold, now);
+  const plannedBreak = breakForType(state.profile, effectiveType);
+  const forecast = forecastExit(day.events, state.profile.target_minutes, plannedBreak, now);
+  const dayType = DAY_TYPES[effectiveType] || DAY_TYPES.office;
 
-  const planned = day.plannedMode;
-  const plannedBadge = $('#plannedBadge');
-  plannedBadge.className = `pill ${planned || 'neutral'}`;
-  plannedBadge.textContent = planned ? `Pianificato: ${MODE_LABELS[planned] || planned}` : 'Non pianificato';
+  $("#today-date").textContent = formatLongDate(now);
+  $("#today-type-badge").textContent = `${dayType.icon} ${dayType.label}`;
+  $("#today-type-badge").className = `type-badge ${effectiveType}`;
+  $("#worked-value").textContent = minutesToDuration(result.workedMinutes);
+  $("#forecast-value").textContent = formatTime(forecast);
+  $("#overtime-value").textContent = minutesToDuration(result.overtimeMinutes);
+  $("#ticket-value").textContent = ticketForDay(state.profile, day) ? "Sì" : "No";
 
-  const mode = day.actualMode || '';
-  $$('.mode-button').forEach(button => button.classList.toggle('active', button.dataset.mode === mode));
+  const primary = $("#primary-action");
+  const exit = $("#exit-action");
+  primary.disabled = effectiveType === "absence";
+  exit.hidden = !["working", "paused"].includes(result.state) || effectiveType === "absence";
 
-  let status = 'Nessuna attività registrata';
-  if (day.absenceType) status = `${ABSENCE_TYPES[day.absenceType] || 'Assenza'} · ${day.status === 'planned' ? 'pianificata' : 'confermata'}`;
-  else if (day.end) status = `Giornata conclusa alle ${day.end}`;
-  else if (day.start) status = `Ingresso ${day.start} · ${MODE_LABELS[dayMode(day, settings)]}`;
-  else if (planned) status = `${MODE_LABELS[planned]} pianificato`;
-  $('#todayStatus').textContent = status;
+  if (effectiveType === "absence") {
+    $("#work-state-label").textContent = ABSENCE_TYPES[day.absence_type] || "Assenza";
+    $("#work-main-value").textContent = "Assenza";
+    $("#work-main-caption").textContent = "Non sono previste timbrature per questa giornata.";
+    primary.textContent = "Giornata segnata come assenza";
+  } else if (result.state === "not_started") {
+    $("#work-state-label").textContent = "Giornata non iniziata";
+    $("#work-main-value").textContent = "—";
+    $("#work-main-caption").textContent = "Registra l’entrata quando inizi.";
+    primary.textContent = "Registra entrata";
+  } else if (result.state === "working") {
+    $("#work-state-label").textContent = "Stai lavorando";
+    $("#work-main-value").textContent = minutesToDuration(result.workedMinutes);
+    $("#work-main-caption").textContent = `Restano ${minutesToDuration(result.remainingMinutes)} di lavoro.`;
+    primary.textContent = "Inizia pausa";
+  } else if (result.state === "paused") {
+    $("#work-state-label").textContent = "Pausa in corso";
+    $("#work-main-value").textContent = minutesToDuration(result.pausedMinutes);
+    $("#work-main-caption").textContent = "Il tempo di pausa non viene conteggiato come lavoro.";
+    primary.textContent = "Termina pausa";
+  } else {
+    $("#work-state-label").textContent = "Giornata conclusa";
+    $("#work-main-value").textContent = formatTime(result.lastExit);
+    $("#work-main-caption").textContent = `Hai lavorato ${minutesToDuration(result.workedMinutes)}.`;
+    primary.textContent = "Giornata conclusa";
+    primary.disabled = true;
+  }
 
-  $('#expectedExit').textContent = metrics.expected === null ? '—' : timeFromMinutes(metrics.expected);
-  $('#expectedHint').textContent = day.start ? `pausa prevista ${settings[dayMode(day, settings) === 'smart' ? 'pauseSmart' : dayMode(day, settings) === 'travel' ? 'pauseTravel' : 'pauseOffice']} min` : 'Registra l’ingresso';
-  $('#workedTime').textContent = formatMinutes(metrics.worked);
-  $('#workedHint').textContent = `su ${formatMinutes(Number(settings.workMinutes))}`;
-  $('#overtimeTime').textContent = formatMinutes(metrics.overtime.counted);
-  $('#overtimeHint').textContent = settings.overtimeEnabled ? `grezzo ${formatMinutes(metrics.overtime.raw)} · soglia ${settings.overtimeThreshold} min` : 'calcolo disattivato';
-  $('#ticketValue').textContent = day.end ? (metrics.ticket ? 'Sì' : 'No') : '—';
-  $('#ticketHint').textContent = day.ticketOverride !== null && day.ticketOverride !== undefined ? 'valore forzato' : `minimo ${settings.ticketMinMinutes} min`;
-
-  const activeBreak = (day.breaks || []).find(item => item.start && !item.end);
-  $('#checkInButton').disabled = Boolean(day.start || day.absenceType);
-  $('#checkInButton').textContent = day.start ? `Ingresso ${day.start}` : 'Registra ingresso';
-  $('#breakButton').disabled = Boolean(!day.start || day.end || day.absenceType);
-  $('#breakButton').textContent = activeBreak ? 'Termina pausa' : 'Inizia pausa';
-  $('#checkOutButton').disabled = Boolean(!day.start || day.end || day.absenceType);
-  $('#checkOutButton').textContent = day.end ? `Uscita ${day.end}` : 'Registra uscita';
-
-  const events = [];
-  if (day.start) events.push([day.start, 'Ingresso']);
-  (day.breaks || []).forEach(item => {
-    if (item.start) events.push([item.start, 'Inizio pausa']);
-    if (item.end) events.push([item.end, 'Fine pausa']);
-  });
-  if (day.end) events.push([day.end, 'Uscita effettiva']);
-  $('#todayTimeline').innerHTML = events.length
-    ? events.map(([time, label]) => `<li><time>${escapeHtml(time)}</time><span></span><strong>${escapeHtml(label)}</strong></li>`).join('')
-    : '<li class="empty">Nessun evento</li>';
+  $("#today-planned-type").value = day.planned_type;
+  $("#today-actual-type").value = effectiveType;
+  $("#today-absence-type").value = day.absence_type || "vacation";
+  fillChildSelect($("#today-child-id"), day.child_id);
+  $("#today-ticket").value = day.ticket_override === true ? "yes" : day.ticket_override === false ? "no" : "auto";
+  $("#today-notes").value = day.notes || "";
+  toggleAbsenceFields("today");
 }
 
-function calendarStyle(day) {
-  if (!day) return { className: '', label: '' };
-  if (day.absenceType) {
-    const map = {
-      vacation: 'vacation', sick: 'sick', childSick: 'childSick', publicHoliday: 'publicHoliday',
-      mandatoryLeave: 'leave', optionalLeave: 'leave', suppressedHoliday: 'leave', restRecovery: 'leave', other: 'leave'
-    };
-    return { className: map[day.absenceType] || 'leave', label: ABSENCE_TYPES[day.absenceType] || 'Assenza' };
-  }
-  const mode = day.actualMode || day.plannedMode;
-  return { className: mode || '', label: MODE_LABELS[mode] || '' };
+async function recordAction(type) {
+  if (state.busy) return;
+  state.busy = true;
+  const date = isoDateLocal();
+  const existing = state.days.get(date);
+  const before = existing ? structuredClone(existing) : null;
+  const day = normalizeDay(existing || defaultDay(date));
+  day.actual_type = day.actual_type || day.planned_type || "office";
+  const event = { id: crypto.randomUUID(), type, at: new Date().toISOString() };
+  day.events = [...day.events, event];
+  await saveDay(day, { silent: true });
+  state.busy = false;
+
+  const labels = { entry: "Entrata registrata", pause: "Pausa iniziata", resume: "Pausa terminata", exit: "Uscita registrata" };
+  showToast(`${labels[type]} alle ${formatTime(event.at)}.`, async () => {
+    if (before) await saveDay(before, { silent: true });
+    else await deleteDay(date, { silent: true });
+    showToast("Ultima azione annullata.");
+  });
 }
 
 function renderCalendar() {
-  const year = calendarDate.getFullYear();
-  const month = calendarDate.getMonth();
-  $('#calendarMonth').textContent = new Intl.DateTimeFormat('it-IT', { month: 'long', year: 'numeric' }).format(calendarDate);
-  const first = new Date(year, month, 1, 12);
-  const offset = (first.getDay() + 6) % 7;
-  const cursor = new Date(year, month, 1 - offset, 12);
-  const todayKey = dateKeyLocal();
-  const cells = [];
-  for (let i = 0; i < 42; i += 1) {
-    const key = dateKeyLocal(cursor);
-    const day = state.days[key];
-    const style = calendarStyle(day);
-    const outside = cursor.getMonth() !== month;
-    const planned = day?.status === 'planned' && !day?.end;
-    const className = ['calendar-day', outside ? 'outside' : '', key === todayKey ? 'today' : '', planned ? 'planned' : '', style.className].filter(Boolean).join(' ');
-    cells.push(`<button type="button" class="${className}" data-date="${key}" role="gridcell" aria-label="${escapeHtml(formatDate(key, { day:'numeric', month:'long', year:'numeric' }))}">
-      <span class="number">${cursor.getDate()}</span>${style.label ? `<span class="day-label">${escapeHtml(style.label)}</span>` : ''}
-    </button>`);
-    cursor.setDate(cursor.getDate() + 1);
+  if (!state.user) return;
+  const month = state.calendarMonth;
+  $("#calendar-month-label").textContent = new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" }).format(month);
+  const first = new Date(month.getFullYear(), month.getMonth(), 1);
+  const mondayOffset = (first.getDay() + 6) % 7;
+  const start = new Date(first);
+  start.setDate(first.getDate() - mondayOffset);
+  const grid = $("#calendar-grid");
+  grid.replaceChildren();
+
+  for (let index = 0; index < 42; index += 1) {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    const key = isoDateLocal(date);
+    const day = state.days.get(key);
+    const type = day?.actual_type || day?.planned_type;
+    const info = DAY_TYPES[type] || null;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "calendar-day";
+    button.setAttribute("role", "gridcell");
+    if (date.getMonth() !== month.getMonth()) button.classList.add("outside");
+    if (key === isoDateLocal()) button.classList.add("today");
+    const label = `${formatLongDate(date)}${info ? `, ${info.label}` : ", nessuna pianificazione"}${day?.events?.length ? ", orari registrati" : ""}`;
+    button.setAttribute("aria-label", label);
+
+    const number = document.createElement("span");
+    number.className = "date-number";
+    number.textContent = String(date.getDate());
+    button.append(number);
+    if (info) {
+      const code = document.createElement("span");
+      code.className = `day-code ${type}`;
+      code.textContent = type === "office" ? "U" : type === "smart" ? "S" : type === "travel" ? "T" : "A";
+      code.setAttribute("aria-hidden", "true");
+      button.append(code);
+    }
+    if (day?.events?.length) {
+      const dot = document.createElement("span");
+      dot.className = "day-dot";
+      dot.setAttribute("aria-hidden", "true");
+      button.append(dot);
+    }
+    button.addEventListener("click", () => openDayDialog(key));
+    grid.append(button);
   }
-  $('#calendarGrid').innerHTML = cells.join('');
-  const currentKey = dateKeyLocal();
-  if (!$('#bulkStart').value) $('#bulkStart').value = currentKey;
-  if (!$('#bulkEnd').value) $('#bulkEnd').value = currentKey;
-  renderChildOptions();
 }
 
-function renderChildOptions() {
-  const options = state.settings.children.map(child => `<option value="${escapeHtml(child.id)}">${escapeHtml(child.name)}</option>`).join('');
-  $('#bulkChild').innerHTML = options || '<option value="">Configura prima un figlio</option>';
-  $('#dayChild').innerHTML = `<option value="">Seleziona</option>${options}`;
-}
-
-function openDayDialog(key) {
-  const day = state.days[key] || { plannedMode: '', actualMode: '', absenceType: '', status: 'planned', breaks: [] };
-  $('#dayKey').value = key;
-  $('#dayDialogTitle').textContent = formatDate(key, { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-  $('#dayPlannedMode').value = day.plannedMode || (day.absenceType ? 'absence' : '');
-  $('#dayActualMode').value = day.actualMode || (day.absenceType && day.status !== 'planned' ? 'absence' : '');
-  $('#dayAbsenceType').value = day.absenceType || '';
-  $('#dayChild').value = day.childId || '';
-  $('#dayStatus').value = day.status || 'planned';
-  $('#dayStart').value = day.start || '';
-  $('#dayBreakStart').value = day.breaks?.[0]?.start || '';
-  $('#dayBreakEnd').value = day.breaks?.[0]?.end || '';
-  $('#dayEnd').value = day.end || '';
-  $('#dayTicketOverride').value = day.ticketOverride === true ? 'true' : day.ticketOverride === false ? 'false' : '';
-  $('#dayOvertimeTreatment').value = day.overtimeTreatmentOverride || '';
-  $('#dayTripDestination').value = day.tripDestination || '';
-  $('#dayNotes').value = day.notes || '';
-  updateDayFormVisibility();
-  updateDayPreview();
-  $('#dayDialog').showModal();
-}
-
-function dayFromForm() {
-  const absenceType = $('#dayAbsenceType').value;
-  const breakStart = $('#dayBreakStart').value;
-  const ticketValue = $('#dayTicketOverride').value;
-  const day = {
-    plannedMode: absenceType ? 'absence' : $('#dayPlannedMode').value,
-    actualMode: absenceType && $('#dayStatus').value !== 'planned' ? 'absence' : $('#dayActualMode').value,
-    absenceType,
-    childId: absenceType === 'childSick' ? $('#dayChild').value : '',
-    status: $('#dayStatus').value,
-    start: absenceType ? '' : $('#dayStart').value,
-    end: absenceType ? '' : $('#dayEnd').value,
-    breaks: absenceType || !breakStart ? [] : [{ start: breakStart, end: $('#dayBreakEnd').value }],
-    ticketOverride: ticketValue === '' ? null : ticketValue === 'true',
-    overtimeTreatmentOverride: $('#dayOvertimeTreatment').value,
-    tripDestination: $('#dayTripDestination').value.trim(),
-    notes: $('#dayNotes').value.trim()
-  };
-  return day;
-}
-
-function updateDayFormVisibility() {
-  const absence = $('#dayAbsenceType').value;
-  const mode = $('#dayActualMode').value || $('#dayPlannedMode').value;
-  $('#dayChildWrap').hidden = absence !== 'childSick';
-  $('#tripDestinationWrap').hidden = mode !== 'travel';
-  ['#dayStart','#dayBreakStart','#dayBreakEnd','#dayEnd'].forEach(selector => $(selector).disabled = Boolean(absence));
-}
-
-function updateDayPreview() {
-  const day = dayFromForm();
-  const metrics = getDayMetrics(day, state.settings, new Date());
-  $('#dayPreview').innerHTML = day.absenceType
-    ? `<strong>${escapeHtml(ABSENCE_TYPES[day.absenceType])}</strong><br>Stato: ${day.status === 'planned' ? 'pianificato' : 'confermato'}`
-    : `Uscita prevista: <strong>${metrics.expected === null ? '—' : timeFromMinutes(metrics.expected)}</strong> · Lavorato: <strong>${formatMinutes(metrics.worked)}</strong> · Straordinario: <strong>${formatMinutes(metrics.overtime.counted)}</strong> · Ticket: <strong>${day.end ? (metrics.ticket ? 'Sì' : 'No') : 'alla chiusura'}</strong>`;
-}
-
-function settingsToForm() {
-  const s = state.settings;
-  $('#profileName').value = s.profileName;
-  $('#workDuration').value = timeFromMinutes(Number(s.workMinutes));
-  $('#defaultMode').value = s.defaultMode;
-  $('#pauseOffice').value = s.pauseOffice;
-  $('#pauseSmart').value = s.pauseSmart;
-  $('#pauseTravel').value = s.pauseTravel;
-  $('#smartDefaultStart').value = s.smartDefaultStart;
-  $('#ticketOffice').checked = Boolean(s.ticketOffice);
-  $('#ticketSmart').checked = Boolean(s.ticketSmart);
-  $('#ticketTravel').checked = Boolean(s.ticketTravel);
-  $('#ticketMinMinutes').value = s.ticketMinMinutes;
-  $('#ticketDelayMonths').value = s.ticketDelayMonths;
-  $('#overtimeEnabled').checked = Boolean(s.overtimeEnabled);
-  $('#overtimeThreshold').value = s.overtimeThreshold;
-  $('#overtimeThresholdMode').value = s.overtimeThresholdMode;
-  $('#overtimeRounding').value = String(s.overtimeRounding);
-  $('#overtimeRoundingMode').value = s.overtimeRoundingMode;
-  $('#overtimeTreatment').value = s.overtimeTreatment;
-  $('#overtimeDailyLimit').value = s.overtimeDailyLimit;
-  $('#vacationPrevious').value = s.vacationPrevious;
-  $('#vacationCurrent').value = s.vacationCurrent;
-  $('#suppressedHolidayAllowance').value = s.suppressedHolidayAllowance;
-  $('#restRecoveryAllowance').value = s.restRecoveryAllowance;
-}
-
-function renderSettings() {
-  settingsToForm();
-  renderChildren();
-  renderPolicies();
-  renderChildOptions();
-}
-
-function renderChildren() {
-  const container = $('#childrenList');
-  if (!state.settings.children.length) {
-    container.innerHTML = '<p class="empty">Nessun figlio configurato.</p>';
-    return;
-  }
-  container.innerHTML = state.settings.children.map(child => {
-    const age = ageOnDate(child.birthDate, dateKeyLocal());
-    return `<article class="list-card"><div><h3>${escapeHtml(child.name)}</h3><p>Nascita ${escapeHtml(new Intl.DateTimeFormat('it-IT').format(dateFromKey(child.birthDate)))} · ${age ?? '—'} anni<br>Fuori app ${Number(child.usedExternal || 0)} gg · altro genitore ${Number(child.usedOtherParent || 0)} gg</p></div><div class="list-actions"><button type="button" class="secondary-button" data-edit-child="${escapeHtml(child.id)}" aria-label="Modifica">✎</button><button type="button" class="danger-button" data-delete-child="${escapeHtml(child.id)}" aria-label="Elimina">×</button></div></article>`;
-  }).join('');
-}
-
-function renderPolicies() {
-  const container = $('#policiesList');
-  if (!state.settings.childPolicies.length) {
-    container.innerHTML = '<p class="empty">Nessuna fascia configurata.</p>';
-    return;
-  }
-  const policies = [...state.settings.childPolicies].sort((a,b) => Number(a.minAge)-Number(b.minAge));
-  container.innerHTML = policies.map(policy => `<article class="list-card"><div><h3>${escapeHtml(policy.label)}</h3><p>Da ${Number(policy.minAge)} a ${Number(policy.maxAge)} anni · limite ${Number(policy.limitDays)} giorni/anno</p></div><div class="list-actions"><button type="button" class="secondary-button" data-edit-policy="${escapeHtml(policy.id)}" aria-label="Modifica">✎</button><button type="button" class="danger-button" data-delete-policy="${escapeHtml(policy.id)}" aria-label="Elimina">×</button></div></article>`).join('');
-}
-
-function summaryYears() {
-  const years = new Set([new Date().getFullYear()]);
-  Object.keys(state.days).forEach(key => years.add(Number(key.slice(0,4))));
-  return [...years].filter(Number.isFinite).sort((a,b) => b-a);
-}
-
-function countAbsenceForYear(type, year) {
-  return Object.entries(state.days).filter(([key, day]) => key.startsWith(String(year)) && day.absenceType === type && day.status !== 'planned').length;
+function openDayDialog(date) {
+  const day = state.days.get(date) || defaultDay(date);
+  $("#day-date").value = date;
+  $("#day-dialog-title").textContent = new Intl.DateTimeFormat("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${date}T12:00:00`));
+  $("#day-planned-type").value = day.planned_type;
+  $("#day-actual-type").value = day.actual_type || "";
+  $("#day-absence-type").value = day.absence_type || "vacation";
+  fillChildSelect($("#day-child-id"), day.child_id);
+  $("#day-ticket").value = day.ticket_override === true ? "yes" : day.ticket_override === false ? "no" : "auto";
+  $("#day-notes").value = day.notes || "";
+  $("#delete-day").hidden = !state.days.has(date);
+  toggleAbsenceFields("day");
+  $("#day-dialog").showModal();
 }
 
 function renderSummary() {
-  const yearSelect = $('#summaryYear');
-  const previousYear = Number(yearSelect.value) || new Date().getFullYear();
-  yearSelect.innerHTML = summaryYears().map(year => `<option value="${year}">${year}</option>`).join('');
-  yearSelect.value = summaryYears().includes(previousYear) ? String(previousYear) : String(summaryYears()[0]);
-  if ($('#summaryMonth').options.length === 1) {
-    const names = [...Array(12)].map((_, month) => new Intl.DateTimeFormat('it-IT', { month:'long' }).format(new Date(2026, month, 1)));
-    $('#summaryMonth').insertAdjacentHTML('beforeend', names.map((name,index) => `<option value="${index+1}">${name[0].toUpperCase()+name.slice(1)}</option>`).join(''));
+  if (!state.user) return;
+  const { start, end } = monthBounds(state.summaryMonth);
+  const days = [...state.days.values()].filter((day) => day.work_date >= start && day.work_date <= end);
+  const totals = { worked: 0, overtime: 0, tickets: 0, office: 0, smart: 0, travel: 0, absence: 0 };
+  for (const day of days) {
+    const result = calculateDay(day.events, state.profile.target_minutes, state.profile.overtime_threshold, calculationNow(day));
+    totals.worked += result.workedMinutes;
+    totals.overtime += result.overtimeMinutes;
+    totals.tickets += ticketForDay(state.profile, day) ? 1 : 0;
+    const effectiveType = day.actual_type || day.planned_type || "office";
+    totals[effectiveType] = (totals[effectiveType] || 0) + 1;
   }
-  const year = Number(yearSelect.value);
-  const month = Number($('#summaryMonth').value);
-  const summary = summarize(state.days, state.settings, { year, month: month || undefined });
-  let ticketCount = summary.tickets;
-  let ticketHint = month ? 'nel mese selezionato' : 'nell’anno selezionato';
-  const ticketDelay = Math.max(0, Number(state.settings.ticketDelayMonths || 0));
-  if (month && ticketDelay > 0) {
-    const sourceDate = new Date(year, month - 1 - ticketDelay, 1, 12);
-    const sourceYear = sourceDate.getFullYear();
-    const sourceMonth = sourceDate.getMonth() + 1;
-    ticketCount = summarize(state.days, state.settings, { year: sourceYear, month: sourceMonth }).tickets;
-    const sourceLabel = new Intl.DateTimeFormat('it-IT', { month: 'long', year: 'numeric' }).format(sourceDate);
-    ticketHint = `maturati ${sourceLabel}`;
-  }
-  const kpis = [
-    ['Giorni lavorati', summary.workedDays, 'consuntivati'],
-    ['Smart effettivi', summary.smartActual, `${summary.smartPlanned} pianificati`],
-    ['Ticket', ticketCount, ticketHint],
-    ['Straordinario', formatMinutes(summary.overtimePaid + summary.overtimeRecovery + summary.overtimeInfo), `pagato ${formatMinutes(summary.overtimePaid)}`]
-  ];
-  $('#summaryKpis').innerHTML = kpis.map(([label,value,hint],index) => `<article class="metric-card ${index===0?'accent':''}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(hint)}</small></article>`).join('');
 
+  const cards = [
+    ["Ore lavorate", minutesToDuration(totals.worked)],
+    ["Straordinario", minutesToDuration(totals.overtime)],
+    ["Buoni pasto", String(totals.tickets)],
+    ["Giornate registrate", String(days.length)],
+    ["Smart working", String(totals.smart)],
+    ["Assenze", String(totals.absence)]
+  ];
+  $("#summary-cards").replaceChildren(...cards.map(([label, value]) => {
+    const card = document.createElement("article");
+    card.className = "summary-card";
+    const span = document.createElement("span");
+    span.textContent = label;
+    const strong = document.createElement("strong");
+    strong.textContent = value;
+    card.append(span, strong);
+    return card;
+  }));
+
+  const maximum = Math.max(1, totals.office, totals.smart, totals.travel, totals.absence);
   const rows = [
-    ['Ufficio', summary.office], ['Smart working', summary.smartActual], ['Trasferte', summary.travel],
-    ['Ferie', summary.absences.vacation || 0], ['Malattia', summary.absences.sick || 0],
-    ['Malattia bambino', summary.absences.childSick || 0], ['Congedo obbligatorio', summary.absences.mandatoryLeave || 0],
-    ['Congedo facoltativo', summary.absences.optionalLeave || 0], ['Festività soppresse', summary.absences.suppressedHoliday || 0],
-    ['Recupero riposo', summary.absences.restRecovery || 0], ['Pianificati da consuntivare', summary.plannedOnly]
+    ["Ufficio", totals.office], ["Smart", totals.smart], ["Trasferta", totals.travel], ["Assenza", totals.absence]
   ];
-  const max = Math.max(1, ...rows.map(row => row[1]));
-  $('#summaryBreakdown').innerHTML = rows.map(([label,value]) => `<div class="breakdown-row"><span>${escapeHtml(label)}</span><span class="bar"><i style="width:${Math.round(value/max*100)}%"></i></span><strong>${value}</strong></div>`).join('');
-
-  const vacationUsed = countAbsenceForYear('vacation', year);
-  const suppressedUsed = countAbsenceForYear('suppressedHoliday', year);
-  const recoveryUsed = countAbsenceForYear('restRecovery', year);
-  const allowances = [
-    ['Ferie residue', Math.max(0, Number(state.settings.vacationPrevious)+Number(state.settings.vacationCurrent)-vacationUsed), `usate ${vacationUsed}`],
-    ['Festività soppresse', Math.max(0, Number(state.settings.suppressedHolidayAllowance)-suppressedUsed), `usate ${suppressedUsed}`],
-    ['Recuperi riposo', Math.max(0, Number(state.settings.restRecoveryAllowance)-recoveryUsed), `usati ${recoveryUsed}`],
-    ['Ore lavorate', formatMinutes(summary.workedMinutes), month ? 'nel mese' : 'nell’anno']
-  ];
-  $('#allowanceSummary').innerHTML = allowances.map(([label,value,hint]) => `<div class="allowance-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(hint)}</small></div>`).join('');
-
-  const asOf = year === new Date().getFullYear() ? dateKeyLocal() : `${year}-12-31`;
-  $('#childSummary').innerHTML = state.settings.children.length ? state.settings.children.map(child => {
-    const balance = childLeaveBalance(child, state.days, state.settings, asOf);
-    const policyName = balance.policy?.label || 'Nessuna policy applicabile';
-    return `<article class="list-card"><div><h3>${escapeHtml(child.name)} · ${balance.age ?? '—'} anni</h3><p>${escapeHtml(policyName)}<br>Diritto ${balance.allowance} · usato app ${balance.ownUsed} · esterno ${balance.external} · altro genitore ${balance.otherParent}</p></div><div class="allowance-item"><span>Residuo</span><strong>${balance.remaining}</strong></div></article>`;
-  }).join('') : '<p class="empty">Nessun figlio configurato.</p>';
+  $("#summary-types").replaceChildren(...rows.map(([label, count]) => {
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    const name = document.createElement("span");
+    name.textContent = label;
+    const track = document.createElement("div");
+    track.className = "bar-track";
+    const fill = document.createElement("div");
+    fill.className = "bar-fill";
+    fill.style.width = `${(count / maximum) * 100}%`;
+    fill.setAttribute("aria-hidden", "true");
+    track.append(fill);
+    const value = document.createElement("strong");
+    value.textContent = String(count);
+    row.append(name, track, value);
+    return row;
+  }));
 }
 
-function renderAll() {
-  renderHeader();
-  renderToday();
-  renderCalendar();
-  renderSummary();
-  renderChildOptions();
-}
-
-function downloadFile(name, content, type) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = name;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function exportCsv() {
-  const year = Number($('#summaryYear').value);
-  const month = Number($('#summaryMonth').value);
-  const prefix = month ? `${year}-${String(month).padStart(2,'0')}` : String(year);
-  const header = ['Data','Pianificato','Effettivo','Assenza','Stato','Ingresso','Pausa inizio','Pausa fine','Uscita','Ore lavorate','Straordinario','Trattamento','Ticket','Destinazione','Note'];
-  const lines = [header];
-  Object.entries(state.days).sort(([a],[b]) => a.localeCompare(b)).forEach(([key,day]) => {
-    if (!key.startsWith(prefix)) return;
-    const metrics = getDayMetrics(day, state.settings, dateFromKey(key));
-    lines.push([
-      key, MODE_LABELS[day.plannedMode] || '', MODE_LABELS[day.actualMode] || '', ABSENCE_TYPES[day.absenceType] || '', day.status || '',
-      day.start || '', day.breaks?.[0]?.start || '', day.breaks?.[0]?.end || '', day.end || '', formatMinutes(metrics.worked),
-      formatMinutes(metrics.overtime.counted), metrics.overtime.treatment, metrics.ticket ? 'SI' : 'NO', day.tripDestination || '', day.notes || ''
-    ]);
+function renderChildren() {
+  const list = $("#children-list");
+  list.replaceChildren();
+  const children = familyChildren();
+  if (!children.length) {
+    const empty = document.createElement("p");
+    empty.className = "supporting";
+    empty.textContent = "Nessun figlio aggiunto.";
+    list.append(empty);
+    return;
+  }
+  children.forEach((child) => {
+    const row = document.createElement("div");
+    row.className = "child-row";
+    const info = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = child.name;
+    const date = document.createElement("span");
+    date.textContent = child.birth_date ? `Nato/a il ${new Intl.DateTimeFormat("it-IT").format(new Date(`${child.birth_date}T12:00:00`))}` : "Data di nascita non indicata";
+    info.append(name, date);
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Rimuovi ${child.name}`);
+    remove.addEventListener("click", () => {
+      state.profile.family_settings = { ...state.profile.family_settings, children: familyChildren().filter((item) => item.id !== child.id) };
+      renderChildren();
+      announce(`${child.name} rimosso. Salva le impostazioni per confermare.`);
+    });
+    row.append(info, remove);
+    list.append(row);
   });
-  const escapeCsv = value => `"${String(value ?? '').replaceAll('"','""')}"`;
-  downloadFile(`orari-${prefix}.csv`, `\ufeff${lines.map(row => row.map(escapeCsv).join(';')).join('\r\n')}`, 'text/csv;charset=utf-8');
+}
+
+function renderSettings() {
+  const profile = state.profile;
+  $("#settings-name").value = profile.display_name || "";
+  $("#target-hours").value = Math.floor(profile.target_minutes / 60);
+  $("#target-minutes").value = profile.target_minutes % 60;
+  $("#office-break").value = profile.office_break_minutes;
+  $("#smart-break").value = profile.smart_break_minutes;
+  $("#travel-break").value = profile.travel_break_minutes;
+  $("#overtime-threshold").value = profile.overtime_threshold;
+  $("#ticket-office").checked = Boolean(profile.ticket_office);
+  $("#ticket-smart").checked = Boolean(profile.ticket_smart);
+  $("#ticket-travel").checked = Boolean(profile.ticket_travel);
+  renderChildren();
+}
+
+function renderAccount() {
+  const name = state.profile.display_name || state.user.email.split("@")[0];
+  $("#account-name").textContent = name;
+  $("#account-email").textContent = state.user.email;
+  $("#account-initial").textContent = name.trim().charAt(0).toUpperCase() || "U";
+}
+
+function renderCurrentViews() {
+  renderToday();
+  if (!$("#calendar-screen").hidden) renderCalendar();
+  if (!$("#summary-screen").hidden) renderSummary();
+}
+
+function showScreen(name) {
+  $$(".screen").forEach((screen) => { screen.hidden = screen.dataset.screen !== name; });
+  $$(".nav-item").forEach((button) => {
+    const active = button.dataset.target === name;
+    button.classList.toggle("active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+  if (name === "calendar") renderCalendar();
+  if (name === "summary") renderSummary();
+  if (name === "settings") renderSettings();
+  $("#main-content").focus({ preventScroll: true });
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function loadApplication(user) {
+  state.user = user;
+  state.days.clear();
+  loadLocalCache();
+  try {
+    await Promise.all([fetchProfile(), fetchMonth(state.calendarMonth)]);
+  } catch (error) {
+    if (!state.days.size) {
+      showToast(`Non riesco a caricare i dati: ${friendlyError(error)}`);
+    }
+  }
+  $("#auth-view").hidden = true;
+  $("#configuration-view").hidden = true;
+  $("#app-shell").hidden = false;
+  $("#summary-month").value = `${state.summaryMonth.getFullYear()}-${String(state.summaryMonth.getMonth() + 1).padStart(2, "0")}`;
+  $("#bulk-start").value ||= isoDateLocal();
+  $("#bulk-end").value ||= isoDateLocal();
+  renderAccount();
+  renderToday();
+  updateSyncStatus();
+  flushQueue();
+}
+
+function showAuth() {
+  state.user = null;
+  state.days.clear();
+  $("#app-shell").hidden = true;
+  $("#configuration-view").hidden = true;
+  $("#auth-view").hidden = false;
+  $("#email").focus();
+}
+
+function switchAuthMode(mode) {
+  state.authMode = mode;
+  const register = mode === "register";
+  $("#display-name-field").hidden = !register;
+  $("#display-name").required = register;
+  $("#password").autocomplete = register ? "new-password" : "current-password";
+  $("#auth-title").textContent = register ? "Crea il tuo account" : "Accedi alle tue giornate";
+  $("#auth-description").textContent = register
+    ? "Ogni account vede soltanto le proprie giornate. Potrebbe essere richiesta la conferma via email."
+    : "Usa il tuo account personale. Gli altri utenti non possono vedere i tuoi dati.";
+  $("#auth-submit").textContent = register ? "Crea il mio account" : "Accedi";
+  $("#show-login").classList.toggle("active", !register);
+  $("#show-register").classList.toggle("active", register);
+  $("#show-login").setAttribute("aria-pressed", String(!register));
+  $("#show-register").setAttribute("aria-pressed", String(register));
+  $("#auth-error").hidden = true;
+}
+
+async function handleAuthSubmit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const errorBox = $("#auth-error");
+  errorBox.hidden = true;
+  if (!form.reportValidity()) return;
+  const email = $("#email").value.trim();
+  const password = $("#password").value;
+  $("#auth-submit").disabled = true;
+  $("#auth-submit").textContent = state.authMode === "register" ? "Creazione account…" : "Accesso…";
+
+  let result;
+  if (state.authMode === "register") {
+    result = await state.supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { display_name: $("#display-name").value.trim() } }
+    });
+  } else {
+    result = await state.supabase.auth.signInWithPassword({ email, password });
+  }
+
+  $("#auth-submit").disabled = false;
+  switchAuthMode(state.authMode);
+  if (result.error) {
+    errorBox.textContent = friendlyError(result.error);
+    errorBox.hidden = false;
+    errorBox.focus();
+    return;
+  }
+  if (state.authMode === "register" && !result.data.session) {
+    showToast("Account creato. Apri l’email di conferma prima di accedere.");
+    switchAuthMode("login");
+  }
+}
+
+async function initialize() {
+  bindEvents();
+  if (!configured || !window.supabase?.createClient) {
+    $("#configuration-view").hidden = false;
+    return;
+  }
+  state.supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+  });
+  state.supabase.auth.onAuthStateChange((event, session) => {
+    if (event === "INITIAL_SESSION") return;
+    if (event === "SIGNED_OUT") {
+      showAuth();
+      return;
+    }
+    if (!session?.user) return;
+    window.setTimeout(async () => {
+      if (session.user.id !== state.user?.id) await loadApplication(session.user);
+      if (event === "PASSWORD_RECOVERY") {
+        showScreen("settings");
+        showToast("Link verificato. Inserisci ora la nuova password in Sicurezza account.");
+        $("#new-password").focus();
+      }
+    }, 0);
+  });
+  const { data, error } = await state.supabase.auth.getSession();
+  if (error) showToast(friendlyError(error));
+  if (data?.session?.user) await loadApplication(data.session.user);
+  else showAuth();
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
+  window.setInterval(() => {
+    if (state.user && !$("#today-screen").hidden) renderToday();
+  }, 60000);
 }
 
 function bindEvents() {
-  $$('.nav-button').forEach(button => button.addEventListener('click', () => switchView(button.dataset.view)));
-  $('#editToday').addEventListener('click', () => openDayDialog(dateKeyLocal()));
-  $$('.mode-button').forEach(button => button.addEventListener('click', () => {
-    const day = ensureDay(dateKeyLocal());
-    day.actualMode = button.dataset.mode;
-    day.plannedMode ||= button.dataset.mode;
-    day.absenceType = '';
-    day.status = 'confirmed';
-    persist(`Modalità impostata: ${MODE_LABELS[button.dataset.mode]}`);
-  }));
-
-  $('#checkInButton').addEventListener('click', () => {
-    const day = ensureDay(dateKeyLocal());
-    day.actualMode ||= day.plannedMode && day.plannedMode !== 'absence' ? day.plannedMode : state.settings.defaultMode;
-    day.plannedMode ||= day.actualMode;
-    day.status = 'confirmed';
-    day.start = nowTime();
-    persist(`Ingresso registrato alle ${day.start}`);
-  });
-
-  $('#breakButton').addEventListener('click', () => {
-    const day = ensureDay(dateKeyLocal());
-    const active = day.breaks.find(item => item.start && !item.end);
-    if (active) {
-      active.end = nowTime();
-      persist(`Pausa terminata alle ${active.end}`);
-    } else {
-      day.breaks.push({ start: nowTime(), end: '' });
-      persist('Pausa iniziata');
+  $("#show-login").addEventListener("click", () => switchAuthMode("login"));
+  $("#show-register").addEventListener("click", () => switchAuthMode("register"));
+  $("#auth-form").addEventListener("submit", handleAuthSubmit);
+  $("#reset-password").addEventListener("click", async () => {
+    const email = $("#email").value.trim();
+    if (!email) {
+      $("#auth-error").textContent = "Inserisci prima l’email dell’account.";
+      $("#auth-error").hidden = false;
+      $("#email").focus();
+      return;
     }
+    const { error } = await state.supabase.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}${location.pathname}` });
+    if (error) showToast(friendlyError(error));
+    else showToast("Link inviato. Controlla la posta e anche la cartella indesiderata.");
   });
 
-  $('#checkOutButton').addEventListener('click', () => {
-    const day = ensureDay(dateKeyLocal());
-    const active = day.breaks.find(item => item.start && !item.end);
-    if (active) active.end = nowTime();
-    day.end = nowTime();
-    day.status = 'confirmed';
-    persist(`Uscita registrata alle ${day.end}`);
+  $("#account-button").addEventListener("click", () => {
+    const panel = $("#account-panel");
+    panel.hidden = !panel.hidden;
+    $("#account-button").setAttribute("aria-expanded", String(!panel.hidden));
+  });
+  $("#sign-out").addEventListener("click", async () => {
+    await flushQueue();
+    const { error } = await state.supabase.auth.signOut();
+    if (error) showToast(friendlyError(error));
   });
 
-  $('#clearToday').addEventListener('click', () => {
-    if (!state.days[dateKeyLocal()] || !confirm('Azzerare tutti i dati di oggi?')) return;
-    delete state.days[dateKeyLocal()];
-    persist('Giornata azzerata');
+  $$(".nav-item").forEach((button) => button.addEventListener("click", () => showScreen(button.dataset.target)));
+  $("#primary-action").addEventListener("click", () => {
+    const day = state.days.get(isoDateLocal()) || defaultDay(isoDateLocal());
+    const result = calculateDay(day.events, state.profile.target_minutes, state.profile.overtime_threshold, new Date());
+    if (result.state === "not_started") recordAction("entry");
+    else if (result.state === "working") recordAction("pause");
+    else if (result.state === "paused") recordAction("resume");
+  });
+  $("#exit-action").addEventListener("click", () => recordAction("exit"));
+  $("#toast-action").addEventListener("click", async () => {
+    const action = state.undo;
+    state.undo = null;
+    $("#toast").hidden = true;
+    if (action) await action();
   });
 
-  $('#prevMonth').addEventListener('click', () => { calendarDate.setMonth(calendarDate.getMonth()-1); renderCalendar(); });
-  $('#nextMonth').addEventListener('click', () => { calendarDate.setMonth(calendarDate.getMonth()+1); renderCalendar(); });
-  $('#calendarGrid').addEventListener('click', event => {
-    const button = event.target.closest('[data-date]');
-    if (button) openDayDialog(button.dataset.date);
-  });
-  $('#bulkType').addEventListener('change', () => $('#bulkChildWrap').hidden = $('#bulkType').value !== 'childSick');
-  $('#bulkPlanForm').addEventListener('submit', event => {
+  $("#today-planned-type").addEventListener("change", () => toggleAbsenceFields("today"));
+  $("#today-actual-type").addEventListener("change", () => toggleAbsenceFields("today"));
+  $("#today-absence-type").addEventListener("change", () => toggleAbsenceFields("today"));
+  $("#today-details-form").addEventListener("submit", async (event) => {
     event.preventDefault();
-    const start = $('#bulkStart').value;
-    const end = $('#bulkEnd').value;
-    if (!start || !end || start > end) return showToast('Controlla l’intervallo di date.');
-    const weekdays = new Set($$('input[name="weekday"]:checked').map(input => Number(input.value)));
-    if (!weekdays.size) return showToast('Seleziona almeno un giorno della settimana.');
-    const type = $('#bulkType').value;
-    const isMode = ['office','smart','travel'].includes(type);
-    const childId = $('#bulkChild').value;
-    if (type === 'childSick' && !childId) return showToast('Seleziona un figlio.');
-    let count = 0;
-    for (const key of eachDate(start,end)) {
-      if (!weekdays.has(dateFromKey(key).getDay())) continue;
-      const day = ensureDay(key);
-      day.plannedMode = isMode ? type : 'absence';
-      day.absenceType = isMode ? '' : type;
-      day.childId = type === 'childSick' ? childId : '';
-      day.status = 'planned';
-      count += 1;
-    }
-    persist(`${count} giornate pianificate`);
+    const date = isoDateLocal();
+    const day = normalizeDay(state.days.get(date) || defaultDay(date));
+    day.planned_type = $("#today-planned-type").value;
+    day.actual_type = $("#today-actual-type").value;
+    day.absence_type = day.actual_type === "absence" ? $("#today-absence-type").value : null;
+    day.child_id = day.absence_type === "child_sickness" ? $("#today-child-id").value || null : null;
+    day.ticket_override = $("#today-ticket").value === "auto" ? null : $("#today-ticket").value === "yes";
+    day.notes = $("#today-notes").value.trim();
+    await saveDay(day, { silent: true });
+    showToast("Dettagli di oggi salvati.");
   });
 
-  ['#dayPlannedMode','#dayActualMode','#dayAbsenceType','#dayStatus','#dayStart','#dayBreakStart','#dayBreakEnd','#dayEnd','#dayTicketOverride','#dayOvertimeTreatment'].forEach(selector => {
-    $(selector).addEventListener('input', () => {
-      if (selector === '#dayActualMode' && $('#dayActualMode').value === 'smart' && !$('#dayStart').value) $('#dayStart').value = state.settings.smartDefaultStart;
-      updateDayFormVisibility();
-      updateDayPreview();
+  $("#bulk-plan-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const startValue = $("#bulk-start").value;
+    const endValue = $("#bulk-end").value;
+    const weekdays = new Set($$("input[name='bulk-weekday']:checked").map((input) => Number(input.value)));
+    if (!startValue || !endValue || startValue > endValue) {
+      showToast("Controlla le date: la data finale deve essere uguale o successiva a quella iniziale.");
+      return;
+    }
+    if (!weekdays.size) {
+      showToast("Seleziona almeno un giorno della settimana.");
+      return;
+    }
+    const start = new Date(`${startValue}T12:00:00`);
+    const end = new Date(`${endValue}T12:00:00`);
+    const dayCount = Math.round((end - start) / 86400000) + 1;
+    if (dayCount > 366) {
+      showToast("Puoi pianificare al massimo 366 giorni per volta.");
+      return;
+    }
+    const type = $("#bulk-type").value;
+    const changed = [];
+    for (const cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+      if (!weekdays.has(cursor.getDay())) continue;
+      const date = isoDateLocal(cursor);
+      const day = normalizeDay(state.days.get(date) || defaultDay(date));
+      day.planned_type = type;
+      changed.push(day);
+      state.days.set(date, day);
+    }
+    if (!changed.length) {
+      showToast("Nell’intervallo non ci sono giorni corrispondenti alla selezione.");
+      return;
+    }
+    persistLocalCache();
+    renderCurrentViews();
+    if (!navigator.onLine) {
+      changed.forEach((day) => queueOperation({ op: "upsert", work_date: day.work_date, payload: asCloudDay(day) }));
+      showToast(`${changed.length} giornate pianificate sul dispositivo; sincronizzazione in attesa.`);
+      return;
+    }
+    updateSyncStatus("Salvataggio…");
+    const { data, error } = await state.supabase
+      .from("work_days")
+      .upsert(changed.map(asCloudDay), { onConflict: "user_id,work_date" })
+      .select();
+    if (error) {
+      changed.forEach((day) => queueOperation({ op: "upsert", work_date: day.work_date, payload: asCloudDay(day) }));
+      showToast("Pianificazione salvata sul dispositivo; sincronizzazione in attesa.");
+      return;
+    }
+    data.forEach((day) => state.days.set(day.work_date, normalizeDay(day)));
+    persistLocalCache();
+    updateSyncStatus();
+    renderCalendar();
+    showToast(`${changed.length} giornate pianificate.`);
+  });
+
+  $("#previous-month").addEventListener("click", async () => {
+    state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() - 1, 1);
+    await fetchMonth(state.calendarMonth).catch((error) => showToast(friendlyError(error)));
+    renderCalendar();
+  });
+  $("#next-month").addEventListener("click", async () => {
+    state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() + 1, 1);
+    await fetchMonth(state.calendarMonth).catch((error) => showToast(friendlyError(error)));
+    renderCalendar();
+  });
+  $("#day-planned-type").addEventListener("change", () => toggleAbsenceFields("day"));
+  $("#day-actual-type").addEventListener("change", () => toggleAbsenceFields("day"));
+  $("#day-absence-type").addEventListener("change", () => toggleAbsenceFields("day"));
+  $("#close-day-dialog").addEventListener("click", () => $("#day-dialog").close());
+  $("#day-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const date = $("#day-date").value;
+    const day = normalizeDay(state.days.get(date) || defaultDay(date));
+    day.planned_type = $("#day-planned-type").value;
+    day.actual_type = $("#day-actual-type").value || null;
+    const effectiveType = day.actual_type || day.planned_type;
+    day.absence_type = effectiveType === "absence" ? $("#day-absence-type").value : null;
+    day.child_id = day.absence_type === "child_sickness" ? $("#day-child-id").value || null : null;
+    day.ticket_override = $("#day-ticket").value === "auto" ? null : $("#day-ticket").value === "yes";
+    day.notes = $("#day-notes").value.trim();
+    await saveDay(day, { silent: true });
+    $("#day-dialog").close();
+    showToast("Giornata salvata.");
+  });
+  $("#delete-day").addEventListener("click", async () => {
+    const date = $("#day-date").value;
+    const before = structuredClone(state.days.get(date));
+    await deleteDay(date, { silent: true });
+    $("#day-dialog").close();
+    showToast("Giornata eliminata.", async () => {
+      await saveDay(before, { silent: true });
+      showToast("Giornata ripristinata.");
     });
   });
-  $$('[data-close-dialog]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
-  $('#dayForm').addEventListener('submit', event => {
-    event.preventDefault();
-    const key = $('#dayKey').value;
-    const day = dayFromForm();
-    const errors = validateTimeSequence(day);
-    if (day.absenceType === 'childSick' && !day.childId) errors.push('Seleziona il figlio interessato.');
-    if (errors.length) return showToast(errors[0]);
-    state.days[key] = day;
-    $('#dayDialog').close();
-    persist('Giornata salvata');
-  });
-  $('#deleteDay').addEventListener('click', () => {
-    const key = $('#dayKey').value;
-    if (!state.days[key] || !confirm('Eliminare questa giornata?')) return;
-    delete state.days[key];
-    $('#dayDialog').close();
-    persist('Giornata eliminata');
+
+  $("#summary-month").addEventListener("change", async (event) => {
+    const [year, month] = event.target.value.split("-").map(Number);
+    state.summaryMonth = new Date(year, month - 1, 1);
+    await fetchMonth(state.summaryMonth).catch((error) => showToast(friendlyError(error)));
+    renderSummary();
   });
 
-  $('#settingsForm').addEventListener('submit', event => {
-    event.preventDefault();
-    const workMinutes = minutesFromTime($('#workDuration').value);
-    if (!workMinutes) return showToast('Inserisci una durata lavorativa valida.');
-    Object.assign(state.settings, {
-      profileName: $('#profileName').value.trim() || 'Profilo', defaultMode: $('#defaultMode').value, workMinutes,
-      pauseOffice: Number($('#pauseOffice').value), pauseSmart: Number($('#pauseSmart').value), pauseTravel: Number($('#pauseTravel').value),
-      smartDefaultStart: $('#smartDefaultStart').value || '09:00', ticketOffice: $('#ticketOffice').checked, ticketSmart: $('#ticketSmart').checked,
-      ticketTravel: $('#ticketTravel').checked, ticketMinMinutes: Number($('#ticketMinMinutes').value), ticketDelayMonths: Number($('#ticketDelayMonths').value),
-      overtimeEnabled: $('#overtimeEnabled').checked, overtimeThreshold: Number($('#overtimeThreshold').value), overtimeThresholdMode: $('#overtimeThresholdMode').value,
-      overtimeRounding: Number($('#overtimeRounding').value), overtimeRoundingMode: $('#overtimeRoundingMode').value, overtimeTreatment: $('#overtimeTreatment').value,
-      overtimeDailyLimit: Number($('#overtimeDailyLimit').value), vacationPrevious: Number($('#vacationPrevious').value), vacationCurrent: Number($('#vacationCurrent').value),
-      suppressedHolidayAllowance: Number($('#suppressedHolidayAllowance').value), restRecoveryAllowance: Number($('#restRecoveryAllowance').value)
-    });
-    persist('Impostazioni salvate');
-  });
-
-  $('#addChild').addEventListener('click', () => openChildDialog());
-  $('#childrenList').addEventListener('click', event => {
-    const edit = event.target.closest('[data-edit-child]');
-    const remove = event.target.closest('[data-delete-child]');
-    if (edit) openChildDialog(edit.dataset.editChild);
-    if (remove && confirm('Eliminare questo figlio? Le giornate esistenti resteranno registrate.')) {
-      state.settings.children = state.settings.children.filter(child => child.id !== remove.dataset.deleteChild);
-      persist('Figlio eliminato');
-      renderSettings();
+  $("#add-child").addEventListener("click", () => {
+    const name = $("#child-name").value.trim();
+    const birthDate = $("#child-birth-date").value;
+    if (!name || !birthDate) {
+      showToast("Inserisci nome e data di nascita prima di aggiungere il figlio.");
+      (!name ? $("#child-name") : $("#child-birth-date")).focus();
+      return;
     }
-  });
-  $('#childForm').addEventListener('submit', event => {
-    event.preventDefault();
-    const id = $('#childId').value || uid('child');
-    const child = { id, name: $('#childName').value.trim(), birthDate: $('#childBirthDate').value, usedExternal: Number($('#childUsedExternal').value), usedOtherParent: Number($('#childUsedOtherParent').value), notes: $('#childNotes').value.trim() };
-    const index = state.settings.children.findIndex(item => item.id === id);
-    if (index >= 0) state.settings.children[index] = child; else state.settings.children.push(child);
-    $('#childDialog').close();
-    persist('Dati figlio salvati');
-    renderSettings();
+    state.profile.family_settings = {
+      ...state.profile.family_settings,
+      children: [...familyChildren(), { id: crypto.randomUUID(), name, birth_date: birthDate }]
+    };
+    $("#child-name").value = "";
+    $("#child-birth-date").value = "";
+    renderChildren();
+    announce(`${name} aggiunto. Salva le impostazioni per confermare.`);
   });
 
-  $('#addPolicy').addEventListener('click', () => openPolicyDialog());
-  $('#policiesList').addEventListener('click', event => {
-    const edit = event.target.closest('[data-edit-policy]');
-    const remove = event.target.closest('[data-delete-policy]');
-    if (edit) openPolicyDialog(edit.dataset.editPolicy);
-    if (remove && confirm('Eliminare questa fascia policy?')) {
-      state.settings.childPolicies = state.settings.childPolicies.filter(policy => policy.id !== remove.dataset.deletePolicy);
-      persist('Fascia eliminata');
-      renderSettings();
-    }
-  });
-  $('#policyForm').addEventListener('submit', event => {
+  $("#settings-form").addEventListener("submit", async (event) => {
     event.preventDefault();
-    const minAge = Number($('#policyMinAge').value);
-    const maxAge = Number($('#policyMaxAge').value);
-    if (maxAge < minAge) return showToast('L’età massima deve essere maggiore o uguale alla minima.');
-    const id = $('#policyId').value || uid('policy');
-    const policy = { id, label: $('#policyLabel').value.trim(), minAge, maxAge, limitDays: Number($('#policyLimitDays').value) };
-    const index = state.settings.childPolicies.findIndex(item => item.id === id);
-    if (index >= 0) state.settings.childPolicies[index] = policy; else state.settings.childPolicies.push(policy);
-    $('#policyDialog').close();
-    persist('Fascia policy salvata');
-    renderSettings();
+    if (!event.currentTarget.reportValidity()) return;
+    const profile = {
+      id: state.user.id,
+      display_name: $("#settings-name").value.trim(),
+      target_minutes: clampInt($("#target-hours").value, 1, 15, 7) * 60 + clampInt($("#target-minutes").value, 0, 59, 36),
+      office_break_minutes: clampInt($("#office-break").value, 0, 240, 30),
+      smart_break_minutes: clampInt($("#smart-break").value, 0, 240, 60),
+      travel_break_minutes: clampInt($("#travel-break").value, 0, 240, 30),
+      overtime_threshold: clampInt($("#overtime-threshold").value, 0, 240, 10),
+      ticket_office: $("#ticket-office").checked,
+      ticket_smart: $("#ticket-smart").checked,
+      ticket_travel: $("#ticket-travel").checked,
+      timezone: "Europe/Rome",
+      family_settings: state.profile.family_settings || { children: [] }
+    };
+    updateSyncStatus("Salvataggio…");
+    const { data, error } = await state.supabase.from("profiles").upsert(profile).select().single();
+    if (error) return showToast(`Impostazioni non salvate: ${friendlyError(error)}`);
+    state.profile = { ...DEFAULT_PROFILE, ...data };
+    renderAccount();
+    renderToday();
+    updateSyncStatus();
+    showToast("Impostazioni salvate.");
   });
 
-  $('#summaryYear').addEventListener('change', renderSummary);
-  $('#summaryMonth').addEventListener('change', renderSummary);
-  $('#exportCsv').addEventListener('click', exportCsv);
-  $('#exportBackup').addEventListener('click', () => downloadFile(`orari-backup-${dateKeyLocal()}.json`, JSON.stringify(state, null, 2), 'application/json'));
-  $('#importBackup').addEventListener('change', async event => {
+  $("#password-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!event.currentTarget.reportValidity()) return;
+    const password = $("#new-password").value;
+    const { error } = await state.supabase.auth.updateUser({ password });
+    if (error) return showToast(`Password non aggiornata: ${friendlyError(error)}`);
+    event.currentTarget.reset();
+    showToast("Password aggiornata. Usala dal prossimo accesso.");
+  });
+
+  $("#export-data").addEventListener("click", async () => {
+    const { data, error } = await state.supabase.from("work_days").select("*").order("work_date");
+    if (error) return showToast(`Backup non creato: ${friendlyError(error)}`);
+    const backup = { version: 2, exported_at: new Date().toISOString(), profile: state.profile, days: data || [] };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `chrono-flow-backup-${isoDateLocal()}.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    showToast("Backup scaricato.");
+  });
+
+  $("#import-data").addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
-      const parsed = JSON.parse(await file.text());
-      if (!parsed || typeof parsed !== 'object' || !parsed.settings || !parsed.days) throw new Error('Formato non riconosciuto');
-      if (!confirm('Sostituire tutti i dati locali con il backup selezionato?')) return;
-      state = replaceState(parsed);
-      renderAll();
-      renderSettings();
-      showToast('Backup importato');
+      const backup = JSON.parse(await file.text());
+      if (!Array.isArray(backup.days)) throw new Error("Il file non contiene un elenco di giornate valido.");
+      const normalizedDays = backup.days
+        .map((day) => normalizeDay({ ...day, work_date: day.work_date || day.date }))
+        .filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day.work_date || ""));
+      if (backup.days.length && !normalizedDays.length) {
+        throw new Error("Le giornate nel file non contengono date riconoscibili.");
+      }
+      const payload = normalizedDays.map((day) => asCloudDay(day));
+      if (payload.length) {
+        const { data, error } = await state.supabase.from("work_days").upsert(payload, { onConflict: "user_id,work_date" }).select();
+        if (error) throw error;
+        data.forEach((day) => state.days.set(day.work_date, normalizeDay(day)));
+        persistLocalCache();
+      }
+      renderCurrentViews();
+      showToast(`${payload.length} giornate importate o aggiornate.`);
     } catch (error) {
-      showToast(`Importazione non riuscita: ${error.message}`);
+      showToast(`Importazione non riuscita: ${friendlyError(error)}`);
     } finally {
-      event.target.value = '';
+      event.target.value = "";
     }
   });
-  $('#clearAll').addEventListener('click', () => {
-    if (!confirm('Cancellare definitivamente tutti i dati da questo dispositivo?')) return;
-    clearState();
-    state = emptyState();
-    saveState(state);
-    renderAll();
-    renderSettings();
-    showToast('Dati cancellati');
-  });
 
-  window.addEventListener('online', renderNetwork);
-  window.addEventListener('offline', renderNetwork);
-  window.addEventListener('beforeinstallprompt', event => {
-    event.preventDefault();
-    installPrompt = event;
-    $('#installButton').hidden = false;
-  });
-  $('#installButton').addEventListener('click', async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    await installPrompt.userChoice;
-    installPrompt = null;
-    $('#installButton').hidden = true;
-  });
+  window.addEventListener("online", () => flushQueue());
+  window.addEventListener("offline", () => updateSyncStatus());
 }
 
-function openChildDialog(id = '') {
-  const child = state.settings.children.find(item => item.id === id) || {};
-  $('#childId').value = child.id || '';
-  $('#childName').value = child.name || '';
-  $('#childBirthDate').value = child.birthDate || '';
-  $('#childUsedExternal').value = child.usedExternal || 0;
-  $('#childUsedOtherParent').value = child.usedOtherParent || 0;
-  $('#childNotes').value = child.notes || '';
-  $('#childDialog').showModal();
-}
-
-function openPolicyDialog(id = '') {
-  const policy = state.settings.childPolicies.find(item => item.id === id) || {};
-  $('#policyId').value = policy.id || '';
-  $('#policyLabel').value = policy.label || '';
-  $('#policyMinAge').value = policy.minAge ?? 0;
-  $('#policyMaxAge').value = policy.maxAge ?? 3;
-  $('#policyLimitDays').value = policy.limitDays ?? 0;
-  $('#policyDialog').showModal();
-}
-
-function renderNetwork() {
-  const badge = $('#networkBadge');
-  badge.classList.toggle('offline', !navigator.onLine);
-  badge.querySelector('span').textContent = navigator.onLine ? 'Online' : 'Offline';
-}
-
-function init() {
-  bindEvents();
-  renderNetwork();
-  renderAll();
-  renderSettings();
-  setInterval(() => {
-    $('#liveClock').textContent = nowTime();
-    if (!document.hidden) renderToday();
-  }, 30000);
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(error => console.warn('Service worker non registrato', error));
-}
-
-init();
+initialize();
