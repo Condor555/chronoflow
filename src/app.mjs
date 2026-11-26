@@ -1,4 +1,4 @@
-import { supabase, hasSupabaseConfig } from './supabase-client.mjs';
+import { supabase, hasSupabaseConfig } from './supabase-client.v3.0.3.mjs';
 import { CalendarSharingService } from './calendar-sharing.mjs';
 import { CalendarSharingView } from './calendar-sharing-view.mjs';
 import { initHomeModePicker } from './home-display.mjs';

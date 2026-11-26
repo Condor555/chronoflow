@@ -1,13 +1,8 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
-
-export function hasSupabaseConfig() {
-  return /^https:\/\/.+\.supabase\.co$/.test(SUPABASE_URL)
-    && !SUPABASE_ANON_KEY.includes('YOUR_');
-}
-
-export const supabase = hasSupabaseConfig()
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-    })
-  : null;
+// Compatibility entry point. The application bootstrap uses the immutable,
+// versioned URL below; this file remains safe for older direct imports.
+export {
+  createConfiguredSupabaseClient,
+  hasSupabaseConfig,
+  readSupabaseConfig,
+  supabase
+} from './supabase-client.v3.0.3.mjs';
