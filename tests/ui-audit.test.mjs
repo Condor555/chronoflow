@@ -21,7 +21,7 @@ test("MonthSelector Chrono Flow sostituisce i controlli month nativi", () => {
 
 test("tutte le card Impostazioni usano progressive disclosure con riepilogo", () => {
   const expected = [
-    "profile-settings", "ticket-settings", "notification-settings", "family-settings",
+    "profile-settings", "leave-settings", "ticket-settings", "notification-settings", "family-settings",
     "holiday-settings", "security-settings", "data-settings"
   ];
   for (const id of expected) {
@@ -31,6 +31,20 @@ test("tutte le card Impostazioni usano progressive disclosure con riepilogo", ()
   }
   assert.match(html, /id="profile-settings-summary"/);
   assert.match(html, /id="holiday-settings-summary"/);
+});
+
+test("riepilogo annuale espone massimali, residuo e categorie del foglio Excel", () => {
+  for (const id of [
+    "annual-vacation-usage", "annual-vacation-remaining", "annual-vacation-previous",
+    "annual-vacation-current", "annual-suppressed-holidays", "annual-holiday-recovery"
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /Ferie anno precedente/);
+  assert.match(html, /Festività soppresse/);
+  assert.match(html, /Recupero riposo festività/);
+  assert.match(css, /\.annual-entitlement-list/);
+  assert.match(app, /annualLeaveBalanceForYear/);
 });
 
 test("icone, focus, touch target e movimento ridotto seguono il design system", () => {

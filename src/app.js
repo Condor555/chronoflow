@@ -2,6 +2,7 @@ import {
   ABSENCE_TYPES,
   CHILD_LINKED_ABSENCE_TYPES,
   DAY_TYPES,
+  annualLeaveBalance,
   breakForType,
   calculateDayWithOvertimePolicy,
   childSicknessEntitlement,
@@ -57,7 +58,12 @@ const DEFAULT_PROFILE = {
     contract_settings: {
       sunday_holiday_rule: "none",
       sunday_holiday_adjustments: {},
-      local_holiday: null
+      local_holiday: null,
+      leave_settings: {
+        default_vacation_days: 20,
+        default_suppressed_holiday_days: 4,
+        years: {}
+      }
     }
   }
 };
@@ -71,6 +77,7 @@ const state = {
   calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   summaryMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   summaryYearDays: [],
+  summaryPreviousYearDays: [],
   summaryYearLoaded: null,
   summaryYearLoading: false,
   childSicknessDays: [],
@@ -112,6 +119,27 @@ function normalizeDay(day) {
   return result;
 }
 
+function normalizeLeaveSettings(value) {
+  const input = value && typeof value === "object" ? value : {};
+  const years = {};
+  for (const [year, annual] of Object.entries(input.years || {})) {
+    if (!/^\d{4}$/.test(year) || !annual || typeof annual !== "object") continue;
+    const carryover = annual.carryover_override;
+    years[year] = {
+      vacation_days: clampInt(annual.vacation_days, 0, 366, 20),
+      suppressed_holiday_days: clampInt(annual.suppressed_holiday_days, 0, 366, 4),
+      carryover_override: carryover === null || carryover === undefined || carryover === ""
+        ? null
+        : clampInt(carryover, 0, 366, 0)
+    };
+  }
+  return {
+    default_vacation_days: clampInt(input.default_vacation_days, 0, 366, 20),
+    default_suppressed_holiday_days: clampInt(input.default_suppressed_holiday_days, 0, 366, 4),
+    years
+  };
+}
+
 function normalizeFamilySettings(value) {
   const input = value && typeof value === "object" ? value : {};
   const contractInput = input.contract_settings && typeof input.contract_settings === "object"
@@ -140,7 +168,8 @@ function normalizeFamilySettings(value) {
       ...contractInput,
       sunday_holiday_rule: normalizedRule,
       sunday_holiday_adjustments: adjustments,
-      local_holiday: contractInput.local_holiday || null
+      local_holiday: contractInput.local_holiday || null,
+      leave_settings: normalizeLeaveSettings(contractInput.leave_settings)
     }
   };
 }
@@ -495,6 +524,18 @@ function sundayHolidayContract() {
   return normalizeFamilySettings(state.profile.family_settings).contract_settings;
 }
 
+function annualLeaveSettings(contractOverride = null) {
+  return normalizeLeaveSettings((contractOverride || sundayHolidayContract()).leave_settings);
+}
+
+function annualLeaveBalanceForYear(year, settingsOverride = null) {
+  return annualLeaveBalance({
+    year,
+    days: [...state.summaryPreviousYearDays, ...state.summaryYearDays],
+    settings: settingsOverride || annualLeaveSettings()
+  });
+}
+
 function sundayHolidayBalance(year, contractOverride = null) {
   const contract = contractOverride || sundayHolidayContract();
   const adjustment = contract.sunday_holiday_adjustments?.[String(year)]?.days || 0;
@@ -540,18 +581,21 @@ async function fetchSummaryYear(year, { force = false } = {}) {
   state.summaryYearLoading = true;
   renderSummary();
   const { start, end } = yearBounds(year);
+  const { start: previousStart, end: previousEnd } = yearBounds(year - 1);
   try {
     const { data, error } = await state.supabase
       .from("work_days")
       .select("*")
-      .gte("work_date", start)
+      .gte("work_date", previousStart)
       .lte("work_date", end)
       .order("work_date");
     if (error) throw error;
     const pendingDates = new Set(getQueue().map((operation) => operation.work_date));
     const remoteDays = (data || []).map(normalizeDay).filter((day) => !pendingDates.has(day.work_date));
-    const pendingDays = [...state.days.values()].filter((day) => day.work_date >= start && day.work_date <= end && pendingDates.has(day.work_date));
-    state.summaryYearDays = [...remoteDays, ...pendingDays];
+    const pendingDays = [...state.days.values()].filter((day) => day.work_date >= previousStart && day.work_date <= end && pendingDates.has(day.work_date));
+    const combinedDays = [...remoteDays, ...pendingDays];
+    state.summaryPreviousYearDays = combinedDays.filter((day) => day.work_date >= previousStart && day.work_date <= previousEnd);
+    state.summaryYearDays = combinedDays.filter((day) => day.work_date >= start && day.work_date <= end);
     for (const workDate of [...state.days.keys()]) {
       if (workDate >= start && workDate <= end && !pendingDates.has(workDate)) state.days.delete(workDate);
     }
@@ -559,9 +603,10 @@ async function fetchSummaryYear(year, { force = false } = {}) {
     state.summaryYearLoaded = year;
     persistLocalCache();
   } catch (error) {
-    const cached = [...state.days.values()].filter((day) => day.work_date >= start && day.work_date <= end);
-    if (!cached.length) throw error;
-    state.summaryYearDays = cached;
+    const cached = [...state.days.values()].filter((day) => day.work_date >= previousStart && day.work_date <= end);
+    if (!cached.some((day) => day.work_date >= start)) throw error;
+    state.summaryPreviousYearDays = cached.filter((day) => day.work_date <= previousEnd);
+    state.summaryYearDays = cached.filter((day) => day.work_date >= start);
     state.summaryYearLoaded = year;
     updateSyncStatus("Offline · riepilogo dai dati salvati");
   } finally {
@@ -570,9 +615,14 @@ async function fetchSummaryYear(year, { force = false } = {}) {
 }
 
 function syncSummaryYearDay(day) {
-  if (state.summaryYearLoaded !== Number(day.work_date.slice(0, 4))) return;
-  state.summaryYearDays = state.summaryYearDays.filter((item) => item.work_date !== day.work_date);
-  state.summaryYearDays.push(normalizeDay(day));
+  const dayYear = Number(day.work_date.slice(0, 4));
+  if (state.summaryYearLoaded === dayYear) {
+    state.summaryYearDays = state.summaryYearDays.filter((item) => item.work_date !== day.work_date);
+    state.summaryYearDays.push(normalizeDay(day));
+  } else if (state.summaryYearLoaded === dayYear + 1) {
+    state.summaryPreviousYearDays = state.summaryPreviousYearDays.filter((item) => item.work_date !== day.work_date);
+    state.summaryPreviousYearDays.push(normalizeDay(day));
+  }
 }
 
 async function saveDay(day, { silent = false } = {}) {
@@ -613,6 +663,8 @@ async function deleteDay(date, { silent = false } = {}) {
   state.days.delete(date);
   if (state.summaryYearLoaded === Number(date.slice(0, 4))) {
     state.summaryYearDays = state.summaryYearDays.filter((item) => item.work_date !== date);
+  } else if (state.summaryYearLoaded === Number(date.slice(0, 4)) + 1) {
+    state.summaryPreviousYearDays = state.summaryPreviousYearDays.filter((item) => item.work_date !== date);
   }
   state.sundayHolidayRecoveryDays = state.sundayHolidayRecoveryDays.filter((item) => item.work_date !== date);
   persistLocalCache();
@@ -1047,6 +1099,54 @@ function renderRecoveryBalance(prefix, year, contractOverride = null) {
   }
 }
 
+function setAnnualMetric(id, used, total) {
+  const target = $(`#${id}`);
+  if (target) target.textContent = `${used} / ${total}`;
+}
+
+function renderAnnualLeaveBalance(year) {
+  if (state.summaryYearLoading && state.summaryYearLoaded !== year) {
+    $("#annual-balance-year").textContent = String(year);
+    $("#annual-vacation-remaining").textContent = "—";
+    $("#annual-vacation-usage").textContent = "Caricamento…";
+    $("#annual-vacation-progress").style.width = "0";
+    for (const id of ["annual-vacation-previous", "annual-vacation-current", "annual-suppressed-holidays", "annual-holiday-recovery"]) {
+      $(`#${id}`).textContent = "—";
+    }
+    $("#annual-balance-note").textContent = `Sto caricando le giornate del ${year} e del ${year - 1} per calcolare il riporto.`;
+    return;
+  }
+  const balance = annualLeaveBalanceForYear(year);
+  const recovery = sundayHolidayBalance(year);
+  $("#annual-balance-year").textContent = String(year);
+  $("#annual-vacation-remaining").textContent = String(balance.vacation.remaining);
+  $("#annual-vacation-usage").textContent = `${balance.vacation.used} / ${balance.vacation.total}`;
+  const progress = $("#annual-vacation-progress");
+  const progressMaximum = Math.max(1, balance.vacation.total);
+  progress.style.width = `${Math.min(100, (balance.vacation.used / progressMaximum) * 100)}%`;
+  progress.parentElement.setAttribute("aria-valuemin", "0");
+  progress.parentElement.setAttribute("aria-valuemax", String(balance.vacation.total));
+  progress.parentElement.setAttribute("aria-valuenow", String(Math.min(balance.vacation.used, balance.vacation.total)));
+  progress.parentElement.setAttribute("aria-label", `${balance.vacation.used} giorni di ferie utilizzati su ${balance.vacation.total}`);
+  setAnnualMetric("annual-vacation-previous", balance.vacation.previous.used, balance.vacation.previous.total);
+  setAnnualMetric("annual-vacation-current", balance.vacation.current.used, balance.vacation.current.total);
+  setAnnualMetric("annual-suppressed-holidays", balance.suppressedHolidays.used, balance.suppressedHolidays.total);
+  setAnnualMetric("annual-holiday-recovery", recovery.used, recovery.accrued);
+  const note = $("#annual-balance-note");
+  if (balance.vacation.exceeded) {
+    note.textContent = `Le ferie registrate superano il totale disponibile di ${balance.vacation.exceeded} giorn${balance.vacation.exceeded === 1 ? "o" : "i"}. Controlla le giornate o le spettanze nelle Impostazioni.`;
+    note.classList.add("warning-note");
+  } else if (balance.suppressedHolidays.exceeded) {
+    note.textContent = `Le festività soppresse registrate superano il totale disponibile di ${balance.suppressedHolidays.exceeded} giorn${balance.suppressedHolidays.exceeded === 1 ? "o" : "i"}.`;
+    note.classList.add("warning-note");
+  } else {
+    note.textContent = balance.carryoverSource === "automatic"
+      ? `Le ferie dell’anno precedente derivano automaticamente dal residuo del ${year - 1}. I valori mostrano utilizzati / disponibili.`
+      : "Il riporto dell’anno precedente usa la rettifica configurata. I valori mostrano utilizzati / disponibili.";
+    note.classList.remove("warning-note");
+  }
+}
+
 function settingsContractDraft() {
   const current = sundayHolidayContract();
   const year = clampInt($("#sunday-holiday-adjustment-year")?.value, 2000, 2100, new Date().getFullYear());
@@ -1199,6 +1299,7 @@ function renderSummary() {
     ? "Caricamento…"
     : `${yearAbsenceTotal} giornat${yearAbsenceTotal === 1 ? "a" : "e"} nel ${selectedYear}`;
   $("#summary-year-absence-description").textContent = `Dettaglio per tipologia dal 1 gennaio al 31 dicembre ${selectedYear}.`;
+  renderAnnualLeaveBalance(selectedYear);
   renderRecoveryBalance("summary", state.summaryMonth.getFullYear());
 }
 
@@ -1304,6 +1405,46 @@ function fillSundayHolidayAdjustmentFields(year) {
   $("#sunday-holiday-adjustment-reason").value = adjustment.reason || "";
 }
 
+function leaveSettingsDraft() {
+  const settings = annualLeaveSettings();
+  const year = clampInt($("#leave-settings-year")?.value, 2000, 2100, new Date().getFullYear());
+  const overrideValue = $("#leave-carryover-override")?.value;
+  return {
+    ...settings,
+    years: {
+      ...settings.years,
+      [String(year)]: {
+        vacation_days: clampInt($("#leave-current-days")?.value, 0, 366, settings.default_vacation_days),
+        suppressed_holiday_days: clampInt($("#leave-suppressed-days")?.value, 0, 366, settings.default_suppressed_holiday_days),
+        carryover_override: overrideValue === "" || overrideValue === undefined ? null : clampInt(overrideValue, 0, 366, 0)
+      }
+    }
+  };
+}
+
+function fillLeaveSettingsFields(year) {
+  const settings = annualLeaveSettings();
+  const annual = settings.years[String(year)] || {};
+  $("#leave-current-days").value = String(clampInt(annual.vacation_days, 0, 366, settings.default_vacation_days));
+  $("#leave-suppressed-days").value = String(clampInt(annual.suppressed_holiday_days, 0, 366, settings.default_suppressed_holiday_days));
+  $("#leave-carryover-override").value = annual.carryover_override === null || annual.carryover_override === undefined
+    ? ""
+    : String(clampInt(annual.carryover_override, 0, 366, 0));
+  updateLeaveSettingsPreview();
+}
+
+function updateLeaveSettingsPreview() {
+  const year = clampInt($("#leave-settings-year")?.value, 2000, 2100, new Date().getFullYear());
+  const output = $("#leave-carryover-preview");
+  if (!output) return;
+  if (state.summaryYearLoaded !== year) {
+    output.textContent = "Calcolo in corso…";
+    return;
+  }
+  const balance = annualLeaveBalanceForYear(year, leaveSettingsDraft());
+  output.textContent = `${balance.vacation.previous.total} giorn${balance.vacation.previous.total === 1 ? "o" : "i"}`;
+}
+
 function setSettingsSummary(id, text) {
   const target = $(`#${id}`);
   if (target) target.textContent = text;
@@ -1313,6 +1454,8 @@ function updateSettingsSummaries() {
   const hours = clampInt($("#target-hours")?.value, 1, 15, 7);
   const minutes = clampInt($("#target-minutes")?.value, 0, 59, 36);
   setSettingsSummary("profile-settings-summary", `${hours}h ${String(minutes).padStart(2, "0")}m · soglia straordinario ${clampInt($("#overtime-threshold")?.value, 0, 240, 10)} min`);
+  const leaveYear = clampInt($("#leave-settings-year")?.value, 2000, 2100, new Date().getFullYear());
+  setSettingsSummary("leave-settings-summary", `${clampInt($("#leave-current-days")?.value, 0, 366, 20)} ferie · ${clampInt($("#leave-suppressed-days")?.value, 0, 366, 4)} festività soppresse · ${leaveYear}`);
   const ticketLabels = [
     ["#ticket-office", "Ufficio"], ["#ticket-smart", "Smart"], ["#ticket-travel", "Trasferta"]
   ].filter(([selector]) => $(selector)?.checked).map(([, label]) => label);
@@ -1353,6 +1496,8 @@ function renderSettings() {
   const selectedRule = $(`input[name="sunday-holiday-rule"][value="${contract.sunday_holiday_rule || "none"}"]`);
   if (selectedRule) selectedRule.checked = true;
   const currentYear = new Date().getFullYear();
+  $("#leave-settings-year").value = String(currentYear);
+  fillLeaveSettingsFields(currentYear);
   $("#sunday-holiday-adjustment-year").value = String(currentYear);
   fillSundayHolidayAdjustmentFields(currentYear);
   $("#local-holiday-name").value = contract.local_holiday?.name || "";
@@ -1397,7 +1542,11 @@ function showScreen(name) {
   }
   if (name === "settings") {
     renderSettings();
+    const settingsYear = clampInt($("#leave-settings-year")?.value, 2000, 2100, new Date().getFullYear());
     fetchChildSicknessUsage().then(renderChildren).catch(() => {});
+    fetchSummaryYear(settingsYear)
+      .then(updateLeaveSettingsPreview)
+      .catch(() => { $("#leave-carryover-preview").textContent = "Non disponibile offline"; });
   }
   $("#main-content").focus({ preventScroll: true });
   window.scrollTo({ top: 0, behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
@@ -1512,6 +1661,7 @@ async function loadApplication(user) {
   state.user = user;
   state.days.clear();
   state.summaryYearDays = [];
+  state.summaryPreviousYearDays = [];
   state.summaryYearLoaded = null;
   state.summaryYearLoading = false;
   loadLocalCache();
@@ -1547,6 +1697,7 @@ function showAuth() {
   state.days.clear();
   state.sundayHolidayRecoveryDays = [];
   state.summaryYearDays = [];
+  state.summaryPreviousYearDays = [];
   state.summaryYearLoaded = null;
   state.summaryYearLoading = false;
   state.profile = structuredClone(DEFAULT_PROFILE);
@@ -1906,6 +2057,17 @@ function bindEvents() {
     }
   });
 
+  $("#leave-settings-year").addEventListener("change", async (event) => {
+    const year = clampInt(event.target.value, 2000, 2100, new Date().getFullYear());
+    fillLeaveSettingsFields(year);
+    updateSettingsSummaries();
+    try {
+      await fetchSummaryYear(year);
+      updateLeaveSettingsPreview();
+    } catch {
+      $("#leave-carryover-preview").textContent = "Non disponibile offline";
+    }
+  });
   $("#sunday-holiday-adjustment-year").addEventListener("change", (event) => {
     const year = clampInt(event.target.value, 2000, 2100, new Date().getFullYear());
     fillSundayHolidayAdjustmentFields(year);
@@ -1914,6 +2076,9 @@ function bindEvents() {
   $("#settings-form").addEventListener("input", (event) => {
     if (event.target.matches("[name='sunday-holiday-rule'], #sunday-holiday-adjustment-days, #sunday-holiday-adjustment-reason, #local-holiday-name, #local-holiday-day, #local-holiday-month")) {
       previewSundayHolidaySettings();
+    } else if (event.target.matches("#leave-current-days, #leave-suppressed-days, #leave-carryover-override")) {
+      updateLeaveSettingsPreview();
+      updateSettingsSummaries();
     } else {
       updateSettingsSummaries();
     }
@@ -1930,6 +2095,7 @@ function bindEvents() {
     const adjustmentYear = clampInt($("#sunday-holiday-adjustment-year").value, 2000, 2100, new Date().getFullYear());
     const adjustmentDays = clampInt($("#sunday-holiday-adjustment-days").value, -366, 366, 0);
     const adjustmentReason = $("#sunday-holiday-adjustment-reason").value.trim();
+    const updatedLeaveSettings = leaveSettingsDraft();
     const adjustments = { ...(familySettings.contract_settings.sunday_holiday_adjustments || {}) };
     if (adjustmentDays || adjustmentReason) adjustments[String(adjustmentYear)] = { days: adjustmentDays, reason: adjustmentReason };
     else delete adjustments[String(adjustmentYear)];
@@ -1947,7 +2113,8 @@ function bindEvents() {
       ...familySettings.contract_settings,
       sunday_holiday_rule: $("input[name='sunday-holiday-rule']:checked")?.value || "none",
       sunday_holiday_adjustments: adjustments,
-      local_holiday: localHoliday.name ? localHoliday : null
+      local_holiday: localHoliday.name ? localHoliday : null,
+      leave_settings: updatedLeaveSettings
     };
     familySettings.overtime_settings = {
       smart: $("#overtime-smart").checked,

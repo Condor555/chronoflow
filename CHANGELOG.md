@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.7.0 — Bilancio annuale ferie e festività
+
+- nuovo bilancio annuale ispirato al foglio Excel con **Ferie anno precedente**, **Ferie anno corrente**, **Festività soppresse**, **Recupero riposo festività** e **Ferie residue**;
+- visualizzazione coerente `utilizzati / disponibili`, inclusa la sintesi complessiva delle ferie (per esempio `21 / 24`) e una barra di avanzamento accessibile;
+- riporto delle ferie calcolato automaticamente dal residuo dell’anno precedente, usando le giornate dell’account;
+- nuova card Impostazioni per i massimali annuali di ferie e festività soppresse;
+- rettifica opzionale del riporto per saldi iniziali o allineamenti aziendali, senza disattivare il calcolo automatico per gli altri anni;
+- causale storica `holiday` rinominata nell’interfaccia in **Festività soppresse**, senza migrazioni SQL e senza modificare i dati esistenti;
+- caricamento del riepilogo esteso all’anno precedente per calcolare il riporto in modo verificabile;
+- layout del bilancio ottimizzato per smartphone, con valori tabulari, stato di caricamento e avvisi in caso di superamento dei massimali;
+- cache PWA aggiornata a `chrono-flow-v2.7.0`.
+
 ## 2.6.0 — Affidabilità, MonthSelector e coerenza UI/UX
 
 - contatore Home aggiornato ogni secondo senza sovrascrivere i campi che l’utente sta modificando;

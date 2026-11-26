@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   calculateDay,
   calculateDayWithOvertimePolicy,
+  annualLeaveBalance,
   childSicknessEntitlement,
   canUseSundayHolidayRecovery,
   easterSunday,
@@ -88,6 +89,72 @@ test("la policy azzera lo straordinario senza modificare le ore lavorate", () =>
 
 test("formatta durate superiori a 24 ore", () => {
   assert.equal(minutesToDuration(1565), "26:05");
+});
+
+test("riepilogo annuale separa ferie precedenti, correnti e residue", () => {
+  const days = [
+    ...Array.from({ length: 16 }, (_, index) => ({
+      work_date: `2025-07-${String(index + 1).padStart(2, "0")}`,
+      actual_type: "absence",
+      absence_type: "vacation"
+    })),
+    ...Array.from({ length: 21 }, (_, index) => ({
+      work_date: `2026-08-${String(index + 1).padStart(2, "0")}`,
+      actual_type: "absence",
+      absence_type: "vacation"
+    })),
+    ...Array.from({ length: 4 }, (_, index) => ({
+      work_date: `2026-01-${String(index + 1).padStart(2, "0")}`,
+      planned_type: "absence",
+      actual_type: null,
+      absence_type: "holiday"
+    }))
+  ];
+  const result = annualLeaveBalance({ year: 2026, days });
+  assert.deepEqual(result.vacation.previous, { used: 4, total: 4 });
+  assert.deepEqual(result.vacation.current, { used: 17, total: 20 });
+  assert.equal(result.vacation.used, 21);
+  assert.equal(result.vacation.total, 24);
+  assert.equal(result.vacation.remaining, 3);
+  assert.deepEqual(result.suppressedHolidays, { used: 4, total: 4, remaining: 0, exceeded: 0 });
+});
+
+test("il riporto può essere rettificato senza perdere il massimale annuale", () => {
+  const result = annualLeaveBalance({
+    year: 2026,
+    days: Array.from({ length: 21 }, (_, index) => ({
+      work_date: `2026-09-${String(index + 1).padStart(2, "0")}`,
+      planned_type: "absence",
+      absence_type: "vacation"
+    })),
+    settings: {
+      default_vacation_days: 20,
+      default_suppressed_holiday_days: 4,
+      years: { "2026": { vacation_days: 20, suppressed_holiday_days: 4, carryover_override: 4 } }
+    }
+  });
+  assert.equal(result.carryoverSource, "override");
+  assert.equal(result.vacation.total, 24);
+  assert.equal(result.vacation.remaining, 3);
+});
+
+test("l'anno successivo eredita automaticamente il residuo calcolato", () => {
+  const result = annualLeaveBalance({
+    year: 2027,
+    days: Array.from({ length: 21 }, (_, index) => ({
+      work_date: `2026-10-${String(index + 1).padStart(2, "0")}`,
+      actual_type: "absence",
+      absence_type: "vacation"
+    })),
+    settings: {
+      default_vacation_days: 20,
+      default_suppressed_holiday_days: 4,
+      years: { "2026": { vacation_days: 20, suppressed_holiday_days: 4, carryover_override: 4 } }
+    }
+  });
+  assert.equal(result.carryoverSource, "automatic");
+  assert.equal(result.vacation.previous.total, 3);
+  assert.equal(result.vacation.total, 23);
 });
 
 test("ticket: override e regole profilo", () => {

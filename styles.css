@@ -192,6 +192,25 @@ details[open] > summary .disclosure-icon { transform: rotate(180deg); }
 .summary-card { padding: 18px; background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-soft); }
 .summary-card span { color: var(--muted); font-size: .86rem; }
 .summary-card strong { display: block; margin-top: 6px; font-size: 1.65rem; }
+.annual-balance { overflow: hidden; background: linear-gradient(145deg, #fff, #f2faf8); border-color: #b9dcd5; }
+.annual-balance-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.annual-balance-heading .eyebrow { margin: 0 0 5px; }
+.annual-balance-heading h2 { margin: 0; }
+.annual-residual { display: grid; grid-template-columns: auto auto; align-items: baseline; gap: 0 5px; min-width: 126px; padding: 11px 13px; color: #fff; background: var(--primary); border-radius: 15px; }
+.annual-residual span { grid-column: 1 / -1; color: #dbe9ee; font-size: .76rem; font-weight: 750; }
+.annual-residual strong { font-size: 1.8rem; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.annual-residual small { color: #dbe9ee; font-size: .76rem; }
+.annual-progress-copy { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 20px; color: var(--muted); font-size: .86rem; }
+.annual-progress-copy strong { color: var(--primary); font-size: 1.08rem; font-variant-numeric: tabular-nums; }
+.annual-progress-track { height: 12px; margin-top: 7px; overflow: hidden; background: #dce7ea; border-radius: 999px; }
+.annual-progress-fill { width: 0; height: 100%; background: linear-gradient(90deg, var(--accent), var(--flow)); border-radius: inherit; transition: width .2s ease; }
+.annual-entitlement-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 18px 0 10px; }
+.annual-entitlement-list div { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 11px 12px; background: rgba(255,255,255,.9); border: 1px solid #d0e3df; border-radius: 12px; }
+.annual-entitlement-list dt { color: var(--muted); font-size: .82rem; }
+.annual-entitlement-list dd { margin: 0; color: var(--primary); font-weight: 850; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.warning-note { padding: 9px 11px; color: #7b3d00 !important; background: #fff2d6; border-radius: 9px; }
+.leave-carryover-preview { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 4px 0 14px; padding: 13px; color: var(--muted); background: var(--accent-soft); border-radius: 12px; }
+.leave-carryover-preview output { color: var(--primary); font-weight: 850; font-variant-numeric: tabular-nums; }
 .bar-row { display: grid; grid-template-columns: minmax(100px, 160px) 1fr 28px; align-items: center; gap: 10px; margin: 12px 0; }
 .bar-track { height: 12px; overflow: hidden; background: #edf1f6; border-radius: 999px; }
 .bar-fill { height: 100%; min-width: 0; background: linear-gradient(90deg, var(--accent), var(--flow)); border-radius: inherit; }
@@ -310,6 +329,9 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
   .type-badge { align-self: flex-start; }
   .location-choice { grid-template-columns: 1fr; }
   .recovery-metrics { grid-template-columns: 1fr; }
+  .annual-balance-heading { align-items: stretch; }
+  .annual-residual { min-width: 108px; }
+  .annual-entitlement-list { grid-template-columns: 1fr; }
   .month-selector-shell { grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 5px; padding: 5px; }
   .month-selector-fields { grid-template-columns: minmax(0, 1fr) 72px; gap: 4px; }
   .month-selector-fields select { min-width: 0; padding-right: 22px; padding-left: 7px; font-size: .88rem; }
@@ -324,6 +346,8 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
   .metrics-grid, .summary-grid { gap: 8px; }
   .metric-card, .summary-card { padding: 13px; }
   .settings-summary-copy small { max-width: 190px; }
+  .annual-balance-heading { flex-direction: column; }
+  .annual-residual { grid-template-columns: auto 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

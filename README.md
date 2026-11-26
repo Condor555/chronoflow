@@ -16,6 +16,7 @@ La versione 2 aggiunge **account personali e salvataggio nel cloud**: ogni utent
 - ferie, malattia, malattia bambino, congedo parentale facoltativo, maternità obbligatoria, paternità obbligatoria e alternativa, congedo matrimoniale, recuperi e festività;
 - calendario mensile con stato indicato da colore **e** sigla testuale;
 - riepilogo mensile di ore, straordinario, ticket, tipologia delle giornate e dettaglio di ogni assenza;
+- bilancio annuale con ferie dell’anno precedente e corrente, festività soppresse, recuperi, residuo e rapporto `utilizzati / disponibili`;
 - MonthSelector Chrono Flow coerente tra Calendario e Riepilogo e card espandibili separate per assenze del mese e dell’anno;
 - orario giornaliero, pause, soglia straordinario e ticket configurabili;
 - elenco figli e associazione alle assenze che riguardano il minore;
@@ -49,15 +50,17 @@ Browser / PWA
 
 La chiave `anon` è progettata per essere usata nel browser ed è quindi pubblica. La protezione dipende dalle policy RLS incluse in `supabase/schema.sql`. **Non inserire mai la chiave `service_role` nel sito o nella repository.**
 
-## Aggiornamento dalla 2.5.0 alla 2.6.0
+## Aggiornamento dalla 2.6.0 alla 2.7.0
 
 1. Non rieseguire l’importazione privata dell’Excel.
 2. Non serve una nuova query SQL: questa release aggiorna interfaccia e logica client senza modificare lo schema Supabase.
 3. Sostituisci nella repository GitHub i file con quelli di questo pacchetto, mantenendo `src/config.js` già configurato.
 4. Esegui il commit e attendi GitHub Pages.
-5. Riapri Chrono Flow e aggiorna la pagina. La cache PWA passa automaticamente a `chrono-flow-v2.6.0`.
+5. Riapri Chrono Flow e aggiorna la pagina. La cache PWA passa automaticamente a `chrono-flow-v2.7.0`.
 
-Le giornate, le timbrature, i dati importati e le impostazioni già salvate non vengono modificati. Il MonthSelector non usa più il controllo mensile nativo del browser; le card Impostazioni possono essere aperte e chiuse senza perdere i valori non ancora salvati.
+Le giornate, le timbrature, i dati importati e le impostazioni già salvate non vengono modificati. Non serve alcuna query SQL: massimali e rettifiche del nuovo bilancio annuale vengono salvati nel JSON protetto del profilo già esistente.
+
+Al primo avvio i massimali predefiniti sono **20 giorni di ferie dell’anno corrente** e **4 festività soppresse**. In **Impostazioni → Ferie e festività soppresse** puoi configurarli per ogni anno. Il riporto è automatico; la rettifica opzionale serve soltanto quando il saldo iniziale comunicato dall’azienda differisce dal calcolo basato sulle giornate registrate.
 
 ## Avvio rapido
 

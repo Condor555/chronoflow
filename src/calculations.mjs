@@ -18,7 +18,7 @@ export const ABSENCE_TYPES = {
   leave: "Congedo (storico)",
   recovery: "Recupero",
   sunday_holiday_recovery: "Recupero festività caduta di domenica",
-  holiday: "Festività"
+  holiday: "Festività soppresse"
 };
 
 export const CHILD_LINKED_ABSENCE_TYPES = new Set([
@@ -53,6 +53,66 @@ export function clampInt(value, min, max, fallback = min) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(max, Math.max(min, parsed));
+}
+
+function annualAllowance(settings, year, key, defaultKey, fallback) {
+  const yearly = settings?.years?.[String(year)] || {};
+  return clampInt(yearly[key], 0, 366, clampInt(settings?.[defaultKey], 0, 366, fallback));
+}
+
+function optionalCarryoverOverride(settings, year) {
+  const value = settings?.years?.[String(year)]?.carryover_override;
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? clampInt(parsed, 0, 366, 0) : null;
+}
+
+function countedAnnualAbsences(days, year, absenceType) {
+  return (days || []).filter((day) => {
+    const effectiveType = day?.actual_type || day?.planned_type;
+    return effectiveType === "absence"
+      && day?.absence_type === absenceType
+      && String(day?.work_date || "").startsWith(`${year}-`);
+  }).length;
+}
+
+export function annualLeaveBalance({ year, days = [], settings = {} } = {}) {
+  const selectedYear = clampInt(year, 2000, 2100, new Date().getFullYear());
+  const previousYear = selectedYear - 1;
+  const previousVacationAllowance = annualAllowance(settings, previousYear, "vacation_days", "default_vacation_days", 20);
+  const previousOpening = optionalCarryoverOverride(settings, previousYear) || 0;
+  const previousYearUsed = countedAnnualAbsences(days, previousYear, "vacation");
+  const automaticCarryover = Math.max(0, previousOpening + previousVacationAllowance - previousYearUsed);
+  const selectedOverride = optionalCarryoverOverride(settings, selectedYear);
+  const previousAvailable = selectedOverride ?? automaticCarryover;
+  const currentAvailable = annualAllowance(settings, selectedYear, "vacation_days", "default_vacation_days", 20);
+  const vacationUsed = countedAnnualAbsences(days, selectedYear, "vacation");
+  const previousUsed = Math.min(previousAvailable, vacationUsed);
+  const currentUsed = Math.max(0, vacationUsed - previousUsed);
+  const vacationTotal = previousAvailable + currentAvailable;
+  const vacationRemaining = Math.max(0, vacationTotal - vacationUsed);
+  const suppressedAvailable = annualAllowance(settings, selectedYear, "suppressed_holiday_days", "default_suppressed_holiday_days", 4);
+  const suppressedUsed = countedAnnualAbsences(days, selectedYear, "holiday");
+
+  return {
+    year: selectedYear,
+    previousYear,
+    carryoverSource: selectedOverride === null ? "automatic" : "override",
+    vacation: {
+      used: vacationUsed,
+      total: vacationTotal,
+      remaining: vacationRemaining,
+      exceeded: Math.max(0, vacationUsed - vacationTotal),
+      previous: { used: previousUsed, total: previousAvailable },
+      current: { used: currentUsed, total: currentAvailable }
+    },
+    suppressedHolidays: {
+      used: suppressedUsed,
+      total: suppressedAvailable,
+      remaining: Math.max(0, suppressedAvailable - suppressedUsed),
+      exceeded: Math.max(0, suppressedUsed - suppressedAvailable)
+    }
+  };
 }
 
 export function minutesToDuration(totalMinutes) {
