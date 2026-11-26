@@ -54,13 +54,13 @@ Browser / PWA
 
 La chiave `anon` è progettata per essere usata nel browser ed è quindi pubblica. La protezione dipende dalle policy RLS incluse in `supabase/schema.sql`. **Non inserire mai la chiave `service_role` nel sito o nella repository.**
 
-## Aggiornamento dalla 2.7.0 alla 2.8.0
+## Aggiornamento dalla 2.8.0 alla 2.8.1
 
 1. Non rieseguire l’importazione privata dell’Excel.
-2. Non serve una nuova query SQL: questa release aggiorna interfaccia e logica client senza modificare lo schema Supabase.
+2. Non serve una nuova query SQL: questa release ripulisce esclusivamente l’interfaccia del Riepilogo senza modificare lo schema Supabase o le formule della 2.8.0.
 3. Sostituisci nella repository GitHub i file con quelli di questo pacchetto, mantenendo `src/config.js` già configurato.
 4. Esegui il commit e attendi GitHub Pages.
-5. Riapri Chrono Flow e aggiorna la pagina. La cache PWA passa automaticamente a `chrono-flow-v2.8.0`.
+5. Riapri Chrono Flow e aggiorna la pagina. La cache PWA passa automaticamente a `chrono-flow-v2.8.1`.
 
 Le giornate, le timbrature, i dati importati e le impostazioni già salvate non vengono modificati. Non serve alcuna query SQL: massimali e rettifiche del nuovo bilancio annuale vengono salvati nel JSON protetto del profilo già esistente.
 

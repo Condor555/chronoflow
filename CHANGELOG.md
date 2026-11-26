@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.8.1 — Riepilogo più chiaro e mobile-first
+
+- nuova architettura del Riepilogo in quattro aree: **Mese**, **Saldi**, **Causali** e **Analisi**;
+- indicatori prioritari del mese messi in primo piano, con giornate e modalità rese più compatte;
+- bilancio ferie e festività mantenuto immediatamente visibile, con recuperi approfondibili su richiesta;
+- causali, plafond famiglia, assenze annuali, dettaglio Excel e tabella dei 12 mesi organizzati in sezioni progressive disclosure;
+- navigazione rapida interna e titoli del periodo aggiornati al mese selezionato;
+- layout ottimizzato per 320–430 px, con metriche leggibili, minore densità visiva e tabella annuale scorrevole;
+- nessuna modifica a formule, saldi, dati Supabase o regole della versione 2.8.0;
+- cache PWA aggiornata a `chrono-flow-v2.8.1`.
+
 ## 2.8.0 — Riepilogo Excel, timer affidabile e plafond per evento
 
 - replica delle formule di `Riepilogo_2026`/`Riepilogo_2027` con tabella mensile/annuale completa e registro delle date per ogni causale;

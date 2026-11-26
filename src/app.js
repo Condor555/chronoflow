@@ -1646,6 +1646,9 @@ function renderSummary() {
   if (!state.user) return;
   renderMonthSelector("summary", state.summaryMonth);
   const selectedYear = state.summaryMonth.getFullYear();
+  const selectedMonthName = MONTH_NAMES[state.summaryMonth.getMonth()];
+  $("#summary-period-title").textContent = `${selectedMonthName} ${selectedYear}`;
+  $("#summary-period-caption").textContent = "Valori essenziali, giornate e assenze del mese selezionato.";
   const rows = summaryRowsForYear(selectedYear);
   const selected = rows[state.summaryMonth.getMonth()];
   const { start, end } = monthBounds(state.summaryMonth);
@@ -1672,9 +1675,9 @@ function renderSummary() {
     ["Smart working", String(selected.smartDays)],
     ["Sabati lavorativi", String(selected.workingSaturdays)]
   ];
-  $("#summary-cards").replaceChildren(...cards.map(([label, value]) => {
+  $("#summary-cards").replaceChildren(...cards.map(([label, value], index) => {
     const card = document.createElement("article");
-    card.className = "summary-card";
+    card.className = `summary-card ${index < 3 ? "summary-card-primary" : "summary-card-secondary"}`;
     const span = document.createElement("span");
     span.textContent = label;
     const strong = document.createElement("strong");

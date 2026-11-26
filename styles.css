@@ -267,6 +267,55 @@ details[open] > summary .disclosure-icon { transform: rotate(180deg); }
 .recovery-holiday-list { padding: 0; margin: 13px 0 0; list-style: none; }
 .recovery-holiday-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid #cfe3df; }
 .status-chip { display: inline-flex; align-items: center; min-height: 28px; padding: 3px 9px; color: var(--primary); background: #e4ebf1; border-radius: 999px; font-size: .76rem; font-weight: 780; white-space: nowrap; }
+
+/* Riepilogo 2.8.1: gerarchia essenziale, dettaglio su richiesta. */
+#summary-screen { scroll-behavior: smooth; }
+.summary-jump-nav { position: sticky; z-index: 8; top: 72px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin: -6px 0 22px; padding: 5px; background: rgba(255,255,255,.92); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 5px 18px rgba(16,42,67,.08); backdrop-filter: blur(14px); }
+.summary-jump-nav a { display: grid; place-items: center; min-height: 40px; padding: 7px 9px; color: var(--muted); border-radius: 10px; font-size: .8rem; font-weight: 780; text-decoration: none; }
+.summary-jump-nav a:hover, .summary-jump-nav a:focus-visible { color: var(--primary); background: var(--accent-soft); }
+.summary-section { scroll-margin-top: 138px; padding: 4px 0 24px; }
+.summary-section + .summary-section { padding-top: 25px; border-top: 1px solid var(--line); }
+.summary-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 13px; }
+.summary-section-heading h2 { margin: 0; color: var(--primary); font-size: clamp(1.28rem, 4vw, 1.55rem); line-height: 1.2; }
+.section-caption { max-width: 360px; margin: 0; color: var(--muted); font-size: .86rem; text-align: right; }
+
+.summary-grid { gap: 10px; }
+.summary-card { position: relative; min-width: 0; overflow: hidden; box-shadow: none; }
+.summary-card::before { position: absolute; top: 0; right: 0; left: 0; height: 3px; content: ""; background: #dce7ea; }
+.summary-card-primary { min-height: 112px; padding: 19px; background: linear-gradient(145deg, #fff, #f3fbf9); border-color: #bfddd7; }
+.summary-card-primary::before { background: linear-gradient(90deg, var(--accent), var(--flow)); }
+.summary-card-primary span { min-height: 2.45em; }
+.summary-card-primary strong { font-size: clamp(1.65rem, 5vw, 2rem); font-variant-numeric: tabular-nums; }
+.summary-card-secondary { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-height: 68px; padding: 14px 16px; background: rgba(255,255,255,.82); }
+.summary-card-secondary span { color: var(--muted); font-size: .82rem; }
+.summary-card-secondary strong { margin-top: 0; font-size: 1.18rem; font-variant-numeric: tabular-nums; }
+.summary-subpanel { margin-top: 11px; padding: 17px 18px; background: rgba(255,255,255,.7); border: 1px solid var(--line); border-radius: 16px; }
+.subpanel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.subpanel-heading h3 { margin: 0; color: var(--primary); font-size: 1rem; }
+.summary-inline-disclosure { margin-top: 10px; }
+
+#summary-balance-section > .annual-balance { margin-top: 0; }
+.annual-balance-heading h3 { margin: 0; color: var(--primary); font-size: 1.3rem; }
+.annual-balance .field-hint { line-height: 1.45; }
+.balance-disclosure { margin-top: 10px; }
+.balance-disclosure .recovery-balance { padding: 17px 18px 18px; background: linear-gradient(135deg, #edf9f6, #f8fbfb); border-top: 1px solid var(--line); border-right: 0; border-bottom: 0; border-left: 0; border-radius: 0; }
+.balance-disclosure .recovery-balance h3 { margin: 0 0 6px; }
+
+.summary-section > .details-card { margin-top: 9px; box-shadow: none; }
+.summary-section > .details-card:first-of-type { margin-top: 0; }
+.featured-disclosure { border-color: #acd6cf; background: linear-gradient(145deg, #fff, #f6fbfa); }
+.summary-disclosure > summary, .annual-table-disclosure > summary { min-height: 66px; }
+.summary-disclosure-meta { display: inline-flex !important; grid-auto-flow: column; align-items: center; gap: 8px !important; }
+.summary-disclosure-meta .status-chip { font-size: .72rem; }
+.excel-summary { margin: 0; background: linear-gradient(145deg, #fff, #f6fbfa); border-top: 1px solid var(--line); border-right: 0; border-bottom: 0; border-left: 0; border-radius: 0; }
+.excel-metric-grid { margin: 0 0 16px; }
+.trace-item > summary::after { flex: 0 0 9px; width: 9px; height: 9px; margin-left: 3px; border-right: 2px solid var(--accent); border-bottom: 2px solid var(--accent); content: ""; transform: rotate(45deg) translateY(-2px); transition: transform .18s ease; }
+.trace-item[open] > summary::after { transform: rotate(225deg) translate(-2px, -1px); }
+.trace-item > summary span { flex: 1; }
+.table-swipe-hint { margin: 0 0 9px; color: var(--muted); font-size: .8rem; }
+.annual-table-disclosure { overflow: clip; }
+.annual-table-disclosure .summary-disclosure-body { padding-top: 13px; }
+
 .settings-recovery { margin: 18px 0; }
 .holiday-rule-list { display: grid; gap: 9px; margin: 18px 0; padding: 0; border: 0; }
 .holiday-rule-list legend { margin-bottom: 7px; font-weight: 800; }
@@ -353,6 +402,9 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
   .bar-row { grid-template-columns: 90px 1fr 24px; font-size: .86rem; }
   #summary-screen .screen-heading { flex-direction: column; }
   .month-selector-heading, .month-selector-shell.compact { width: 100%; }
+  .summary-jump-nav { top: 69px; margin-bottom: 18px; }
+  .summary-section-heading { align-items: flex-start; }
+  .section-caption { max-width: 280px; }
   .settings-disclosure > summary { min-height: 72px; padding: 12px 14px; }
 }
 
@@ -366,7 +418,10 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
   .screen-heading { flex-direction: column; }
   .type-badge { align-self: flex-start; }
   .location-choice { grid-template-columns: 1fr; }
-  .recovery-metrics { grid-template-columns: 1fr; }
+  .recovery-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .recovery-metrics div { padding: 10px 7px; }
+  .recovery-metrics dt { font-size: .7rem; }
+  .recovery-metrics dd { font-size: 1.35rem; }
   .annual-balance-heading { align-items: stretch; }
   .annual-residual { min-width: 108px; }
   .annual-entitlement-list { grid-template-columns: 1fr; }
@@ -378,6 +433,21 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
   .settings-summary-copy small { max-width: 230px; }
   .panel-heading-inline { flex-direction: column; }
   .excel-metric-grid { grid-template-columns: 1fr; }
+  .summary-jump-nav { top: 67px; gap: 3px; margin-top: -8px; padding: 4px; }
+  .summary-jump-nav a { min-height: 38px; padding: 6px 4px; font-size: .73rem; }
+  .summary-section { scroll-margin-top: 124px; padding-bottom: 20px; }
+  .summary-section + .summary-section { padding-top: 21px; }
+  .summary-section-heading { display: grid; gap: 5px; }
+  .section-caption { max-width: none; font-size: .82rem; text-align: left; }
+  .summary-card-primary:first-child { grid-column: 1 / -1; min-height: 100px; }
+  .summary-card-primary { min-height: 102px; padding: 16px; }
+  .summary-card-primary span { min-height: auto; }
+  .summary-card-secondary { min-height: 64px; padding: 12px 13px; }
+  .summary-card-secondary:last-child { grid-column: 1 / -1; }
+  .summary-subpanel { padding: 15px 14px; }
+  .summary-disclosure-meta .status-chip { display: none; }
+  .summary-disclosure > summary, .annual-table-disclosure > summary { padding-left: 14px; }
+  .balance-disclosure .recovery-balance { padding-right: 14px; padding-left: 14px; }
 }
 
 @media (max-width: 340px) {
@@ -388,6 +458,7 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
   .settings-summary-copy small { max-width: 190px; }
   .annual-balance-heading { flex-direction: column; }
   .annual-residual { grid-template-columns: auto 1fr; }
+  .summary-card-primary strong { font-size: 1.55rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

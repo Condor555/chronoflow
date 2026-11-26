@@ -305,100 +305,154 @@
             </div>
           </div>
         </div>
-        <div id="summary-cards" class="summary-grid"></div>
-        <article class="panel excel-summary" aria-labelledby="excel-summary-title">
-          <div class="panel-heading-inline">
+        <nav class="summary-jump-nav" aria-label="Sezioni del riepilogo">
+          <a href="#summary-month-section">Mese</a>
+          <a href="#summary-balance-section">Saldi</a>
+          <a href="#summary-ledger-section">Causali</a>
+          <a href="#summary-analysis-section">Analisi</a>
+        </nav>
+
+        <section id="summary-month-section" class="summary-section" aria-labelledby="summary-period-title">
+          <div class="summary-section-heading">
             <div>
-              <p class="eyebrow">Logica Excel</p>
-              <h2 id="excel-summary-title">Dettaglio del mese</h2>
+              <p class="eyebrow">In primo piano</p>
+              <h2 id="summary-period-title">Mese selezionato</h2>
             </div>
-            <span class="status-chip">Baseline: Riepilogo_2026/2027</span>
+            <p id="summary-period-caption" class="section-caption">Valori essenziali e distribuzione delle giornate.</p>
           </div>
-          <dl id="excel-summary-metrics" class="excel-metric-grid"></dl>
-          <p id="meal-competence-note" class="policy-note"></p>
-        </article>
-        <article class="panel annual-balance" aria-labelledby="annual-balance-title">
-          <div class="annual-balance-heading">
+          <div id="summary-cards" class="summary-grid"></div>
+          <article class="summary-subpanel" aria-labelledby="summary-distribution-title">
+            <div class="subpanel-heading">
+              <h3 id="summary-distribution-title">Come hai lavorato</h3>
+              <span class="status-chip">Giornate del mese</span>
+            </div>
+            <div id="summary-types" class="bar-list"></div>
+          </article>
+          <details class="details-card summary-disclosure summary-inline-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="summary-month-absence-panel"><span>Assenze del mese<small id="summary-month-absence-count">0 giornate</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+            <div id="summary-month-absence-panel" class="summary-disclosure-body">
+              <p class="supporting">Dettaglio per tipologia relativo al mese selezionato.</p>
+              <div id="summary-month-absences" class="bar-list"></div>
+            </div>
+          </details>
+        </section>
+
+        <section id="summary-balance-section" class="summary-section" aria-labelledby="annual-balance-title">
+          <div class="summary-section-heading">
             <div>
-              <p class="eyebrow">Bilancio annuale</p>
-              <h2 id="annual-balance-title">Ferie e festività · <span id="annual-balance-year"></span></h2>
+              <p class="eyebrow">Disponibilità</p>
+              <h2>Saldi annuali</h2>
             </div>
-            <div class="annual-residual" aria-label="Ferie residue">
-              <span>Ferie residue</span>
-              <strong id="annual-vacation-remaining">0</strong>
-              <small>giorni</small>
+            <p class="section-caption">Prima il residuo, poi il dettaglio dei plafond.</p>
+          </div>
+          <article class="panel annual-balance" aria-labelledby="annual-balance-title">
+            <div class="annual-balance-heading">
+              <div>
+                <p class="eyebrow">Ferie e festività</p>
+                <h3 id="annual-balance-title">Bilancio <span id="annual-balance-year"></span></h3>
+              </div>
+              <div class="annual-residual" aria-label="Ferie residue">
+                <span>Ferie residue</span>
+                <strong id="annual-vacation-remaining">0</strong>
+                <small>giorni</small>
+              </div>
             </div>
-          </div>
-          <div class="annual-progress-copy">
-            <span>Ferie utilizzate</span>
-            <strong id="annual-vacation-usage">0 / 20</strong>
-          </div>
-          <div class="annual-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="20" aria-valuenow="0" aria-label="0 giorni di ferie utilizzati su 20">
-            <div id="annual-vacation-progress" class="annual-progress-fill"></div>
-          </div>
-          <dl class="annual-entitlement-list">
-            <div><dt>Ferie anno precedente</dt><dd id="annual-vacation-previous">0 / 0</dd></div>
-            <div><dt>Ferie anno corrente</dt><dd id="annual-vacation-current">0 / 20</dd></div>
-            <div><dt>Festività soppresse</dt><dd id="annual-suppressed-holidays">0 / 4</dd></div>
-            <div><dt>Recupero riposo festività</dt><dd id="annual-holiday-recovery">0 / 0</dd></div>
-          </dl>
-          <p id="annual-balance-note" class="field-hint"></p>
-        </article>
-        <article class="panel recovery-balance" aria-labelledby="summary-recovery-title">
-          <h2 id="summary-recovery-title">Recuperi festività</h2>
-          <p id="summary-recovery-copy" class="supporting"></p>
-          <dl class="recovery-metrics" aria-label="Saldo recuperi festività">
-            <div><dt>Maturati</dt><dd id="summary-recovery-accrued">0</dd></div>
-            <div><dt>Utilizzati</dt><dd id="summary-recovery-used">0</dd></div>
-            <div><dt>Disponibili</dt><dd id="summary-recovery-available">0</dd></div>
-          </dl>
-          <p id="summary-recovery-adjustment" class="field-hint"></p>
-          <ul id="summary-recovery-holidays" class="recovery-holiday-list"></ul>
-        </article>
-        <article class="panel family-limits" aria-labelledby="family-limits-title">
-          <p class="eyebrow">Massimali e scadenze</p>
-          <h2 id="family-limits-title">Malattia bambino e congedi</h2>
-          <dl id="family-limit-metrics" class="family-limit-grid"></dl>
-          <ul id="family-deadlines" class="deadline-list"></ul>
-        </article>
-        <article class="panel traceability-panel" aria-labelledby="traceability-title">
-          <p class="eyebrow">Tracciabilità annuale</p>
-          <h2 id="traceability-title">Istituti, saldi e giornate</h2>
-          <p class="supporting">Ogni causale resta separata. Apri una voce per vedere le date che compongono il conteggio.</p>
-          <div id="traceability-list" class="traceability-list"></div>
-        </article>
-        <details class="details-card annual-table-disclosure" data-disclosure>
-          <summary aria-expanded="false" aria-controls="annual-monthly-table-panel"><span>Riepilogo mensile dell’anno<small>12 mesi · formule equivalenti al foglio Excel</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
-          <div id="annual-monthly-table-panel" class="summary-disclosure-body">
-            <div class="summary-table-scroll" tabindex="0" role="region" aria-label="Tabella riepilogo mensile scorrevole">
-              <table class="annual-monthly-table">
-                <thead><tr>
-                  <th scope="col">Mese</th><th scope="col">Teorici</th><th scope="col">Ferie</th><th scope="col">Fest. sopp.</th><th scope="col">Rec. riposo</th><th scope="col">Malattia</th><th scope="col">Mal. bambino</th><th scope="col">Cong. parentale</th><th scope="col">Maternità</th><th scope="col">Pat. obbl.</th><th scope="col">Pat. alt.</th><th scope="col">Matrimoniale</th><th scope="col">Obbl. storico</th><th scope="col">Altro storico</th><th scope="col">Effettivi</th><th scope="col">Smart</th><th scope="col">Sabati</th><th scope="col">Buoni maturati</th><th scope="col">Rett. maturati</th><th scope="col">Buoni accredito</th><th scope="col">Rett. accredito</th><th scope="col">Straord.</th><th scope="col">Rec. prest.</th><th scope="col">Straord. netto</th>
-                </tr></thead>
-                <tbody id="annual-monthly-table-body"></tbody>
-                <tfoot><tr id="annual-monthly-table-total"></tr></tfoot>
-              </table>
+            <div class="annual-progress-copy">
+              <span>Ferie utilizzate</span>
+              <strong id="annual-vacation-usage">0 / 20</strong>
             </div>
+            <div class="annual-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="20" aria-valuenow="0" aria-label="0 giorni di ferie utilizzati su 20">
+              <div id="annual-vacation-progress" class="annual-progress-fill"></div>
+            </div>
+            <dl class="annual-entitlement-list">
+              <div><dt>Ferie anno precedente</dt><dd id="annual-vacation-previous">0 / 0</dd></div>
+              <div><dt>Ferie anno corrente</dt><dd id="annual-vacation-current">0 / 20</dd></div>
+              <div><dt>Festività soppresse</dt><dd id="annual-suppressed-holidays">0 / 4</dd></div>
+              <div><dt>Recupero riposo festività</dt><dd id="annual-holiday-recovery">0 / 0</dd></div>
+            </dl>
+            <p id="annual-balance-note" class="field-hint"></p>
+          </article>
+          <details class="details-card summary-disclosure balance-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="summary-recovery-panel"><span>Recuperi festività<small>Credito maturato, utilizzato e disponibile</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+            <div id="summary-recovery-panel" class="summary-disclosure-body recovery-balance" aria-labelledby="summary-recovery-title">
+              <h3 id="summary-recovery-title">Recuperi festività</h3>
+              <p id="summary-recovery-copy" class="supporting"></p>
+              <dl class="recovery-metrics" aria-label="Saldo recuperi festività">
+                <div><dt>Maturati</dt><dd id="summary-recovery-accrued">0</dd></div>
+                <div><dt>Utilizzati</dt><dd id="summary-recovery-used">0</dd></div>
+                <div><dt>Disponibili</dt><dd id="summary-recovery-available">0</dd></div>
+              </dl>
+              <p id="summary-recovery-adjustment" class="field-hint"></p>
+              <ul id="summary-recovery-holidays" class="recovery-holiday-list"></ul>
+            </div>
+          </details>
+        </section>
+
+        <section id="summary-ledger-section" class="summary-section" aria-labelledby="summary-ledger-title">
+          <div class="summary-section-heading">
+            <div>
+              <p class="eyebrow">Verifica dei conteggi</p>
+              <h2 id="summary-ledger-title">Causali e plafond</h2>
+            </div>
+            <p class="section-caption">Ogni voce resta separata e conserva le proprie date.</p>
           </div>
-        </details>
-        <article class="panel">
-          <h2>Distribuzione giornate</h2>
-          <div id="summary-types" class="bar-list"></div>
-        </article>
-        <details class="details-card summary-disclosure" data-disclosure>
-          <summary aria-expanded="false" aria-controls="summary-month-absence-panel"><span>Assenze del mese<small id="summary-month-absence-count">0 giornate</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
-          <div id="summary-month-absence-panel" class="summary-disclosure-body">
-            <p class="supporting">Dettaglio per tipologia relativo al mese selezionato.</p>
-            <div id="summary-month-absences" class="bar-list"></div>
+          <details class="details-card summary-disclosure featured-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="traceability-panel"><span>Istituti, saldi e giornate<small>Ferie, assenze, congedi, straordinari e buoni pasto</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+            <div id="traceability-panel" class="summary-disclosure-body" aria-labelledby="traceability-title">
+              <h3 id="traceability-title" class="sr-only">Tracciabilità annuale</h3>
+              <p class="supporting">Apri una causale per vedere le date che compongono il conteggio.</p>
+              <div id="traceability-list" class="traceability-list"></div>
+            </div>
+          </details>
+          <details class="details-card summary-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="family-limits-panel"><span>Malattia bambino e congedi<small>Massimali, periodi e scadenze per figlio</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+            <div id="family-limits-panel" class="summary-disclosure-body" aria-labelledby="family-limits-title">
+              <h3 id="family-limits-title" class="sr-only">Malattia bambino e congedi</h3>
+              <dl id="family-limit-metrics" class="family-limit-grid"></dl>
+              <ul id="family-deadlines" class="deadline-list"></ul>
+            </div>
+          </details>
+          <details class="details-card summary-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="summary-year-absence-panel"><span>Assenze dell’anno<small id="summary-year-absence-count">0 giornate</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+            <div id="summary-year-absence-panel" class="summary-disclosure-body">
+              <p id="summary-year-absence-description" class="supporting">Dettaglio per tipologia relativo all’anno selezionato.</p>
+              <div id="summary-year-absences" class="bar-list"></div>
+            </div>
+          </details>
+        </section>
+
+        <section id="summary-analysis-section" class="summary-section" aria-labelledby="summary-analysis-title">
+          <div class="summary-section-heading">
+            <div>
+              <p class="eyebrow">Analisi completa</p>
+              <h2 id="summary-analysis-title">Dettaglio Excel</h2>
+            </div>
+            <p class="section-caption">Tutti i valori della versione 2.8.0, disponibili quando servono.</p>
           </div>
-        </details>
-        <details class="details-card summary-disclosure" data-disclosure>
-          <summary aria-expanded="false" aria-controls="summary-year-absence-panel"><span>Assenze dell’anno<small id="summary-year-absence-count">0 giornate</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
-          <div id="summary-year-absence-panel" class="summary-disclosure-body">
-            <p id="summary-year-absence-description" class="supporting">Dettaglio per tipologia relativo all’anno selezionato.</p>
-            <div id="summary-year-absences" class="bar-list"></div>
-          </div>
-        </details>
+          <details class="details-card summary-disclosure excel-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="excel-summary-panel"><span>Dettaglio del mese<small>23 indicatori equivalenti al foglio Excel</small></span><span class="summary-disclosure-meta"><span class="status-chip">Baseline Excel</span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></span></summary>
+            <div id="excel-summary-panel" class="summary-disclosure-body excel-summary" aria-labelledby="excel-summary-title">
+              <h3 id="excel-summary-title" class="sr-only">Dettaglio del mese secondo la logica Excel</h3>
+              <dl id="excel-summary-metrics" class="excel-metric-grid"></dl>
+              <p id="meal-competence-note" class="policy-note"></p>
+            </div>
+          </details>
+          <details class="details-card annual-table-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="annual-monthly-table-panel"><span>Riepilogo mensile dell’anno<small>12 mesi · formule equivalenti al foglio Excel</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+            <div id="annual-monthly-table-panel" class="summary-disclosure-body">
+              <p class="table-swipe-hint">Scorri orizzontalmente per consultare tutte le colonne.</p>
+              <div class="summary-table-scroll" tabindex="0" role="region" aria-label="Tabella riepilogo mensile scorrevole">
+                <table class="annual-monthly-table">
+                  <thead><tr>
+                    <th scope="col">Mese</th><th scope="col">Teorici</th><th scope="col">Ferie</th><th scope="col">Fest. sopp.</th><th scope="col">Rec. riposo</th><th scope="col">Malattia</th><th scope="col">Mal. bambino</th><th scope="col">Cong. parentale</th><th scope="col">Maternità</th><th scope="col">Pat. obbl.</th><th scope="col">Pat. alt.</th><th scope="col">Matrimoniale</th><th scope="col">Obbl. storico</th><th scope="col">Altro storico</th><th scope="col">Effettivi</th><th scope="col">Smart</th><th scope="col">Sabati</th><th scope="col">Buoni maturati</th><th scope="col">Rett. maturati</th><th scope="col">Buoni accredito</th><th scope="col">Rett. accredito</th><th scope="col">Straord.</th><th scope="col">Rec. prest.</th><th scope="col">Straord. netto</th>
+                  </tr></thead>
+                  <tbody id="annual-monthly-table-body"></tbody>
+                  <tfoot><tr id="annual-monthly-table-total"></tr></tfoot>
+                </table>
+              </div>
+            </div>
+          </details>
+        </section>
       </section>
 
       <section id="settings-screen" class="screen" data-screen="settings" aria-labelledby="settings-title" hidden>

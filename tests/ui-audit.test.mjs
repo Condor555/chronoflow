@@ -98,3 +98,24 @@ test("riepilogo tracciabile e impostazioni evento mantengono causali e plafond s
   assert.match(app, /maternityMandatoryEntitlement/);
   assert.match(css, /\.traceability-list/);
 });
+
+test("riepilogo usa una gerarchia mobile-first e mantiene il dettaglio su richiesta", () => {
+  for (const id of [
+    "summary-month-section", "summary-balance-section", "summary-ledger-section", "summary-analysis-section"
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+    assert.match(html, new RegExp(`href=["']#${id}["']`));
+  }
+  for (const panel of [
+    "summary-recovery-panel", "traceability-panel", "family-limits-panel", "excel-summary-panel", "annual-monthly-table-panel"
+  ]) {
+    assert.match(html, new RegExp(`aria-controls=["']${panel}["']`));
+    assert.match(html, new RegExp(`id=["']${panel}["']`));
+  }
+  assert.match(html, /Tutti i valori della versione 2\.8\.0/);
+  assert.match(css, /\.summary-jump-nav/);
+  assert.match(css, /\.summary-card-primary/);
+  assert.match(css, /\.summary-card-secondary/);
+  assert.match(app, /index < 3 \? "summary-card-primary" : "summary-card-secondary"/);
+  assert.match(app, /summary-period-title/);
+});
