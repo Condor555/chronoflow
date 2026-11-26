@@ -9,7 +9,14 @@ const ANONYMOUS_KEYS = [
 export const LEGACY_STORAGE_KEYS = [MVP_KEY, ...ANONYMOUS_KEYS];
 
 const DAY_TYPES = new Set(["office", "smart", "travel", "absence"]);
-const ABSENCE_TYPES = new Set(["vacation", "sickness", "child_sickness", "leave", "recovery", "holiday"]);
+const ABSENCE_TYPES = new Set([
+  "vacation", "sickness", "child_sickness", "parental_leave", "maternity_leave",
+  "paternity_mandatory", "paternity_alternative", "marriage_leave", "mandatory_leave",
+  "leave", "recovery", "sunday_holiday_recovery", "holiday"
+]);
+const CHILD_LINKED_ABSENCE_TYPES = new Set([
+  "child_sickness", "parental_leave", "maternity_leave", "paternity_mandatory", "paternity_alternative"
+]);
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const absenceMap = {
@@ -18,8 +25,14 @@ const absenceMap = {
   sickness: "sickness",
   childSick: "child_sickness",
   child_sickness: "child_sickness",
-  mandatoryLeave: "leave",
-  optionalLeave: "leave",
+  mandatoryLeave: "mandatory_leave",
+  optionalLeave: "parental_leave",
+  parentalLeave: "parental_leave",
+  maternityLeave: "maternity_leave",
+  paternityMandatory: "paternity_mandatory",
+  paternityAlternative: "paternity_alternative",
+  marriageLeave: "marriage_leave",
+  sundayHolidayRecovery: "sunday_holiday_recovery",
   leave: "leave",
   suppressedHoliday: "holiday",
   publicHoliday: "holiday",
@@ -100,12 +113,12 @@ function normalizeCloudDay(day, fallbackDate) {
     planned_type: planned,
     actual_type: actual,
     absence_type: absence,
-    child_id: absence === "child_sickness" ? day.child_id || null : null,
+    child_id: CHILD_LINKED_ABSENCE_TYPES.has(absence) ? day.child_id || null : null,
     events: Array.isArray(day.events)
       ? day.events.filter((event) => event && ["entry", "pause", "resume", "exit"].includes(event.type) && !Number.isNaN(new Date(event.at).getTime()))
           .map((event) => ({ id: event.id || randomId(), type: event.type, at: new Date(event.at).toISOString() }))
       : [],
-    ticket_override: typeof day.ticket_override === "boolean" ? day.ticket_override : null,
+    ticket_override: effective === "absence" ? null : typeof day.ticket_override === "boolean" ? day.ticket_override : null,
     notes: typeof day.notes === "string" ? day.notes : ""
   };
 }
@@ -129,9 +142,9 @@ function convertMvpDay(workDate, day = {}) {
     planned_type: planned,
     actual_type: actual,
     absence_type: absence,
-    child_id: absence === "child_sickness" ? day.childId || null : null,
+    child_id: CHILD_LINKED_ABSENCE_TYPES.has(absence) ? day.childId || null : null,
     events: absence ? [] : legacyEvents(workDate, day),
-    ticket_override: typeof day.ticketOverride === "boolean" ? day.ticketOverride : null,
+    ticket_override: planned === "absence" || actual === "absence" ? null : typeof day.ticketOverride === "boolean" ? day.ticketOverride : null,
     notes
   };
 }

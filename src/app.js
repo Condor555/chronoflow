@@ -1,9 +1,13 @@
 import {
   ABSENCE_TYPES,
+  CHILD_LINKED_ABSENCE_TYPES,
   DAY_TYPES,
   breakForType,
   calculateDay,
+  childSicknessEntitlement,
   clampInt,
+  eventsFromLocalTimes,
+  exitNotificationTime,
   forecastExit,
   formatTime,
   isoDateLocal,
@@ -33,19 +37,28 @@ const DEFAULT_PROFILE = {
   ticket_smart: false,
   ticket_travel: false,
   timezone: "Europe/Rome",
-  family_settings: { children: [] }
+  family_settings: {
+    children: [],
+    contract_settings: {
+      sunday_holiday_rule: "none",
+      sunday_holiday_allowance: 0
+    }
+  }
 };
 
 const state = {
   supabase: null,
   user: null,
-  profile: { ...DEFAULT_PROFILE },
+  profile: structuredClone(DEFAULT_PROFILE),
   days: new Map(),
   authMode: "login",
   calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   summaryMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  childSicknessDays: [],
   legacyMigration: null,
   toastTimer: null,
+  notificationTimer: null,
+  notificationTarget: null,
   undo: null,
   busy: false
 };
@@ -71,16 +84,53 @@ function normalizeDay(day) {
   if (effectiveType !== "absence") {
     result.absence_type = null;
     result.child_id = null;
-  } else if (result.absence_type !== "child_sickness") {
+  } else if (!CHILD_LINKED_ABSENCE_TYPES.has(result.absence_type)) {
     result.child_id = null;
   }
+  if (effectiveType === "absence") result.ticket_override = null;
   return result;
+}
+
+function normalizeFamilySettings(value) {
+  const input = value && typeof value === "object" ? value : {};
+  return {
+    ...input,
+    children: Array.isArray(input.children) ? input.children : [],
+    contract_settings: {
+      sunday_holiday_rule: "none",
+      sunday_holiday_allowance: 0,
+      ...(input.contract_settings && typeof input.contract_settings === "object" ? input.contract_settings : {})
+    }
+  };
 }
 
 function familyChildren() {
   return Array.isArray(state.profile.family_settings?.children)
     ? state.profile.family_settings.children
     : [];
+}
+
+function deviceNotificationKey() {
+  return `chrono-flow:v2:notifications:${state.user?.id || "anonymous"}`;
+}
+
+function notificationPreferences() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(deviceNotificationKey()) || "{}");
+    return {
+      enabled: Boolean(stored.enabled),
+      leadMinutes: clampInt(stored.leadMinutes, 0, 120, 0),
+      notifiedEntry: typeof stored.notifiedEntry === "string" ? stored.notifiedEntry : ""
+    };
+  } catch {
+    return { enabled: false, leadMinutes: 0, notifiedEntry: "" };
+  }
+}
+
+function saveNotificationPreferences(patch) {
+  const next = { ...notificationPreferences(), ...patch };
+  localStorage.setItem(deviceNotificationKey(), JSON.stringify(next));
+  return next;
 }
 
 function cacheKey() {
@@ -203,7 +253,9 @@ function asCloudDay(day) {
     absence_type: day.absence_type || null,
     child_id: day.child_id || null,
     events: day.events || [],
-    ticket_override: typeof day.ticket_override === "boolean" ? day.ticket_override : null,
+    ticket_override: (day.actual_type || day.planned_type) === "absence"
+      ? null
+      : typeof day.ticket_override === "boolean" ? day.ticket_override : null,
     notes: day.notes || ""
   };
 }
@@ -211,13 +263,23 @@ function asCloudDay(day) {
 async function fetchProfile() {
   const { data, error } = await state.supabase.from("profiles").select("*").eq("id", state.user.id).maybeSingle();
   if (error) throw error;
-  if (data) state.profile = { ...DEFAULT_PROFILE, ...data, family_settings: data.family_settings || { children: [] } };
+  if (data) state.profile = { ...DEFAULT_PROFILE, ...data, family_settings: normalizeFamilySettings(data.family_settings) };
   else {
     const payload = { ...DEFAULT_PROFILE, id: state.user.id, display_name: state.user.user_metadata?.display_name || state.user.email.split("@")[0] };
     const result = await state.supabase.from("profiles").upsert(payload).select().single();
     if (result.error) throw result.error;
-    state.profile = { ...DEFAULT_PROFILE, ...result.data };
+    state.profile = { ...DEFAULT_PROFILE, ...result.data, family_settings: normalizeFamilySettings(result.data.family_settings) };
   }
+}
+
+async function fetchChildSicknessUsage() {
+  const { data, error } = await state.supabase
+    .from("work_days")
+    .select("work_date,child_id,absence_type,planned_type,actual_type")
+    .in("absence_type", ["child_sickness", "parental_leave", "maternity_leave", "paternity_mandatory", "paternity_alternative"])
+    .order("work_date");
+  if (error) throw error;
+  state.childSicknessDays = data || [];
 }
 
 async function fetchMonth(date) {
@@ -330,19 +392,128 @@ function fillChildSelect(select, selectedValue) {
   select.value = selectedValue || "";
 }
 
+function childAbsenceCount(childId, absenceType, start, end) {
+  return state.childSicknessDays.filter((day) => {
+    const effectiveType = day.actual_type || day.planned_type;
+    const childMatches = day.child_id === childId || (!day.child_id && familyChildren().length === 1);
+    return effectiveType === "absence"
+      && childMatches
+      && day.absence_type === absenceType
+      && (!start || day.work_date >= start)
+      && (!end || day.work_date <= end);
+  }).length;
+}
+
+function updateChildPolicyHint(scope) {
+  const hint = $(`#${scope}-child-policy`);
+  if (!hint) return;
+  const absenceType = $(`#${scope}-absence-type`).value;
+  const child = familyChildren().find((item) => item.id === $(`#${scope}-child-id`).value);
+  if (!child) {
+    hint.textContent = "Seleziona il figlio collegato a questa assenza.";
+    return;
+  }
+  if (absenceType === "child_sickness") {
+    const preview = childSicknessEntitlement(child, scope === "day" ? $("#day-date").value : new Date());
+    if (!preview.eligible) {
+      hint.textContent = preview.reason || "Questa giornata non rientra nelle fasce configurate.";
+      return;
+    }
+    const inApp = childAbsenceCount(child.id, "child_sickness", preview.periodStart, preview.periodEnd);
+    const outside = Number(child.external_usage?.[preview.periodKey] || 0);
+    const entitlement = childSicknessEntitlement(child, scope === "day" ? $("#day-date").value : new Date(), inApp, outside);
+    hint.textContent = entitlement.tier === "under_three"
+      ? `${entitlement.lifeYear}° anno di vita · ${entitlement.remainingPaidDays} dei 30 giorni retribuiti ancora disponibili nel periodo ${entitlement.periodStart}–${entitlement.periodEnd}. L’assenza per malattia resta collegata alla durata della malattia.`
+      : `${entitlement.remainingDays} dei 10 giorni lavorativi ancora disponibili nell’anno solare ${entitlement.periodStart.slice(0, 4)}.`;
+    return;
+  }
+  const messages = {
+    parental_leave: "Congedo parentale facoltativo: associato al figlio, fruibile entro i 14 anni. I limiti individuali e di coppia vanno verificati sul totale di entrambi i genitori.",
+    maternity_leave: "Congedo di maternità obbligatorio: collegato al figlio. Il periodo ordinario è di 5 mesi, con le flessibilità ammesse previa certificazione.",
+    paternity_mandatory: "Congedo di paternità obbligatorio: collegato al figlio; 10 giorni lavorativi, 20 in caso di parto plurimo, nella finestra prevista dalla normativa.",
+    paternity_alternative: "Congedo di paternità alternativo: usalo solo nei casi previsti (morte o grave infermità/abbandono della madre oppure affidamento esclusivo al padre)."
+  };
+  hint.textContent = messages[absenceType] || "Assenza collegata al figlio selezionato.";
+}
+
 function toggleAbsenceFields(scope) {
   const actual = $(`#${scope}-actual-type`).value || $(`#${scope}-planned-type`).value;
   const absenceField = $(`#${scope}-absence-field`);
   const absenceType = $(`#${scope}-absence-type`);
   absenceField.hidden = actual !== "absence";
   const childField = $(`#${scope}-child-field`);
-  childField.hidden = actual !== "absence" || absenceType.value !== "child_sickness";
+  childField.hidden = actual !== "absence" || !CHILD_LINKED_ABSENCE_TYPES.has(absenceType.value);
+  const ticket = $(`#${scope}-ticket`);
+  if (ticket) {
+    ticket.disabled = actual === "absence";
+    if (actual === "absence") ticket.value = "auto";
+  }
+  const times = $(`#${scope}-times-field`);
+  if (times) times.hidden = actual === "absence";
+  if (!childField.hidden) updateChildPolicyHint(scope);
+}
+
+function sundayHolidayRecoveryError(absenceType) {
+  if (absenceType !== "sunday_holiday_recovery") return "";
+  const contract = normalizeFamilySettings(state.profile.family_settings).contract_settings;
+  if (!["manual_recovery", "custom"].includes(contract.sunday_holiday_rule)) {
+    return "La regola contrattuale attuale non prevede una giornata di recupero. Modificala nelle Impostazioni solo se autorizzata dal CCNL o da HR.";
+  }
+  if (clampInt(contract.sunday_holiday_allowance, 0, 30, 0) === 0) {
+    return "Imposta prima il numero di giornate di recupero autorizzate per l’anno.";
+  }
+  return "";
 }
 
 function calculationNow(day) {
   if (day.work_date === isoDateLocal()) return new Date();
   const dates = (day.events || []).map((event) => new Date(event.at)).filter((date) => !Number.isNaN(date.getTime()));
   return dates.length ? new Date(Math.max(...dates.map((date) => date.getTime()))) : new Date(`${day.work_date}T23:59:00`);
+}
+
+async function showExitNotification(forecast, entryKey) {
+  const preferences = notificationPreferences();
+  if (!preferences.enabled || preferences.notifiedEntry === entryKey || Notification.permission !== "granted") return;
+  const body = `Uscita prevista alle ${formatTime(forecast)}. Ricordati di registrare l’uscita.`;
+  try {
+    if ("serviceWorker" in navigator) {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification("Chrono Flow · È ora di uscire", {
+        body,
+        icon: "./icons/icon-192.png",
+        badge: "./icons/icon-192.png",
+        tag: `chrono-flow-exit-${entryKey}`,
+        renotify: false
+      });
+    } else {
+      new Notification("Chrono Flow · È ora di uscire", { body, icon: "./icons/icon-192.png" });
+    }
+    saveNotificationPreferences({ notifiedEntry: entryKey });
+  } catch {
+    showToast("Non sono riuscito a mostrare la notifica. Controlla i permessi del browser.");
+  }
+}
+
+function scheduleExitNotification(day, result, forecast) {
+  window.clearTimeout(state.notificationTimer);
+  state.notificationTimer = null;
+  state.notificationTarget = null;
+  const preferences = notificationPreferences();
+  if (!preferences.enabled || !("Notification" in window) || Notification.permission !== "granted") return;
+  if (!forecast || !result.firstEntry || !["working", "paused"].includes(result.state)) return;
+  const entryKey = `${day.work_date}|${result.firstEntry.toISOString()}`;
+  if (preferences.notifiedEntry === entryKey) return;
+  const target = exitNotificationTime(forecast, preferences.leadMinutes);
+  if (!target) return;
+  state.notificationTarget = target;
+  const delay = Math.max(0, target.getTime() - Date.now());
+  state.notificationTimer = window.setTimeout(() => showExitNotification(forecast, entryKey), Math.min(delay, 2147483647));
+}
+
+function updateLocationChoice(effectiveType) {
+  $$(".location-option").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.location === effectiveType));
+  });
 }
 
 function renderToday() {
@@ -363,6 +534,8 @@ function renderToday() {
   $("#forecast-value").textContent = formatTime(forecast);
   $("#overtime-value").textContent = minutesToDuration(result.overtimeMinutes);
   $("#ticket-value").textContent = ticketForDay(state.profile, day) ? "Sì" : "No";
+  updateLocationChoice(effectiveType);
+  scheduleExitNotification(day, result, forecast);
 
   const primary = $("#primary-action");
   const exit = $("#exit-action");
@@ -476,6 +649,20 @@ function renderCalendar() {
   }
 }
 
+function clockValueForEvent(events, type) {
+  const event = (events || []).find((item) => item.type === type);
+  if (!event?.at) return "";
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: "Europe/Rome"
+  }).formatToParts(new Date(event.at));
+  const hour = parts.find((part) => part.type === "hour")?.value;
+  const minute = parts.find((part) => part.type === "minute")?.value;
+  return hour && minute ? `${hour}:${minute}` : "";
+}
+
 function openDayDialog(date) {
   const day = state.days.get(date) || defaultDay(date);
   $("#day-date").value = date;
@@ -486,6 +673,10 @@ function openDayDialog(date) {
   fillChildSelect($("#day-child-id"), day.child_id);
   $("#day-ticket").value = day.ticket_override === true ? "yes" : day.ticket_override === false ? "no" : "auto";
   $("#day-notes").value = day.notes || "";
+  $("#day-entry-time").value = clockValueForEvent(day.events, "entry");
+  $("#day-pause-start-time").value = clockValueForEvent(day.events, "pause");
+  $("#day-pause-end-time").value = clockValueForEvent(day.events, "resume");
+  $("#day-exit-time").value = clockValueForEvent(day.events, "exit");
   $("#delete-day").hidden = !state.days.has(date);
   toggleAbsenceFields("day");
   $("#day-dialog").showModal();
@@ -495,7 +686,7 @@ function renderSummary() {
   if (!state.user) return;
   const { start, end } = monthBounds(state.summaryMonth);
   const days = [...state.days.values()].filter((day) => day.work_date >= start && day.work_date <= end);
-  const totals = { worked: 0, overtime: 0, tickets: 0, office: 0, smart: 0, travel: 0, absence: 0 };
+  const totals = { worked: 0, overtime: 0, tickets: 0, office: 0, smart: 0, travel: 0, absence: 0, absenceTypes: {} };
   for (const day of days) {
     const result = calculateDay(day.events, state.profile.target_minutes, state.profile.overtime_threshold, calculationNow(day));
     totals.worked += result.workedMinutes;
@@ -503,6 +694,10 @@ function renderSummary() {
     totals.tickets += ticketForDay(state.profile, day) ? 1 : 0;
     const effectiveType = day.actual_type || day.planned_type || "office";
     totals[effectiveType] = (totals[effectiveType] || 0) + 1;
+    if (effectiveType === "absence") {
+      const absenceType = day.absence_type || "leave";
+      totals.absenceTypes[absenceType] = (totals.absenceTypes[absenceType] || 0) + 1;
+    }
   }
 
   const cards = [
@@ -511,7 +706,8 @@ function renderSummary() {
     ["Buoni pasto", String(totals.tickets)],
     ["Giornate registrate", String(days.length)],
     ["Smart working", String(totals.smart)],
-    ["Assenze", String(totals.absence)]
+    ["Assenze", String(totals.absence)],
+    ["Recuperi festività domenicali", String(totals.absenceTypes.sunday_holiday_recovery || 0)]
   ];
   $("#summary-cards").replaceChildren(...cards.map(([label, value]) => {
     const card = document.createElement("article");
@@ -545,6 +741,26 @@ function renderSummary() {
     row.append(name, track, value);
     return row;
   }));
+
+  const absenceMaximum = Math.max(1, ...Object.keys(ABSENCE_TYPES).map((key) => totals.absenceTypes[key] || 0));
+  $("#summary-absences").replaceChildren(...Object.entries(ABSENCE_TYPES).map(([key, label]) => {
+    const count = totals.absenceTypes[key] || 0;
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    const name = document.createElement("span");
+    name.textContent = label;
+    const track = document.createElement("div");
+    track.className = "bar-track";
+    const fill = document.createElement("div");
+    fill.className = "bar-fill";
+    fill.style.width = `${(count / absenceMaximum) * 100}%`;
+    fill.setAttribute("aria-hidden", "true");
+    track.append(fill);
+    const value = document.createElement("strong");
+    value.textContent = String(count);
+    row.append(name, track, value);
+    return row;
+  }));
 }
 
 function renderChildren() {
@@ -562,11 +778,45 @@ function renderChildren() {
     const row = document.createElement("div");
     row.className = "child-row";
     const info = document.createElement("div");
+    info.className = "child-info";
     const name = document.createElement("strong");
     name.textContent = child.name;
     const date = document.createElement("span");
     date.textContent = child.birth_date ? `Nato/a il ${new Intl.DateTimeFormat("it-IT").format(new Date(`${child.birth_date}T12:00:00`))}` : "Data di nascita non indicata";
-    info.append(name, date);
+    const entitlementPreview = childSicknessEntitlement(child, new Date());
+    const policy = document.createElement("p");
+    policy.className = "child-policy";
+    let usageField = null;
+    if (entitlementPreview.eligible) {
+      const inApp = childAbsenceCount(child.id, "child_sickness", entitlementPreview.periodStart, entitlementPreview.periodEnd);
+      const outside = Number(child.external_usage?.[entitlementPreview.periodKey] || 0);
+      const entitlement = childSicknessEntitlement(child, new Date(), inApp, outside);
+      policy.textContent = entitlement.tier === "under_three"
+        ? `${entitlement.lifeYear}° anno di vita: ${entitlement.remainingPaidDays}/30 giorni retribuiti residui; ${inApp} registrati nell’app.`
+        : `${entitlement.remainingDays}/10 giorni lavorativi residui nel ${entitlement.periodStart.slice(0, 4)}; ${inApp} registrati nell’app.`;
+      usageField = document.createElement("div");
+      usageField.className = "child-usage-field";
+      const usageLabel = document.createElement("label");
+      const usageId = `child-usage-${child.id}`;
+      usageLabel.htmlFor = usageId;
+      usageLabel.textContent = "Giorni usati fuori app o dall’altro genitore nel periodo";
+      const usageInput = document.createElement("input");
+      usageInput.id = usageId;
+      usageInput.type = "number";
+      usageInput.min = "0";
+      usageInput.max = "366";
+      usageInput.value = String(outside);
+      usageInput.addEventListener("change", () => {
+        child.external_usage = { ...(child.external_usage || {}), [entitlement.periodKey]: clampInt(usageInput.value, 0, 366, 0) };
+        renderChildren();
+        announce("Utilizzi esterni aggiornati. Salva le impostazioni per confermare.");
+      });
+      usageField.append(usageLabel, usageInput);
+    } else {
+      policy.textContent = entitlementPreview.reason || "Nessun diritto automatico calcolabile per la data odierna.";
+    }
+    info.append(name, date, policy);
+    if (usageField) info.append(usageField);
     const remove = document.createElement("button");
     remove.type = "button";
     remove.textContent = "×";
@@ -581,6 +831,24 @@ function renderChildren() {
   });
 }
 
+function renderNotificationPermissionStatus() {
+  const status = $("#notification-permission-status");
+  const button = $("#request-notification-permission");
+  if (!("Notification" in window)) {
+    status.textContent = "Questo browser non supporta le notifiche web.";
+    button.disabled = true;
+    return;
+  }
+  button.disabled = Notification.permission === "granted";
+  if (Notification.permission === "granted") {
+    status.textContent = "Notifiche consentite su questo dispositivo. Per una consegna più affidabile, usa la PWA installata e non forzarne la chiusura.";
+  } else if (Notification.permission === "denied") {
+    status.textContent = "Notifiche bloccate. Riattivale dalle impostazioni del browser o del sistema.";
+  } else {
+    status.textContent = "Permesso non ancora richiesto. Verrà chiesto solo quando premi il pulsante.";
+  }
+}
+
 function renderSettings() {
   const profile = state.profile;
   $("#settings-name").value = profile.display_name || "";
@@ -593,6 +861,13 @@ function renderSettings() {
   $("#ticket-office").checked = Boolean(profile.ticket_office);
   $("#ticket-smart").checked = Boolean(profile.ticket_smart);
   $("#ticket-travel").checked = Boolean(profile.ticket_travel);
+  const contract = normalizeFamilySettings(profile.family_settings).contract_settings;
+  $("#sunday-holiday-rule").value = contract.sunday_holiday_rule || "none";
+  $("#sunday-holiday-allowance").value = clampInt(contract.sunday_holiday_allowance, 0, 30, 0);
+  const notification = notificationPreferences();
+  $("#exit-notification-enabled").checked = notification.enabled;
+  $("#exit-notification-lead").value = String(notification.leadMinutes);
+  renderNotificationPermissionStatus();
   renderChildren();
 }
 
@@ -619,7 +894,10 @@ function showScreen(name) {
   });
   if (name === "calendar") renderCalendar();
   if (name === "summary") renderSummary();
-  if (name === "settings") renderSettings();
+  if (name === "settings") {
+    renderSettings();
+    fetchChildSicknessUsage().then(renderChildren).catch(() => {});
+  }
   $("#main-content").focus({ preventScroll: true });
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -691,7 +969,7 @@ async function importLegacyData() {
       };
       const result = await state.supabase.from("profiles").upsert(profilePayload).select().single();
       if (result.error) throw result.error;
-      state.profile = { ...DEFAULT_PROFILE, ...result.data };
+      state.profile = { ...DEFAULT_PROFILE, ...result.data, family_settings: normalizeFamilySettings(result.data.family_settings) };
     }
 
     imported.forEach((day) => state.days.set(day.work_date, normalizeDay(day)));
@@ -730,7 +1008,7 @@ async function loadApplication(user) {
   state.days.clear();
   loadLocalCache();
   try {
-    await Promise.all([fetchProfile(), fetchMonth(state.calendarMonth)]);
+    await Promise.all([fetchProfile(), fetchMonth(state.calendarMonth), fetchChildSicknessUsage()]);
   } catch (error) {
     if (!state.days.size) {
       showToast(`Non riesco a caricare i dati: ${friendlyError(error)}`);
@@ -753,7 +1031,7 @@ async function loadApplication(user) {
 function showAuth() {
   state.user = null;
   state.days.clear();
-  state.profile = { ...DEFAULT_PROFILE };
+  state.profile = structuredClone(DEFAULT_PROFILE);
   state.legacyMigration = null;
   if ($("#migration-dialog").open) $("#migration-dialog").close();
   $("#loading-view").hidden = true;
@@ -900,6 +1178,16 @@ function bindEvents() {
   });
 
   $$(".nav-item").forEach((button) => button.addEventListener("click", () => showScreen(button.dataset.target)));
+  $$(".location-option").forEach((button) => button.addEventListener("click", async () => {
+    const date = isoDateLocal();
+    const day = normalizeDay(state.days.get(date) || defaultDay(date));
+    day.planned_type = button.dataset.location;
+    day.actual_type = button.dataset.location;
+    day.absence_type = null;
+    day.child_id = null;
+    await saveDay(day, { silent: true });
+    showToast(`Oggi lavori: ${button.dataset.location === "smart" ? "Casa" : DAY_TYPES[button.dataset.location].label}.`);
+  }));
   $("#primary-action").addEventListener("click", () => {
     const day = state.days.get(isoDateLocal()) || defaultDay(isoDateLocal());
     const result = calculateDay(day.events, state.profile.target_minutes, state.profile.overtime_threshold, new Date());
@@ -925,8 +1213,10 @@ function bindEvents() {
     day.planned_type = $("#today-planned-type").value;
     day.actual_type = $("#today-actual-type").value;
     day.absence_type = day.actual_type === "absence" ? $("#today-absence-type").value : null;
-    day.child_id = day.absence_type === "child_sickness" ? $("#today-child-id").value || null : null;
-    day.ticket_override = $("#today-ticket").value === "auto" ? null : $("#today-ticket").value === "yes";
+    const absenceError = sundayHolidayRecoveryError(day.absence_type);
+    if (absenceError) return showToast(absenceError);
+    day.child_id = CHILD_LINKED_ABSENCE_TYPES.has(day.absence_type) ? $("#today-child-id").value || null : null;
+    day.ticket_override = day.actual_type === "absence" || $("#today-ticket").value === "auto" ? null : $("#today-ticket").value === "yes";
     day.notes = $("#today-notes").value.trim();
     await saveDay(day, { silent: true });
     showToast("Dettagli di oggi salvati.");
@@ -1003,6 +1293,8 @@ function bindEvents() {
   $("#day-planned-type").addEventListener("change", () => toggleAbsenceFields("day"));
   $("#day-actual-type").addEventListener("change", () => toggleAbsenceFields("day"));
   $("#day-absence-type").addEventListener("change", () => toggleAbsenceFields("day"));
+  $("#day-child-id").addEventListener("change", () => updateChildPolicyHint("day"));
+  $("#today-child-id").addEventListener("change", () => updateChildPolicyHint("today"));
   $("#close-day-dialog").addEventListener("click", () => $("#day-dialog").close());
   $("#day-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1012,9 +1304,26 @@ function bindEvents() {
     day.actual_type = $("#day-actual-type").value || null;
     const effectiveType = day.actual_type || day.planned_type;
     day.absence_type = effectiveType === "absence" ? $("#day-absence-type").value : null;
-    day.child_id = day.absence_type === "child_sickness" ? $("#day-child-id").value || null : null;
-    day.ticket_override = $("#day-ticket").value === "auto" ? null : $("#day-ticket").value === "yes";
+    const absenceError = sundayHolidayRecoveryError(day.absence_type);
+    if (absenceError) return showToast(absenceError);
+    day.child_id = CHILD_LINKED_ABSENCE_TYPES.has(day.absence_type) ? $("#day-child-id").value || null : null;
+    day.ticket_override = effectiveType === "absence" || $("#day-ticket").value === "auto" ? null : $("#day-ticket").value === "yes";
     day.notes = $("#day-notes").value.trim();
+    if (effectiveType !== "absence") {
+      try {
+        day.events = eventsFromLocalTimes(date, {
+          entry: $("#day-entry-time").value,
+          pauseStart: $("#day-pause-start-time").value,
+          pauseEnd: $("#day-pause-end-time").value,
+          exit: $("#day-exit-time").value
+        });
+      } catch (error) {
+        showToast(friendlyError(error));
+        return;
+      }
+    } else {
+      day.events = [];
+    }
     await saveDay(day, { silent: true });
     $("#day-dialog").close();
     showToast("Giornata salvata.");
@@ -1047,7 +1356,7 @@ function bindEvents() {
     }
     state.profile.family_settings = {
       ...state.profile.family_settings,
-      children: [...familyChildren(), { id: crypto.randomUUID(), name, birth_date: birthDate }]
+      children: [...familyChildren(), { id: crypto.randomUUID(), name, birth_date: birthDate, external_usage: {} }]
     };
     $("#child-name").value = "";
     $("#child-birth-date").value = "";
@@ -1055,9 +1364,32 @@ function bindEvents() {
     announce(`${name} aggiunto. Salva le impostazioni per confermare.`);
   });
 
+  $("#request-notification-permission").addEventListener("click", async () => {
+    if (!("Notification" in window)) return renderNotificationPermissionStatus();
+    const permission = await Notification.requestPermission();
+    renderNotificationPermissionStatus();
+    if (permission === "granted") {
+      saveNotificationPreferences({ enabled: true });
+      $("#exit-notification-enabled").checked = true;
+      renderToday();
+      showToast("Notifiche abilitate su questo dispositivo.");
+    } else {
+      showToast("Permesso notifiche non concesso.");
+    }
+  });
+
   $("#settings-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!event.currentTarget.reportValidity()) return;
+    const familySettings = normalizeFamilySettings(state.profile.family_settings);
+    familySettings.contract_settings = {
+      sunday_holiday_rule: $("#sunday-holiday-rule").value,
+      sunday_holiday_allowance: clampInt($("#sunday-holiday-allowance").value, 0, 30, 0)
+    };
+    saveNotificationPreferences({
+      enabled: $("#exit-notification-enabled").checked && "Notification" in window && Notification.permission === "granted",
+      leadMinutes: clampInt($("#exit-notification-lead").value, 0, 120, 0)
+    });
     const profile = {
       id: state.user.id,
       display_name: $("#settings-name").value.trim(),
@@ -1070,14 +1402,15 @@ function bindEvents() {
       ticket_smart: $("#ticket-smart").checked,
       ticket_travel: $("#ticket-travel").checked,
       timezone: "Europe/Rome",
-      family_settings: state.profile.family_settings || { children: [] }
+      family_settings: familySettings
     };
     updateSyncStatus("Salvataggio…");
     const { data, error } = await state.supabase.from("profiles").upsert(profile).select().single();
     if (error) return showToast(`Impostazioni non salvate: ${friendlyError(error)}`);
-    state.profile = { ...DEFAULT_PROFILE, ...data };
+    state.profile = { ...DEFAULT_PROFILE, ...data, family_settings: normalizeFamilySettings(data.family_settings) };
     renderAccount();
     renderToday();
+    renderNotificationPermissionStatus();
     updateSyncStatus();
     showToast("Impostazioni salvate.");
   });

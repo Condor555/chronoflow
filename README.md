@@ -7,13 +7,19 @@ La versione 2 aggiunge **account personali e salvataggio nel cloud**: ogni utent
 ## Funzioni incluse
 
 - registrazione rapida di Entrata, Inizia pausa, Termina pausa e Uscita;
+- scelta immediata dalla home tra **Ufficio, Casa e Trasferta**;
 - uscita prevista, ore lavorate e straordinario aggiornati durante la giornata;
+- notifica opzionale sul dispositivo all’orario di uscita previsto;
 - pianificato ed effettivo separati: Ufficio, Smart Working, Trasferta, Assenza;
-- ferie, malattia, malattia bambino, congedo, recupero e festività;
+- modifica dal calendario degli orari di ingresso, pausa e uscita;
+- ferie, malattia, malattia bambino, congedo parentale facoltativo, maternità obbligatoria, paternità obbligatoria e alternativa, congedo matrimoniale, recuperi e festività;
 - calendario mensile con stato indicato da colore **e** sigla testuale;
-- riepilogo mensile di ore, straordinario, ticket e tipologia delle giornate;
+- riepilogo mensile di ore, straordinario, ticket, tipologia delle giornate e dettaglio di ogni assenza;
 - orario giornaliero, pause, soglia straordinario e ticket configurabili;
-- elenco figli e associazione alla malattia bambino;
+- elenco figli e associazione alle assenze che riguardano il minore;
+- calcolo della malattia bambino per anno di vita/anno solare con giorni esterni o dell’altro genitore;
+- regola contrattuale configurabile per le festività cadute di domenica;
+- ticket sempre escluso dalle giornate di assenza;
 - accesso email/password obbligatorio: senza una sessione valida l’app non mostra giornate o impostazioni;
 - sessione persistente sul dispositivo, revocabile con **Esci da questo dispositivo**;
 - dati sincronizzati tra dispositivi;
@@ -48,6 +54,8 @@ La chiave `anon` è progettata per essere usata nel browser ed è quindi pubblic
 3. Copia tutto il contenuto di `supabase/schema.sql`.
 4. Esegui lo script una sola volta.
 5. Facoltativo ma consigliato: esegui `supabase/verify.sql`. Per `profiles` e `work_days`, `rowsecurity` deve risultare `true` e devono comparire le policy create dallo script.
+
+Se il progetto usa già Chrono Flow 2.2, non rieseguire l’intero schema: esegui una sola volta `supabase/migrate-v2.3.0.sql`. La migrazione amplia soltanto le tipologie di assenza accettate e non modifica o cancella le giornate esistenti.
 
 Lo script crea:
 
@@ -111,7 +119,7 @@ Apri `http://localhost:4173/`, crea due account di prova e verifica che le giorn
 6. Salva e attendi l’indirizzo HTTPS.
 7. Riporta l’indirizzo esatto nelle impostazioni URL di Supabase, come descritto sopra.
 
-La versione 2.2 usa una cache PWA nuova e una strategia *network-first* per shell, configurazione e codice principale. Dopo il primo deploy della patch, apri il sito online e attendi il ricaricamento automatico; se una vecchia PWA era già aperta, chiudila e riaprila una volta.
+La versione 2.3 usa una cache PWA nuova e una strategia *network-first* per shell, configurazione e codice principale. Dopo il primo deploy della patch, apri il sito online e attendi il ricaricamento automatico; se una vecchia PWA era già aperta, chiudila e riaprila una volta.
 
 ## Verifica multiutente consigliata
 
@@ -159,6 +167,23 @@ Limitazioni:
 - il primo accesso e la creazione dell’account richiedono la rete;
 - se lo stesso giorno viene modificato offline su due dispositivi, prevale l’ultima versione sincronizzata;
 - prima di cancellare dati del browser, verifica che lo stato mostri “Sincronizzato”.
+
+## Notifica dell’uscita
+
+La notifica è una preferenza del singolo dispositivo. Va attivata da **Impostazioni → Notifica dell’uscita** e richiede il consenso del browser. L’orario deriva dalla prima entrata, dalle ore giornaliere e dalla pausa del tipo di presenza scelto; una pausa effettiva più lunga aggiorna la previsione.
+
+Le PWA non dispongono di una pianificazione locale affidabile su ogni sistema operativo quando sono state forzatamente chiuse. Per la migliore affidabilità installa Chrono Flow, consenti le notifiche e lascia che il sistema la mantenga in background. Questa versione non usa un servizio push remoto.
+
+## Regole assenze implementate
+
+- **Malattia bambino:** fino al 3° compleanno la durata dell’assenza segue la malattia; la quota di 30 giorni retribuiti viene conteggiata per ciascun anno di vita, non per anno solare. Dai 3 ai 14 anni vengono conteggiati 10 giorni lavorativi per anno solare. Gli utilizzi fuori app o dell’altro genitore si inseriscono per il periodo corrente.
+- **Congedo parentale facoltativo:** collegabile al figlio fino ai 14 anni. Chrono Flow conta le giornate registrate, ma non sostituisce il calcolo INPS dei mesi individuali, di coppia e indennizzabili.
+- **Maternità obbligatoria, paternità obbligatoria e paternità alternativa:** sono voci separate e collegabili al figlio. La paternità alternativa va usata soltanto nei casi previsti dalla legge.
+- **Congedo matrimoniale:** è una voce autonoma e non è collegata al figlio.
+- **Festività caduta di domenica:** nessun credito viene creato automaticamente. L’utente deve configurare la regola contrattuale e il numero di giornate autorizzate; gli utilizzi sono registrati come voce autonoma.
+- **Ticket:** ogni giornata con tipo effettivo o pianificato “Assenza” restituisce sempre “No”, anche se un vecchio backup conteneva un override positivo.
+
+Questi contatori sono un supporto personale. La titolarità, la durata, l’indennità e la documentazione vanno confermate con INPS, CCNL applicabile e Ufficio del Personale.
 
 ## Accessibilità e UX
 
@@ -210,6 +235,7 @@ La cartella `icons/` contiene l’icona vettoriale, le varianti PNG, l’icona a
 │   └── config.example.js
 ├── supabase/
 │   ├── schema.sql
+│   ├── migrate-v2.3.0.sql
 │   └── verify.sql
 ├── tests/
 │   ├── calculations.test.mjs

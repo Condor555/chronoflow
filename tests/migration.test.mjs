@@ -96,3 +96,21 @@ test("does not delete malformed data and clears only confirmed source keys", () 
   assert.equal(storage.getItem("orari-mobile-mvp-v1"), "{not-json");
   assert.equal(storage.getItem("unrelated"), "keep");
 });
+
+test("preserva le nuove tipologie di congedo e il collegamento al figlio", () => {
+  const storage = new MemoryStorage({
+    "chrono-flow:v2:days:anonymous": JSON.stringify([
+      { work_date: "2026-04-01", planned_type: "absence", actual_type: "absence", absence_type: "parental_leave", child_id: "child-1" },
+      { work_date: "2026-04-02", planned_type: "absence", actual_type: "absence", absence_type: "paternity_mandatory", child_id: "child-1" },
+      { work_date: "2026-04-03", planned_type: "absence", actual_type: "absence", absence_type: "marriage_leave" },
+      { work_date: "2026-04-04", planned_type: "absence", actual_type: "absence", absence_type: "sunday_holiday_recovery" }
+    ])
+  });
+  const found = detectLegacyData(storage);
+  assert.deepEqual(found.days.map((day) => day.absence_type), [
+    "parental_leave", "paternity_mandatory", "marriage_leave", "sunday_holiday_recovery"
+  ]);
+  assert.equal(found.days[0].child_id, "child-1");
+  assert.equal(found.days[1].child_id, "child-1");
+  assert.equal(found.days[2].child_id, null);
+});

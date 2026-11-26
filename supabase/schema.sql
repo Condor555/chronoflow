@@ -1,4 +1,4 @@
--- Chrono Flow v2 — schema multiutente Supabase
+-- Chrono Flow v2.3 — schema multiutente Supabase
 -- Eseguire una sola volta nel SQL Editor del progetto Supabase.
 
 create extension if not exists pgcrypto;
@@ -25,7 +25,11 @@ create table if not exists public.work_days (
   work_date date not null,
   planned_type text not null default 'office' check (planned_type in ('office','smart','travel','absence')),
   actual_type text check (actual_type is null or actual_type in ('office','smart','travel','absence')),
-  absence_type text check (absence_type is null or absence_type in ('vacation','sickness','child_sickness','leave','recovery','holiday')),
+  absence_type text check (absence_type is null or absence_type in (
+    'vacation','sickness','child_sickness','parental_leave','maternity_leave',
+    'paternity_mandatory','paternity_alternative','marriage_leave','mandatory_leave',
+    'leave','recovery','sunday_holiday_recovery','holiday'
+  )),
   child_id text,
   events jsonb not null default '[]'::jsonb check (jsonb_typeof(events) = 'array'),
   ticket_override boolean,

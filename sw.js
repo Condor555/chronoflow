@@ -1,4 +1,4 @@
-const CACHE = "chrono-flow-v2.2.0";
+const CACHE = "chrono-flow-v2.3.0";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -65,6 +65,17 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       });
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      const existing = clients.find((client) => client.url.startsWith(self.registration.scope));
+      if (existing) return existing.focus();
+      return self.clients.openWindow(self.registration.scope);
     })
   );
 });

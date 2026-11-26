@@ -102,6 +102,13 @@
           <span id="today-type-badge" class="type-badge">🏢 Ufficio</span>
         </div>
 
+        <fieldset class="location-choice" aria-label="Dove lavori oggi">
+          <legend>Dove lavori oggi?</legend>
+          <button class="location-option" data-location="office" type="button" aria-pressed="true"><span aria-hidden="true">🏢</span> Ufficio</button>
+          <button class="location-option" data-location="smart" type="button" aria-pressed="false"><span aria-hidden="true">⌂</span> Casa</button>
+          <button class="location-option" data-location="travel" type="button" aria-pressed="false"><span aria-hidden="true">↗</span> Trasferta</button>
+        </fieldset>
+
         <article class="hero-card" aria-labelledby="work-state-label">
           <p id="work-state-label" class="status-label">Giornata non iniziata</p>
           <p id="work-main-value" class="hero-time">—</p>
@@ -160,15 +167,22 @@
                 <option value="vacation">Ferie</option>
                 <option value="sickness">Malattia</option>
                 <option value="child_sickness">Malattia bambino</option>
-                <option value="leave">Congedo</option>
+                <option value="parental_leave">Congedo parentale (facoltativo)</option>
+                <option value="maternity_leave">Congedo di maternità obbligatorio</option>
+                <option value="paternity_mandatory">Congedo di paternità obbligatorio</option>
+                <option value="paternity_alternative">Congedo di paternità alternativo</option>
+                <option value="marriage_leave">Congedo matrimoniale</option>
+                <option value="mandatory_leave">Congedo obbligatorio (storico)</option>
+                <option value="leave">Congedo (storico)</option>
                 <option value="recovery">Recupero</option>
+                <option value="sunday_holiday_recovery">Recupero festività caduta di domenica</option>
                 <option value="holiday">Festività</option>
               </select>
             </div>
             <div id="today-child-field" class="field" hidden>
               <label for="today-child-id">Figlio</label>
               <select id="today-child-id" name="child-id"></select>
-              <p class="field-hint">Aggiungi i figli in Impostazioni → Famiglia.</p>
+              <p id="today-child-policy" class="field-hint">Aggiungi i figli in Impostazioni → Famiglia.</p>
             </div>
             <div class="field">
               <label for="today-ticket">Buono pasto</label>
@@ -264,6 +278,11 @@
           <h2>Distribuzione giornate</h2>
           <div id="summary-types" class="bar-list"></div>
         </article>
+        <article class="panel">
+          <h2>Tipi di assenza</h2>
+          <p class="supporting">Il totale è suddiviso per giustificativo, non raccolto in una sola voce.</p>
+          <div id="summary-absences" class="bar-list"></div>
+        </article>
       </section>
 
       <section id="settings-screen" class="screen" data-screen="settings" aria-labelledby="settings-title" hidden>
@@ -312,15 +331,37 @@
 
           <article class="panel">
             <h2>Buoni pasto</h2>
-            <p class="supporting">Scegli dove il buono spetta normalmente. Puoi cambiare il risultato per una singola giornata.</p>
+            <p class="supporting">Scegli dove il buono spetta normalmente. Puoi cambiare il risultato per una singola giornata di presenza.</p>
+            <p class="policy-note"><strong>Assenze:</strong> il buono pasto non è mai previsto per ferie, malattia, congedi, recuperi o festività. Questa regola non può essere forzata sul singolo giorno.</p>
             <label class="check-row"><input id="ticket-office" type="checkbox"> <span>Spetta in ufficio</span></label>
             <label class="check-row"><input id="ticket-smart" type="checkbox"> <span>Spetta in smart working</span></label>
             <label class="check-row"><input id="ticket-travel" type="checkbox"> <span>Spetta in trasferta</span></label>
           </article>
 
           <article class="panel">
+            <h2>Notifica dell’uscita</h2>
+            <p class="supporting">Chrono Flow calcola l’uscita dall’ora di ingresso, dalla durata giornaliera e dalla pausa impostata. La notifica è configurata separatamente su ogni dispositivo.</p>
+            <label class="check-row"><input id="exit-notification-enabled" type="checkbox"> <span>Avvisami quando è ora di uscire</span></label>
+            <div class="field">
+              <label for="exit-notification-lead">Quando avvisarmi</label>
+              <select id="exit-notification-lead">
+                <option value="0">All’orario di uscita previsto</option>
+                <option value="5">5 minuti prima</option>
+                <option value="10">10 minuti prima</option>
+                <option value="15">15 minuti prima</option>
+                <option value="30">30 minuti prima</option>
+              </select>
+            </div>
+            <div class="button-row">
+              <button id="request-notification-permission" class="button secondary" type="button">Consenti notifiche su questo dispositivo</button>
+            </div>
+            <p id="notification-permission-status" class="field-hint" role="status"></p>
+          </article>
+
+          <article class="panel">
             <h2>Famiglia</h2>
-            <p class="supporting">I dati servono solo per associare correttamente le giornate di malattia bambino.</p>
+            <p class="supporting">Per ciascun figlio Chrono Flow applica automaticamente la fascia corretta. Fino al 3° compleanno l’assenza segue la durata della malattia e i primi 30 giorni retribuiti si rinnovano per anno di vita, non per anno solare. Dai 3 ai 14 anni il limite è 10 giorni lavorativi per anno solare.</p>
+            <p class="supporting">Il congedo parentale facoltativo è associato al figlio e può essere registrato fino ai 14 anni. Il contatore dell’app mostra le giornate inserite, ma i limiti legali in mesi (individuali e di coppia) dipendono anche dalle fruizioni dell’altro genitore e restano da verificare con INPS/Ufficio del Personale.</p>
             <div id="children-list" class="children-list"></div>
             <div class="field-grid align-end">
               <div class="field">
@@ -332,6 +373,25 @@
                 <input id="child-birth-date" type="date">
               </div>
               <button id="add-child" class="button secondary" type="button">Aggiungi figlio</button>
+            </div>
+          </article>
+
+          <article class="panel">
+            <h2>Festività che cadono di domenica</h2>
+            <p class="supporting">Non viene attribuito automaticamente un recupero in base alla sola legge nazionale. Imposta la regola prevista dal CCNL o dall’accordo applicabile; il riepilogo contabilizza separatamente gli utilizzi.</p>
+            <div class="field">
+              <label for="sunday-holiday-rule">Regola contrattuale</label>
+              <select id="sunday-holiday-rule">
+                <option value="none">Nessun recupero automatico</option>
+                <option value="manual_recovery">Recupero a giornata, caricato manualmente</option>
+                <option value="economic_only">Solo compensazione economica</option>
+                <option value="custom">Regola personalizzata da verificare con HR</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="sunday-holiday-allowance">Giornate di recupero disponibili nell’anno</label>
+              <input id="sunday-holiday-allowance" type="number" min="0" max="30" value="0" inputmode="numeric">
+              <p class="field-hint">Inserisci il valore autorizzato. Chrono Flow non genera crediti senza questa impostazione.</p>
             </div>
           </article>
 
@@ -408,15 +468,45 @@
           <option value="vacation">Ferie</option>
           <option value="sickness">Malattia</option>
           <option value="child_sickness">Malattia bambino</option>
-          <option value="leave">Congedo</option>
+          <option value="parental_leave">Congedo parentale (facoltativo)</option>
+          <option value="maternity_leave">Congedo di maternità obbligatorio</option>
+          <option value="paternity_mandatory">Congedo di paternità obbligatorio</option>
+          <option value="paternity_alternative">Congedo di paternità alternativo</option>
+          <option value="marriage_leave">Congedo matrimoniale</option>
+          <option value="mandatory_leave">Congedo obbligatorio (storico)</option>
+          <option value="leave">Congedo (storico)</option>
           <option value="recovery">Recupero</option>
+          <option value="sunday_holiday_recovery">Recupero festività caduta di domenica</option>
           <option value="holiday">Festività</option>
         </select>
       </div>
       <div id="day-child-field" class="field" hidden>
         <label for="day-child-id">Figlio</label>
         <select id="day-child-id"></select>
+        <p id="day-child-policy" class="field-hint"></p>
       </div>
+      <fieldset id="day-times-field" class="time-editor">
+        <legend>Orari consuntivi</legend>
+        <p class="field-hint">Puoi correggere ingresso, pausa e uscita delle giornate di presenza. Lascia vuota la pausa se non vuoi registrarla.</p>
+        <div class="field-grid">
+          <div class="field">
+            <label for="day-entry-time">Ingresso</label>
+            <input id="day-entry-time" type="time">
+          </div>
+          <div class="field">
+            <label for="day-exit-time">Uscita</label>
+            <input id="day-exit-time" type="time">
+          </div>
+          <div class="field">
+            <label for="day-pause-start-time">Inizio pausa</label>
+            <input id="day-pause-start-time" type="time">
+          </div>
+          <div class="field">
+            <label for="day-pause-end-time">Fine pausa</label>
+            <input id="day-pause-end-time" type="time">
+          </div>
+        </div>
+      </fieldset>
       <div class="field">
         <label for="day-ticket">Buono pasto</label>
         <select id="day-ticket">

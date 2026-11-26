@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.3.0 — Orari modificabili, assenze contrattuali e notifiche
+
+- scelta rapida **Ufficio / Casa / Trasferta** ripristinata nella home;
+- modifica dal calendario di ingresso, pausa e uscita;
+- notifica locale opzionale all’orario di uscita previsto, calcolato da ingresso, durata e pausa;
+- riepilogo mensile separato per ogni tipologia di assenza;
+- malattia bambino calcolata per anno di vita fino al 3° compleanno (30 giorni retribuiti) e poi per anno solare fino a 14 anni (10 giorni lavorativi), con utilizzi esterni configurabili;
+- congedo parentale facoltativo, maternità obbligatoria, paternità obbligatoria e paternità alternativa distinti e collegabili al figlio;
+- congedo matrimoniale distinto;
+- recupero per festività caduta di domenica attivabile solo secondo la regola contrattuale configurata e conteggiato separatamente;
+- ticket sempre escluso per tutte le giornate di assenza, anche se era presente un vecchio override;
+- migrazione Supabase `migrate-v2.3.0.sql` per le nuove tipologie;
+- cache PWA aggiornata a `chrono-flow-v2.3.0` e apertura dell’app al tocco della notifica.
+
 ## 2.2.0 — Accesso obbligatorio e migrazione locale
 
 - shell applicativa sempre nascosta finché non è presente una sessione Supabase;
