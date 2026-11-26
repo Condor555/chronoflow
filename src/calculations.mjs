@@ -62,6 +62,14 @@ export function minutesToDuration(totalMinutes) {
   return `${hours}:${String(minutes).padStart(2, "0")}`;
 }
 
+export function secondsToDuration(totalSeconds) {
+  const safe = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const seconds = safe % 60;
+  return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
 export function calculateDay(events = [], targetMinutes = 456, overtimeThreshold = 10, now = new Date()) {
   const ordered = [...events]
     .filter((event) => event && event.type && event.at)
@@ -101,11 +109,14 @@ export function calculateDay(events = [], targetMinutes = 456, overtimeThreshold
   if (workingSince) workedMs += Math.max(0, now - workingSince);
   if (pauseSince) pausedMs += Math.max(0, now - pauseSince);
 
-  const workedMinutes = Math.max(0, Math.floor(workedMs / 60000));
-  const pausedMinutes = Math.max(0, Math.floor(pausedMs / 60000));
+  const workedSeconds = Math.max(0, Math.floor(workedMs / 1000));
+  const pausedSeconds = Math.max(0, Math.floor(pausedMs / 1000));
+  const workedMinutes = Math.floor(workedSeconds / 60);
+  const pausedMinutes = Math.floor(pausedSeconds / 60);
   const rawOvertime = Math.max(0, workedMinutes - targetMinutes);
   const overtimeMinutes = rawOvertime >= overtimeThreshold ? rawOvertime : 0;
   const remainingMinutes = Math.max(0, targetMinutes - workedMinutes);
+  const remainingSeconds = Math.max(0, targetMinutes * 60 - workedSeconds);
 
   let state = "not_started";
   if (lastExit && !workingSince && !pauseSince) state = "finished";
@@ -116,10 +127,13 @@ export function calculateDay(events = [], targetMinutes = 456, overtimeThreshold
     state,
     firstEntry,
     lastExit,
+    workedSeconds,
+    pausedSeconds,
     workedMinutes,
     pausedMinutes,
     overtimeMinutes,
-    remainingMinutes
+    remainingMinutes,
+    remainingSeconds
   };
 }
 

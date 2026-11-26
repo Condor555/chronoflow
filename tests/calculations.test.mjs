@@ -14,6 +14,7 @@ import {
   minutesToDuration,
   overtimeEnabledForType,
   recognizedItalianHolidays,
+  secondsToDuration,
   sundayHolidays,
   SUNDAY_HOLIDAY_RULES,
   ticketForDay
@@ -33,6 +34,18 @@ test("calcola 7:36 di lavoro con pausa di 30 minuti", () => {
   assert.equal(result.pausedMinutes, 30);
   assert.equal(result.overtimeMinutes, 0);
   assert.equal(result.state, "finished");
+});
+
+test("espone il contatore al secondo per l’aggiornamento live della home", () => {
+  const result = calculateDay(
+    [{ type: "entry", at: "2026-11-26T08:00:00+01:00" }],
+    456,
+    10,
+    new Date("2026-11-26T08:04:07+01:00")
+  );
+  assert.equal(result.workedSeconds, 247);
+  assert.equal(result.remainingSeconds, 27113);
+  assert.equal(secondsToDuration(result.workedSeconds), "0:04:07");
 });
 
 test("prevede uscita alle 16:41 da ingresso 08:35", () => {

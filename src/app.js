@@ -15,6 +15,7 @@ import {
   isoDateLocal,
   minutesToDuration,
   recognizedItalianHolidays,
+  secondsToDuration,
   SUNDAY_HOLIDAY_RULES,
   ticketForDay
 } from "./calculations.mjs";
@@ -336,11 +337,16 @@ function announce(message) {
 function showToast(message, action) {
   window.clearTimeout(state.toastTimer);
   state.undo = typeof action === "function" ? action : null;
+  const toast = $("#toast");
+  const isError = /errore|non riusc|non salva|non caricat|controlla|inserisci|seleziona|blocc|interrott|non disponibile/i.test(message);
+  toast.dataset.tone = isError ? "error" : "success";
+  toast.setAttribute("role", isError ? "alert" : "status");
+  toast.setAttribute("aria-live", isError ? "assertive" : "polite");
   $("#toast-message").textContent = message;
   $("#toast-action").hidden = !state.undo;
-  $("#toast").hidden = false;
+  toast.hidden = false;
   state.toastTimer = window.setTimeout(() => {
-    $("#toast").hidden = true;
+    toast.hidden = true;
     state.undo = null;
   }, state.undo ? 7000 : 4500);
   announce(message);
@@ -368,6 +374,60 @@ function monthBounds(date) {
 
 function yearBounds(year) {
   return { start: `${year}-01-01`, end: `${year}-12-31` };
+}
+
+const MONTH_NAMES = [
+  "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
+];
+
+function ensureYearOptions(select, selectedYear) {
+  const currentYear = new Date().getFullYear();
+  const minimum = Math.min(currentYear - 8, selectedYear - 2);
+  const maximum = Math.max(currentYear + 8, selectedYear + 2);
+  const years = Array.from({ length: maximum - minimum + 1 }, (_, index) => minimum + index);
+  select.replaceChildren(...years.map((year) => {
+    const option = document.createElement("option");
+    option.value = String(year);
+    option.textContent = String(year);
+    return option;
+  }));
+}
+
+function renderMonthSelector(scope, date) {
+  const monthSelect = $(`#${scope}-month-select`);
+  const yearSelect = $(`#${scope}-year-select`);
+  if (!monthSelect || !yearSelect) return;
+  ensureYearOptions(yearSelect, date.getFullYear());
+  monthSelect.value = String(date.getMonth());
+  yearSelect.value = String(date.getFullYear());
+  const label = $(`#${scope}-month-label`);
+  if (label) label.textContent = `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+async function selectMonth(scope, date) {
+  const normalized = new Date(date.getFullYear(), date.getMonth(), 1);
+  if (scope === "calendar") {
+    state.calendarMonth = normalized;
+    renderMonthSelector("calendar", normalized);
+    await fetchMonth(normalized).catch((error) => showToast(`Mese non caricato: ${friendlyError(error)}`));
+    renderCalendar();
+    return;
+  }
+  state.summaryMonth = normalized;
+  renderMonthSelector("summary", normalized);
+  await Promise.all([
+    fetchMonth(normalized),
+    fetchSummaryYear(normalized.getFullYear())
+  ]).catch((error) => showToast(`Riepilogo non caricato: ${friendlyError(error)}`));
+  renderSummary();
+}
+
+function selectedMonthFromControls(scope, fallback) {
+  const month = Number($(`#${scope}-month-select`)?.value);
+  const year = Number($(`#${scope}-year-select`)?.value);
+  if (!Number.isInteger(month) || month < 0 || month > 11 || !Number.isInteger(year)) return fallback;
+  return new Date(year, month, 1);
 }
 
 function asCloudDay(day) {
@@ -435,8 +495,8 @@ function sundayHolidayContract() {
   return normalizeFamilySettings(state.profile.family_settings).contract_settings;
 }
 
-function sundayHolidayBalance(year) {
-  const contract = sundayHolidayContract();
+function sundayHolidayBalance(year, contractOverride = null) {
+  const contract = contractOverride || sundayHolidayContract();
   const adjustment = contract.sunday_holiday_adjustments?.[String(year)]?.days || 0;
   return holidayRecoveryBalance({
     year,
@@ -465,7 +525,13 @@ async function fetchMonth(date) {
     }
     throw error;
   }
-  (data || []).forEach((day) => state.days.set(day.work_date, normalizeDay(day)));
+  const pendingDates = new Set(getQueue().map((operation) => operation.work_date));
+  for (const workDate of [...state.days.keys()]) {
+    if (workDate >= start && workDate <= end && !pendingDates.has(workDate)) state.days.delete(workDate);
+  }
+  (data || []).forEach((day) => {
+    if (!pendingDates.has(day.work_date)) state.days.set(day.work_date, normalizeDay(day));
+  });
   persistLocalCache();
 }
 
@@ -482,8 +548,14 @@ async function fetchSummaryYear(year, { force = false } = {}) {
       .lte("work_date", end)
       .order("work_date");
     if (error) throw error;
-    state.summaryYearDays = (data || []).map(normalizeDay);
-    state.summaryYearDays.forEach((day) => state.days.set(day.work_date, day));
+    const pendingDates = new Set(getQueue().map((operation) => operation.work_date));
+    const remoteDays = (data || []).map(normalizeDay).filter((day) => !pendingDates.has(day.work_date));
+    const pendingDays = [...state.days.values()].filter((day) => day.work_date >= start && day.work_date <= end && pendingDates.has(day.work_date));
+    state.summaryYearDays = [...remoteDays, ...pendingDays];
+    for (const workDate of [...state.days.keys()]) {
+      if (workDate >= start && workDate <= end && !pendingDates.has(workDate)) state.days.delete(workDate);
+    }
+    remoteDays.forEach((day) => state.days.set(day.work_date, day));
     state.summaryYearLoaded = year;
     persistLocalCache();
   } catch (error) {
@@ -732,31 +804,19 @@ function updateLocationChoice(effectiveType) {
   });
 }
 
-function renderToday() {
-  if (!state.user) return;
-  const now = new Date();
-  const date = isoDateLocal(now);
-  const day = state.days.get(date) || defaultDay(date);
-  const effectiveType = day.actual_type || day.planned_type || "office";
-  const result = calculateTrackedDay(day, now);
-  const plannedBreak = breakForType(state.profile, effectiveType);
-  const forecast = forecastExit(day.events, state.profile.target_minutes, plannedBreak, now);
-  const dayType = DAY_TYPES[effectiveType] || DAY_TYPES.office;
-
-  $("#today-date").textContent = formatLongDate(now);
-  $("#today-type-badge").textContent = `${dayType.icon} ${dayType.label}`;
-  $("#today-type-badge").className = `type-badge ${effectiveType}`;
-  $("#worked-value").textContent = minutesToDuration(result.workedMinutes);
+function updateTodayLiveDisplay(day, effectiveType, result, forecast) {
+  const isLive = ["working", "paused"].includes(result.state);
+  $("#worked-value").textContent = result.state === "working"
+    ? secondsToDuration(result.workedSeconds)
+    : minutesToDuration(result.workedMinutes);
   $("#forecast-value").textContent = formatTime(forecast);
   $("#overtime-value").textContent = minutesToDuration(result.overtimeMinutes);
   $("#ticket-value").textContent = ticketForDay(state.profile, day) ? "Sì" : "No";
-  updateLocationChoice(effectiveType);
-  scheduleExitNotification(day, result, forecast);
 
   const primary = $("#primary-action");
   const exit = $("#exit-action");
   primary.disabled = effectiveType === "absence";
-  exit.hidden = !["working", "paused"].includes(result.state) || effectiveType === "absence";
+  exit.hidden = !isLive || effectiveType === "absence";
 
   if (effectiveType === "absence") {
     $("#work-state-label").textContent = ABSENCE_TYPES[day.absence_type] || "Assenza";
@@ -770,12 +830,12 @@ function renderToday() {
     primary.textContent = "Registra entrata";
   } else if (result.state === "working") {
     $("#work-state-label").textContent = "Stai lavorando";
-    $("#work-main-value").textContent = minutesToDuration(result.workedMinutes);
-    $("#work-main-caption").textContent = `Restano ${minutesToDuration(result.remainingMinutes)} di lavoro.`;
+    $("#work-main-value").textContent = secondsToDuration(result.workedSeconds);
+    $("#work-main-caption").textContent = `Restano ${secondsToDuration(result.remainingSeconds)} di lavoro.`;
     primary.textContent = "Inizia pausa";
   } else if (result.state === "paused") {
     $("#work-state-label").textContent = "Pausa in corso";
-    $("#work-main-value").textContent = minutesToDuration(result.pausedMinutes);
+    $("#work-main-value").textContent = secondsToDuration(result.pausedSeconds);
     $("#work-main-caption").textContent = "Il tempo di pausa non viene conteggiato come lavoro.";
     primary.textContent = "Termina pausa";
   } else {
@@ -785,6 +845,36 @@ function renderToday() {
     primary.textContent = "Giornata conclusa";
     primary.disabled = true;
   }
+}
+
+function renderTodayTick() {
+  if (!state.user || $("#today-screen").hidden || document.hidden) return;
+  const now = new Date();
+  const date = isoDateLocal(now);
+  const day = state.days.get(date) || defaultDay(date);
+  const effectiveType = day.actual_type || day.planned_type || "office";
+  const result = calculateTrackedDay(day, now);
+  const forecast = forecastExit(day.events, state.profile.target_minutes, breakForType(state.profile, effectiveType), now);
+  updateTodayLiveDisplay(day, effectiveType, result, forecast);
+}
+
+function renderToday() {
+  if (!state.user) return;
+  const now = new Date();
+  const date = isoDateLocal(now);
+  const day = state.days.get(date) || defaultDay(date);
+  const effectiveType = day.actual_type || day.planned_type || "office";
+  const result = calculateTrackedDay(day, now);
+  const plannedBreak = breakForType(state.profile, effectiveType);
+  const forecast = forecastExit(day.events, state.profile.target_minutes, plannedBreak, now);
+  const dayType = DAY_TYPES[effectiveType] || DAY_TYPES.office;
+
+  $("#today-date").textContent = formatLongDate(now);
+  $("#today-type-badge").textContent = dayType.label;
+  $("#today-type-badge").className = `type-badge ${effectiveType}`;
+  updateTodayLiveDisplay(day, effectiveType, result, forecast);
+  updateLocationChoice(effectiveType);
+  scheduleExitNotification(day, result, forecast);
 
   $("#today-planned-type").value = day.planned_type;
   $("#today-actual-type").value = effectiveType;
@@ -819,7 +909,7 @@ async function recordAction(type) {
 function renderCalendar() {
   if (!state.user) return;
   const month = state.calendarMonth;
-  $("#calendar-month-label").textContent = new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" }).format(month);
+  renderMonthSelector("calendar", month);
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
   const mondayOffset = (first.getDay() + 6) % 7;
   const start = new Date(first);
@@ -921,8 +1011,8 @@ function recoveryRuleCopy(rule) {
   return "La regola scelta non prevede giorni di recupero.";
 }
 
-function renderRecoveryBalance(prefix, year) {
-  const balance = sundayHolidayBalance(year);
+function renderRecoveryBalance(prefix, year, contractOverride = null) {
+  const balance = sundayHolidayBalance(year, contractOverride);
   const title = $(`#${prefix}-recovery-title`);
   if (title) title.textContent = `Recuperi festività · ${year}`;
   $(`#${prefix}-recovery-copy`).textContent = recoveryRuleCopy(balance.rule);
@@ -957,6 +1047,34 @@ function renderRecoveryBalance(prefix, year) {
   }
 }
 
+function settingsContractDraft() {
+  const current = sundayHolidayContract();
+  const year = clampInt($("#sunday-holiday-adjustment-year")?.value, 2000, 2100, new Date().getFullYear());
+  const days = clampInt($("#sunday-holiday-adjustment-days")?.value, -366, 366, 0);
+  const reason = $("#sunday-holiday-adjustment-reason")?.value.trim() || "";
+  const adjustments = { ...(current.sunday_holiday_adjustments || {}) };
+  if (days || reason) adjustments[String(year)] = { days, reason };
+  else delete adjustments[String(year)];
+  const local = {
+    name: $("#local-holiday-name")?.value.trim() || "",
+    day: clampInt($("#local-holiday-day")?.value, 1, 31, 0),
+    month: clampInt($("#local-holiday-month")?.value, 1, 12, 0)
+  };
+  const hasPartialLocalHoliday = Boolean(local.name || local.day || local.month);
+  return {
+    ...current,
+    sunday_holiday_rule: $("input[name='sunday-holiday-rule']:checked")?.value || "none",
+    sunday_holiday_adjustments: adjustments,
+    local_holiday: local.name && local.day && local.month ? local : hasPartialLocalHoliday ? current.local_holiday : null
+  };
+}
+
+function previewSundayHolidaySettings() {
+  const year = clampInt($("#sunday-holiday-adjustment-year")?.value, 2000, 2100, new Date().getFullYear());
+  renderRecoveryBalance("settings", year, settingsContractDraft());
+  updateSettingsSummaries();
+}
+
 function absenceCountsForDays(days) {
   const counts = {};
   for (const day of days) {
@@ -968,13 +1086,19 @@ function absenceCountsForDays(days) {
 }
 
 function renderAbsenceBreakdown(target, counts) {
-  const entries = Object.entries(ABSENCE_TYPES)
-    .map(([key, label]) => [key, label, counts[key] || 0])
-    .filter(([, , count]) => count > 0);
+  const entries = Object.entries(counts)
+    .filter(([, count]) => Number(count) > 0)
+    .map(([key, count]) => {
+      const fallback = String(key || "Altra assenza")
+        .replaceAll("_", " ")
+        .replace(/^./, (letter) => letter.toUpperCase());
+      return [key, ABSENCE_TYPES[key] || fallback, Number(count)];
+    })
+    .sort((left, right) => right[2] - left[2] || left[1].localeCompare(right[1], "it"));
   if (!entries.length) {
-    const empty = document.createElement("p");
-    empty.className = "field-hint empty-state";
-    empty.textContent = "Nessuna assenza registrata nel periodo.";
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 2v3M16 2v3M3.5 9h17M6 4h12a2.5 2.5 0 0 1 2.5 2.5v12A2.5 2.5 0 0 1 18 21H6a2.5 2.5 0 0 1-2.5-2.5v-12A2.5 2.5 0 0 1 6 4Zm2.5 9 2 2 4-4"/></svg><strong>Nessuna assenza nel periodo</strong><span>Le assenze registrate compariranno qui, suddivise per tipologia.</span>';
     target.replaceChildren(empty);
     return;
   }
@@ -1002,6 +1126,7 @@ function renderAbsenceBreakdown(target, counts) {
 
 function renderSummary() {
   if (!state.user) return;
+  renderMonthSelector("summary", state.summaryMonth);
   const { start, end } = monthBounds(state.summaryMonth);
   const days = [...state.days.values()].filter((day) => day.work_date >= start && day.work_date <= end);
   const totals = { worked: 0, overtime: 0, tickets: 0, office: 0, smart: 0, travel: 0, absence: 0, absenceTypes: {} };
@@ -1081,10 +1206,11 @@ function renderChildren() {
   const list = $("#children-list");
   list.replaceChildren();
   const children = familyChildren();
+  setSettingsSummary("family-settings-summary", children.length ? `${children.length} figli${children.length === 1 ? "o" : ""} configurat${children.length === 1 ? "o" : "i"}` : "Nessun figlio configurato");
   if (!children.length) {
-    const empty = document.createElement("p");
-    empty.className = "supporting";
-    empty.textContent = "Nessun figlio aggiunto.";
+    const empty = document.createElement("div");
+    empty.className = "empty-state compact";
+    empty.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 20v-2.5A4.5 4.5 0 0 1 8 13h2a4.5 4.5 0 0 1 4.5 4.5V20M17 8v6m-3-3h6"/></svg><strong>Nessun figlio configurato</strong><span>Aggiungi nome e data di nascita per collegare le assenze familiari.</span>';
     list.append(empty);
     return;
   }
@@ -1133,7 +1259,8 @@ function renderChildren() {
     if (usageField) info.append(usageField);
     const remove = document.createElement("button");
     remove.type = "button";
-    remove.textContent = "×";
+    remove.className = "icon-button danger-icon";
+    remove.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg>';
     remove.setAttribute("aria-label", `Rimuovi ${child.name}`);
     remove.addEventListener("click", () => {
       state.profile.family_settings = { ...state.profile.family_settings, children: familyChildren().filter((item) => item.id !== child.id) };
@@ -1177,6 +1304,36 @@ function fillSundayHolidayAdjustmentFields(year) {
   $("#sunday-holiday-adjustment-reason").value = adjustment.reason || "";
 }
 
+function setSettingsSummary(id, text) {
+  const target = $(`#${id}`);
+  if (target) target.textContent = text;
+}
+
+function updateSettingsSummaries() {
+  const hours = clampInt($("#target-hours")?.value, 1, 15, 7);
+  const minutes = clampInt($("#target-minutes")?.value, 0, 59, 36);
+  setSettingsSummary("profile-settings-summary", `${hours}h ${String(minutes).padStart(2, "0")}m · soglia straordinario ${clampInt($("#overtime-threshold")?.value, 0, 240, 10)} min`);
+  const ticketLabels = [
+    ["#ticket-office", "Ufficio"], ["#ticket-smart", "Smart"], ["#ticket-travel", "Trasferta"]
+  ].filter(([selector]) => $(selector)?.checked).map(([, label]) => label);
+  setSettingsSummary("ticket-settings-summary", ticketLabels.length ? `Attivi: ${ticketLabels.join(", ")}` : "Nessun buono automatico");
+  setSettingsSummary("notification-settings-summary", $("#exit-notification-enabled")?.checked
+    ? `Attiva · ${$("#exit-notification-lead")?.selectedOptions?.[0]?.textContent || "orario previsto"}`
+    : "Disattivata");
+  const childCount = familyChildren().length;
+  setSettingsSummary("family-settings-summary", childCount ? `${childCount} figli${childCount === 1 ? "o" : ""} configurat${childCount === 1 ? "o" : "i"}` : "Nessun figlio configurato");
+  const ruleLabels = {
+    accrue_day: "Recupero automatico",
+    economic_only: "Solo compensazione economica",
+    none: "Nessun recupero",
+    manual: "Gestione manuale"
+  };
+  const rule = $("input[name='sunday-holiday-rule']:checked")?.value || "none";
+  const previewYear = clampInt($("#sunday-holiday-adjustment-year")?.value, 2000, 2100, new Date().getFullYear());
+  const preview = sundayHolidayBalance(previewYear, settingsContractDraft());
+  setSettingsSummary("holiday-settings-summary", `${ruleLabels[rule]} · ${preview.available} disponibili nel ${previewYear}`);
+}
+
 function renderSettings() {
   const profile = state.profile;
   $("#settings-name").value = profile.display_name || "";
@@ -1207,6 +1364,7 @@ function renderSettings() {
   $("#exit-notification-lead").value = String(notification.leadMinutes);
   renderNotificationPermissionStatus();
   renderChildren();
+  updateSettingsSummaries();
 }
 
 function renderAccount() {
@@ -1242,7 +1400,7 @@ function showScreen(name) {
     fetchChildSicknessUsage().then(renderChildren).catch(() => {});
   }
   $("#main-content").focus({ preventScroll: true });
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  window.scrollTo({ top: 0, behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
 }
 
 function offerLegacyMigration({ force = false } = {}) {
@@ -1373,7 +1531,8 @@ async function loadApplication(user) {
   $("#auth-view").hidden = true;
   $("#configuration-view").hidden = true;
   $("#app-shell").hidden = false;
-  $("#summary-month").value = `${state.summaryMonth.getFullYear()}-${String(state.summaryMonth.getMonth() + 1).padStart(2, "0")}`;
+  renderMonthSelector("calendar", state.calendarMonth);
+  renderMonthSelector("summary", state.summaryMonth);
   $("#bulk-start").value ||= isoDateLocal();
   $("#bulk-end").value ||= isoDateLocal();
   renderAccount();
@@ -1500,9 +1659,10 @@ async function initialize() {
   if (data?.session?.user) await loadApplication(data.session.user);
   else showAuth();
   registerServiceWorker();
-  window.setInterval(() => {
-    if (state.user && !$("#today-screen").hidden) renderToday();
-  }, 60000);
+  window.setInterval(renderTodayTick, 1000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) renderTodayTick();
+  });
 }
 
 function bindEvents() {
@@ -1541,6 +1701,12 @@ function bindEvents() {
   });
 
   $$(".nav-item").forEach((button) => button.addEventListener("click", () => showScreen(button.dataset.target)));
+  $$('[data-disclosure]').forEach((details) => {
+    const summary = details.querySelector(":scope > summary");
+    const updateExpanded = () => summary?.setAttribute("aria-expanded", String(details.open));
+    details.addEventListener("toggle", updateExpanded);
+    updateExpanded();
+  });
   $$(".location-option").forEach((button) => button.addEventListener("click", async () => {
     const date = isoDateLocal();
     const day = normalizeDay(state.days.get(date) || defaultDay(date));
@@ -1644,15 +1810,10 @@ function bindEvents() {
     showToast(`${changed.length} giornate pianificate.`);
   });
 
-  $("#previous-month").addEventListener("click", async () => {
-    state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() - 1, 1);
-    await fetchMonth(state.calendarMonth).catch((error) => showToast(friendlyError(error)));
-    renderCalendar();
-  });
-  $("#next-month").addEventListener("click", async () => {
-    state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() + 1, 1);
-    await fetchMonth(state.calendarMonth).catch((error) => showToast(friendlyError(error)));
-    renderCalendar();
+  $("#previous-month").addEventListener("click", () => selectMonth("calendar", new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() - 1, 1)));
+  $("#next-month").addEventListener("click", () => selectMonth("calendar", new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() + 1, 1)));
+  ["#calendar-month-select", "#calendar-year-select"].forEach((selector) => {
+    $(selector).addEventListener("change", () => selectMonth("calendar", selectedMonthFromControls("calendar", state.calendarMonth)));
   });
   $("#day-planned-type").addEventListener("change", () => toggleAbsenceFields("day"));
   $("#day-actual-type").addEventListener("change", () => toggleAbsenceFields("day"));
@@ -1703,14 +1864,10 @@ function bindEvents() {
     });
   });
 
-  $("#summary-month").addEventListener("change", async (event) => {
-    const [year, month] = event.target.value.split("-").map(Number);
-    state.summaryMonth = new Date(year, month - 1, 1);
-    await Promise.all([
-      fetchMonth(state.summaryMonth),
-      fetchSummaryYear(year)
-    ]).catch((error) => showToast(friendlyError(error)));
-    renderSummary();
+  $("#previous-summary-month").addEventListener("click", () => selectMonth("summary", new Date(state.summaryMonth.getFullYear(), state.summaryMonth.getMonth() - 1, 1)));
+  $("#next-summary-month").addEventListener("click", () => selectMonth("summary", new Date(state.summaryMonth.getFullYear(), state.summaryMonth.getMonth() + 1, 1)));
+  ["#summary-month-select", "#summary-year-select"].forEach((selector) => {
+    $(selector).addEventListener("change", () => selectMonth("summary", selectedMonthFromControls("summary", state.summaryMonth)));
   });
 
   $("#add-child").addEventListener("click", () => {
@@ -1752,6 +1909,18 @@ function bindEvents() {
   $("#sunday-holiday-adjustment-year").addEventListener("change", (event) => {
     const year = clampInt(event.target.value, 2000, 2100, new Date().getFullYear());
     fillSundayHolidayAdjustmentFields(year);
+    previewSundayHolidaySettings();
+  });
+  $("#settings-form").addEventListener("input", (event) => {
+    if (event.target.matches("[name='sunday-holiday-rule'], #sunday-holiday-adjustment-days, #sunday-holiday-adjustment-reason, #local-holiday-name, #local-holiday-day, #local-holiday-month")) {
+      previewSundayHolidaySettings();
+    } else {
+      updateSettingsSummaries();
+    }
+  });
+  $("#settings-form").addEventListener("change", (event) => {
+    if (event.target.matches("[name='sunday-holiday-rule'], #local-holiday-month")) previewSundayHolidaySettings();
+    else updateSettingsSummaries();
   });
 
   $("#settings-form").addEventListener("submit", async (event) => {
@@ -1803,9 +1972,18 @@ function bindEvents() {
       timezone: "Europe/Rome",
       family_settings: familySettings
     };
+    const submitButton = event.currentTarget.querySelector("button[type='submit']");
+    const submitLabel = submitButton.textContent;
+    submitButton.disabled = true;
+    submitButton.textContent = "Salvataggio…";
     updateSyncStatus("Salvataggio…");
     const { data, error } = await state.supabase.from("profiles").upsert(profile).select().single();
-    if (error) return showToast(`Impostazioni non salvate: ${friendlyError(error)}`);
+    submitButton.disabled = false;
+    submitButton.textContent = submitLabel;
+    if (error) {
+      updateSyncStatus();
+      return showToast(`Impostazioni non salvate: ${friendlyError(error)}`);
+    }
     state.profile = { ...DEFAULT_PROFILE, ...data, family_settings: normalizeFamilySettings(data.family_settings) };
     renderAccount();
     renderToday();

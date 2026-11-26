@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.6.0 — Affidabilità, MonthSelector e coerenza UI/UX
+
+- contatore Home aggiornato ogni secondo senza sovrascrivere i campi che l’utente sta modificando;
+- dettaglio assenze mensile e annuale reso robusto anche per causali storiche o non ancora mappate, con empty state esplicito;
+- anteprima immediata del saldo recuperi festività mentre si cambia regola, correzione o festività locale;
+- nuovo MonthSelector Chrono Flow condiviso tra Calendario e Riepilogo, senza il controllo `month` nativo;
+- riconciliazione dei dati cloud/locali per evitare record obsoleti, preservando le modifiche offline in coda;
+- design system uniformato per pulsanti Primary, Secondary, Ghost, IconButton e Danger;
+- icone SVG coerenti per navigazione, selettori, apertura/chiusura e rimozione;
+- tutte le card Impostazioni trasformate in progressive disclosure con riepilogo dello stato a card chiusa;
+- feedback di salvataggio ed errore più coerenti, inclusi stato del pulsante e toast distinti;
+- miglioramenti WCAG 2.2 AA: focus visibile, target touch da 44 px, `aria-expanded`, `aria-controls`, empty state e rispetto di `prefers-reduced-motion`;
+- regole responsive verificate per 320, 375, 390 e 430 px, oltre al layout desktop;
+- cache PWA aggiornata a `chrono-flow-v2.6.0`.
+
 ## 2.5.0 — Installazione guidata e straordinario per tipologia
 
 - aggiunto un banner di installazione PWA: usa il prompt nativo quando il browser lo rende disponibile;

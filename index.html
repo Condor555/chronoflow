@@ -17,12 +17,12 @@
   <a class="skip-link" href="#main-content">Vai al contenuto</a>
 
   <aside id="install-banner" class="install-banner" hidden aria-labelledby="install-banner-title" aria-describedby="install-banner-description" aria-live="polite">
-    <button id="close-install-banner" class="install-banner-close" type="button" aria-label="Chiudi il suggerimento di installazione">×</button>
+    <button id="close-install-banner" class="icon-button ghost install-banner-close" type="button" aria-label="Chiudi il suggerimento di installazione"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
     <img src="icons/icon.svg" alt="" width="48" height="48">
     <div class="install-banner-copy">
       <strong id="install-banner-title">Installa Chrono Flow</strong>
       <p id="install-banner-description">Aggiungila al dispositivo per usarla come app e ricevere le notifiche.</p>
-      <p id="install-banner-instructions" class="install-instructions" hidden><span aria-hidden="true">□↑</span> Tocca <strong>Condividi</strong>, poi <strong>Aggiungi alla schermata Home</strong>.</p>
+      <p id="install-banner-instructions" class="install-instructions" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 12v8h14v-8"/></svg> Tocca <strong>Condividi</strong>, poi <strong>Aggiungi alla schermata Home</strong>.</p>
     </div>
     <div class="install-banner-actions">
       <button id="install-app" class="button primary" type="button">Installa</button>
@@ -118,9 +118,9 @@
 
         <fieldset class="location-choice" aria-label="Dove lavori oggi">
           <legend>Dove lavori oggi?</legend>
-          <button class="location-option" data-location="office" type="button" aria-pressed="true"><span aria-hidden="true">🏢</span> Ufficio</button>
-          <button class="location-option" data-location="smart" type="button" aria-pressed="false"><span aria-hidden="true">⌂</span> Casa</button>
-          <button class="location-option" data-location="travel" type="button" aria-pressed="false"><span aria-hidden="true">↗</span> Trasferta</button>
+          <button class="location-option" data-location="office" type="button" aria-pressed="true"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 21V5h10v16M15 9h4v12M8 8h4M8 12h4M8 16h4M3 21h18"/></svg> Ufficio</button>
+          <button class="location-option" data-location="smart" type="button" aria-pressed="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8M5 10v11h14V10M9 21v-6h6v6"/></svg> Casa</button>
+          <button class="location-option" data-location="travel" type="button" aria-pressed="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 20 19 6M10 6h9v9M5 8v12h12"/></svg> Trasferta</button>
         </fieldset>
 
         <article class="hero-card" aria-labelledby="work-state-label">
@@ -152,8 +152,8 @@
           </article>
         </div>
 
-        <details class="details-card">
-          <summary>Dettagli e correzioni</summary>
+        <details class="details-card standard-disclosure" data-disclosure>
+          <summary aria-expanded="false" aria-controls="today-details-form"><span>Dettagli e correzioni</span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
           <form id="today-details-form">
             <div class="field-grid">
               <div class="field">
@@ -223,8 +223,8 @@
             <h1 id="calendar-title">Calendario</h1>
           </div>
         </div>
-        <details class="details-card bulk-planner">
-          <summary>Pianifica più giorni</summary>
+        <details class="details-card bulk-planner standard-disclosure" data-disclosure>
+          <summary aria-expanded="false" aria-controls="bulk-plan-form"><span>Pianifica più giorni</span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
           <form id="bulk-plan-form">
             <div class="field-grid">
               <div class="field">
@@ -258,10 +258,16 @@
             <button class="button primary" type="submit">Applica la pianificazione</button>
           </form>
         </details>
-        <div class="calendar-toolbar">
-          <button id="previous-month" class="icon-button light" type="button" aria-label="Mese precedente">‹</button>
-          <h2 id="calendar-month-label" aria-live="polite"></h2>
-          <button id="next-month" class="icon-button light" type="button" aria-label="Mese successivo">›</button>
+        <div class="month-selector-shell" aria-label="Mese del calendario">
+          <button id="previous-month" class="icon-button ghost" type="button" aria-label="Mese precedente"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+          <div class="month-selector-fields">
+            <label class="sr-only" for="calendar-month-select">Mese</label>
+            <select id="calendar-month-select" aria-label="Mese del calendario"><option value="0">Gennaio</option><option value="1">Febbraio</option><option value="2">Marzo</option><option value="3">Aprile</option><option value="4">Maggio</option><option value="5">Giugno</option><option value="6">Luglio</option><option value="7">Agosto</option><option value="8">Settembre</option><option value="9">Ottobre</option><option value="10">Novembre</option><option value="11">Dicembre</option></select>
+            <label class="sr-only" for="calendar-year-select">Anno</label>
+            <select id="calendar-year-select" aria-label="Anno del calendario"></select>
+          </div>
+          <button id="next-month" class="icon-button ghost" type="button" aria-label="Mese successivo"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+          <p id="calendar-month-label" class="sr-only" aria-live="polite"></p>
         </div>
         <div class="calendar-card">
           <div class="weekday-grid" aria-hidden="true">
@@ -283,10 +289,20 @@
             <p class="eyebrow">Il tuo mese</p>
             <h1 id="summary-title">Riepilogo</h1>
           </div>
-          <label class="month-selector" for="summary-month">
+          <div class="month-selector-heading">
             <span>Mese del riepilogo</span>
-            <span class="month-selector-control"><span aria-hidden="true">▦</span><input id="summary-month" type="month"></span>
-          </label>
+            <div class="month-selector-shell compact" aria-label="Mese del riepilogo">
+              <button id="previous-summary-month" class="icon-button ghost" type="button" aria-label="Mese precedente"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+              <div class="month-selector-fields">
+                <label class="sr-only" for="summary-month-select">Mese</label>
+                <select id="summary-month-select" aria-label="Mese del riepilogo"><option value="0">Gennaio</option><option value="1">Febbraio</option><option value="2">Marzo</option><option value="3">Aprile</option><option value="4">Maggio</option><option value="5">Giugno</option><option value="6">Luglio</option><option value="7">Agosto</option><option value="8">Settembre</option><option value="9">Ottobre</option><option value="10">Novembre</option><option value="11">Dicembre</option></select>
+                <label class="sr-only" for="summary-year-select">Anno</label>
+                <select id="summary-year-select" aria-label="Anno del riepilogo"></select>
+              </div>
+              <button id="next-summary-month" class="icon-button ghost" type="button" aria-label="Mese successivo"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+              <p id="summary-month-label" class="sr-only" aria-live="polite"></p>
+            </div>
+          </div>
         </div>
         <div id="summary-cards" class="summary-grid"></div>
         <article class="panel recovery-balance" aria-labelledby="summary-recovery-title">
@@ -304,16 +320,16 @@
           <h2>Distribuzione giornate</h2>
           <div id="summary-types" class="bar-list"></div>
         </article>
-        <details class="details-card summary-disclosure">
-          <summary><span>Assenze del mese<small id="summary-month-absence-count">0 giornate</small></span></summary>
-          <div class="summary-disclosure-body">
+        <details class="details-card summary-disclosure" data-disclosure>
+          <summary aria-expanded="false" aria-controls="summary-month-absence-panel"><span>Assenze del mese<small id="summary-month-absence-count">0 giornate</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+          <div id="summary-month-absence-panel" class="summary-disclosure-body">
             <p class="supporting">Dettaglio per tipologia relativo al mese selezionato.</p>
             <div id="summary-month-absences" class="bar-list"></div>
           </div>
         </details>
-        <details class="details-card summary-disclosure">
-          <summary><span>Assenze dell’anno<small id="summary-year-absence-count">0 giornate</small></span></summary>
-          <div class="summary-disclosure-body">
+        <details class="details-card summary-disclosure" data-disclosure>
+          <summary aria-expanded="false" aria-controls="summary-year-absence-panel"><span>Assenze dell’anno<small id="summary-year-absence-count">0 giornate</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+          <div id="summary-year-absence-panel" class="summary-disclosure-body">
             <p id="summary-year-absence-description" class="supporting">Dettaglio per tipologia relativo all’anno selezionato.</p>
             <div id="summary-year-absences" class="bar-list"></div>
           </div>
@@ -328,8 +344,12 @@
           </div>
         </div>
         <form id="settings-form">
-          <article class="panel">
-            <h2>Profilo lavorativo</h2>
+          <details id="profile-settings" class="details-card settings-disclosure" data-disclosure open>
+            <summary aria-expanded="true" aria-controls="profile-settings-panel">
+              <span class="settings-summary-copy"><strong>Profilo lavorativo</strong><small id="profile-settings-summary">Giornata e regole di lavoro</small></span>
+              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div id="profile-settings-panel" class="settings-disclosure-body">
             <div class="field">
               <label for="settings-name">Nome visualizzato</label>
               <input id="settings-name" maxlength="80" autocomplete="name">
@@ -368,19 +388,29 @@
                <label class="check-row"><input id="overtime-smart" type="checkbox"> <span>Calcola straordinario in Smart Working</span></label>
                <label class="check-row"><input id="overtime-travel" type="checkbox"> <span>Calcola straordinario in trasferta</span></label>
              </fieldset>
-          </article>
+            </div>
+          </details>
 
-          <article class="panel">
-            <h2>Buoni pasto</h2>
+          <details id="ticket-settings" class="details-card settings-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="ticket-settings-panel">
+              <span class="settings-summary-copy"><strong>Buoni pasto</strong><small id="ticket-settings-summary">Regole automatiche per luogo</small></span>
+              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div id="ticket-settings-panel" class="settings-disclosure-body">
             <p class="supporting">Scegli dove il buono spetta normalmente. Puoi cambiare il risultato per una singola giornata di presenza.</p>
             <p class="policy-note"><strong>Assenze:</strong> il buono pasto non è mai previsto per ferie, malattia, congedi, recuperi o festività. Questa regola non può essere forzata sul singolo giorno.</p>
             <label class="check-row"><input id="ticket-office" type="checkbox"> <span>Spetta in ufficio</span></label>
             <label class="check-row"><input id="ticket-smart" type="checkbox"> <span>Spetta in smart working</span></label>
             <label class="check-row"><input id="ticket-travel" type="checkbox"> <span>Spetta in trasferta</span></label>
-          </article>
+            </div>
+          </details>
 
-          <article class="panel">
-            <h2>Notifica dell’uscita</h2>
+          <details id="notification-settings" class="details-card settings-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="notification-settings-panel">
+              <span class="settings-summary-copy"><strong>Notifica dell’uscita</strong><small id="notification-settings-summary">Stato notifiche del dispositivo</small></span>
+              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div id="notification-settings-panel" class="settings-disclosure-body">
             <p class="supporting">Chrono Flow calcola l’uscita dall’ora di ingresso, dalla durata giornaliera e dalla pausa impostata. La notifica è configurata separatamente su ogni dispositivo.</p>
             <label class="check-row"><input id="exit-notification-enabled" type="checkbox"> <span>Avvisami quando è ora di uscire</span></label>
             <div class="field">
@@ -397,10 +427,15 @@
               <button id="request-notification-permission" class="button secondary" type="button">Consenti notifiche su questo dispositivo</button>
             </div>
             <p id="notification-permission-status" class="field-hint" role="status"></p>
-          </article>
+            </div>
+          </details>
 
-          <article class="panel">
-            <h2>Famiglia</h2>
+          <details id="family-settings" class="details-card settings-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="family-settings-panel">
+              <span class="settings-summary-copy"><strong>Famiglia</strong><small id="family-settings-summary">Figli e assenze collegate</small></span>
+              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div id="family-settings-panel" class="settings-disclosure-body">
             <p class="supporting">Per ciascun figlio Chrono Flow applica automaticamente la fascia corretta. Fino al 3° compleanno l’assenza segue la durata della malattia e i primi 30 giorni retribuiti si rinnovano per anno di vita, non per anno solare. Dai 3 ai 14 anni il limite è 10 giorni lavorativi per anno solare.</p>
             <p class="supporting">Il congedo parentale facoltativo è associato al figlio e può essere registrato fino ai 14 anni. Il contatore dell’app mostra le giornate inserite, ma i limiti legali in mesi (individuali e di coppia) dipendono anche dalle fruizioni dell’altro genitore e restano da verificare con INPS/Ufficio del Personale.</p>
             <div id="children-list" class="children-list"></div>
@@ -415,10 +450,15 @@
               </div>
               <button id="add-child" class="button secondary" type="button">Aggiungi figlio</button>
             </div>
-          </article>
+            </div>
+          </details>
 
-          <article class="panel">
-            <h2>Festività che cadono di domenica</h2>
+          <details id="holiday-settings" class="details-card settings-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="holiday-settings-panel">
+              <span class="settings-summary-copy"><strong>Festività che cadono di domenica</strong><small id="holiday-settings-summary">Regola e saldo recuperi</small></span>
+              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div id="holiday-settings-panel" class="settings-disclosure-body">
             <p class="supporting">Scegli una sola regola. Se maturi il recupero, Chrono Flow rileva le festività riconosciute cadute di domenica e aggiorna automaticamente il saldo.</p>
             <fieldset class="holiday-rule-list">
               <legend>Come vengono gestite?</legend>
@@ -452,8 +492,9 @@
               <ul id="settings-recovery-holidays" class="recovery-holiday-list"></ul>
             </div>
 
-            <details class="secondary-settings">
-              <summary>Correzione manuale del saldo</summary>
+            <details class="secondary-settings" data-disclosure>
+              <summary aria-expanded="false" aria-controls="manual-recovery-settings"><span>Correzione manuale del saldo</span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+              <div id="manual-recovery-settings">
               <p class="field-hint">Usala solo per crediti precedenti, avvio a metà anno o rettifiche. Non sostituisce il calcolo automatico.</p>
               <div class="field-grid">
                 <div class="field">
@@ -470,10 +511,12 @@
                 <label for="sunday-holiday-adjustment-reason">Motivo della correzione</label>
                 <input id="sunday-holiday-adjustment-reason" maxlength="160" placeholder="Esempio: credito dell’anno precedente">
               </div>
+              </div>
             </details>
 
-            <details class="secondary-settings">
-              <summary>Festività locale</summary>
+            <details class="secondary-settings" data-disclosure>
+              <summary aria-expanded="false" aria-controls="local-holiday-settings"><span>Festività locale</span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+              <div id="local-holiday-settings">
               <p class="field-hint">Le festività nazionali italiane sono già incluse. Aggiungi soltanto l’eventuale festa patronale riconosciuta.</p>
               <div class="field">
                 <label for="local-holiday-name">Nome</label>
@@ -491,14 +534,20 @@
                   </select>
                 </div>
               </div>
+              </div>
             </details>
-          </article>
+            </div>
+          </details>
 
           <button class="button primary full" type="submit">Salva le impostazioni</button>
         </form>
 
-        <article class="panel data-panel">
-          <h2>Sicurezza account</h2>
+        <details id="security-settings" class="details-card settings-disclosure data-panel" data-disclosure>
+          <summary aria-expanded="false" aria-controls="security-settings-panel">
+            <span class="settings-summary-copy"><strong>Sicurezza account</strong><small>Password e accesso</small></span>
+            <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+          </summary>
+          <div id="security-settings-panel" class="settings-disclosure-body">
           <form id="password-form">
             <div class="field">
               <label for="new-password">Nuova password</label>
@@ -507,10 +556,15 @@
             </div>
             <button class="button secondary" type="submit">Aggiorna la password</button>
           </form>
-        </article>
+          </div>
+        </details>
 
-        <article class="panel data-panel">
-          <h2>I tuoi dati</h2>
+        <details id="data-settings" class="details-card settings-disclosure data-panel" data-disclosure>
+          <summary aria-expanded="false" aria-controls="data-settings-panel">
+            <span class="settings-summary-copy"><strong>I tuoi dati</strong><small>Backup, importazione e dati locali</small></span>
+            <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+          </summary>
+          <div id="data-settings-panel" class="settings-disclosure-body">
           <p>Puoi scaricare una copia leggibile delle tue giornate o importare un backup creato da questa versione.</p>
           <div class="button-row">
             <button id="export-data" class="button secondary" type="button">Scarica backup JSON</button>
@@ -518,15 +572,16 @@
             <button id="review-local-data" class="button secondary" type="button">Controlla dati locali precedenti</button>
           </div>
           <p class="danger-note">L’importazione aggiunge o aggiorna le giornate presenti nel file, senza eliminare le altre.</p>
-        </article>
+          </div>
+        </details>
       </section>
     </main>
 
     <nav class="bottom-nav" aria-label="Navigazione principale">
-      <button class="nav-item active" data-target="today" type="button" aria-current="page"><span aria-hidden="true">◷</span><span>Oggi</span></button>
-      <button class="nav-item" data-target="calendar" type="button"><span aria-hidden="true">▦</span><span>Calendario</span></button>
-      <button class="nav-item" data-target="summary" type="button"><span aria-hidden="true">▥</span><span>Riepilogo</span></button>
-      <button class="nav-item" data-target="settings" type="button"><span aria-hidden="true">⚙</span><span>Impostazioni</span></button>
+      <button class="nav-item active" data-target="today" type="button" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>Oggi</span></button>
+      <button class="nav-item" data-target="calendar" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4.5h14a2 2 0 0 1 2 2v13H3v-13a2 2 0 0 1 2-2ZM7.5 2v5M16.5 2v5M3 9h18"/></svg><span>Calendario</span></button>
+      <button class="nav-item" data-target="summary" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 19V9m7 10V5m7 14v-7"/></svg><span>Riepilogo</span></button>
+      <button class="nav-item" data-target="settings" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H10v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3V10h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3H14v.1A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.16.5.5.85 1 1 .35.1.72.14 1.1.1h.1v3.6h-.1a1.7 1.7 0 0 0-2.1 1.3Z"/></svg><span>Impostazioni</span></button>
     </nav>
   </div>
 
@@ -537,7 +592,7 @@
           <p class="eyebrow">Giornata</p>
           <h2 id="day-dialog-title">Modifica giornata</h2>
         </div>
-        <button id="close-day-dialog" class="icon-button light" type="button" aria-label="Chiudi">×</button>
+        <button id="close-day-dialog" class="icon-button ghost" type="button" aria-label="Chiudi la modifica della giornata"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
       </div>
       <input id="day-date" type="hidden">
       <div class="field-grid">

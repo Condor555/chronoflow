@@ -8,7 +8,7 @@ La versione 2 aggiunge **account personali e salvataggio nel cloud**: ogni utent
 
 - registrazione rapida di Entrata, Inizia pausa, Termina pausa e Uscita;
 - scelta immediata dalla home tra **Ufficio, Casa e Trasferta**;
-- uscita prevista, ore lavorate e straordinario aggiornati durante la giornata;
+- uscita prevista, ore lavorate e straordinario aggiornati durante la giornata, con contatore Home al secondo;
 - straordinario in Smart Working e trasferta configurabile separatamente e disattivato di default;
 - notifica opzionale sul dispositivo all’orario di uscita previsto;
 - pianificato ed effettivo separati: Ufficio, Smart Working, Trasferta, Assenza;
@@ -16,7 +16,7 @@ La versione 2 aggiunge **account personali e salvataggio nel cloud**: ogni utent
 - ferie, malattia, malattia bambino, congedo parentale facoltativo, maternità obbligatoria, paternità obbligatoria e alternativa, congedo matrimoniale, recuperi e festività;
 - calendario mensile con stato indicato da colore **e** sigla testuale;
 - riepilogo mensile di ore, straordinario, ticket, tipologia delle giornate e dettaglio di ogni assenza;
-- selettore del mese coerente con l’interfaccia e card espandibili separate per assenze del mese e dell’anno;
+- MonthSelector Chrono Flow coerente tra Calendario e Riepilogo e card espandibili separate per assenze del mese e dell’anno;
 - orario giornaliero, pause, soglia straordinario e ticket configurabili;
 - elenco figli e associazione alle assenze che riguardano il minore;
 - calcolo della malattia bambino per anno di vita/anno solare con giorni esterni o dell’altro genitore;
@@ -31,7 +31,8 @@ La versione 2 aggiunge **account personali e salvataggio nel cloud**: ogni utent
 - esportazione e importazione di backup JSON;
 - migrazione guidata dei dati anonimi creati con l’MVP o con le prime versioni multiutente;
 - banner di installazione PWA con prompt nativo dove disponibile e istruzioni **Condividi → Aggiungi alla schermata Home** su iPhone/iPad;
-- interfaccia rivista per focus visibile, target touch, screen reader e microcopy esplicita.
+- card Impostazioni richiudibili con riepilogo dello stato, empty state espliciti e design system coerente per pulsanti e icone SVG;
+- interfaccia rivista per focus visibile, target touch da 44 px, screen reader, movimento ridotto e microcopy esplicita.
 
 ## Architettura
 
@@ -48,15 +49,15 @@ Browser / PWA
 
 La chiave `anon` è progettata per essere usata nel browser ed è quindi pubblica. La protezione dipende dalle policy RLS incluse in `supabase/schema.sql`. **Non inserire mai la chiave `service_role` nel sito o nella repository.**
 
-## Aggiornamento dalla 2.4.0 alla 2.5.0
+## Aggiornamento dalla 2.5.0 alla 2.6.0
 
 1. Non rieseguire l’importazione privata dell’Excel.
-2. Non serve una nuova query SQL: le nuove preferenze per lo straordinario restano nel campo JSON già protetto del profilo.
+2. Non serve una nuova query SQL: questa release aggiorna interfaccia e logica client senza modificare lo schema Supabase.
 3. Sostituisci nella repository GitHub i file con quelli di questo pacchetto, mantenendo `src/config.js` già configurato.
 4. Esegui il commit e attendi GitHub Pages.
-5. Riapri Chrono Flow e aggiorna la pagina. La cache PWA passa automaticamente a `chrono-flow-v2.5.0`.
+5. Riapri Chrono Flow e aggiorna la pagina. La cache PWA passa automaticamente a `chrono-flow-v2.6.0`.
 
-Le nuove opzioni **Calcola straordinario in Smart Working** e **Calcola straordinario in trasferta** partono disattivate anche per gli account esistenti. Le giornate, le timbrature e i dati importati non vengono modificati.
+Le giornate, le timbrature, i dati importati e le impostazioni già salvate non vengono modificati. Il MonthSelector non usa più il controllo mensile nativo del browser; le card Impostazioni possono essere aperte e chiuse senza perdere i valori non ancora salvati.
 
 ## Avvio rapido
 
