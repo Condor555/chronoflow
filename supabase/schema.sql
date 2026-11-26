@@ -12,8 +12,8 @@ create table if not exists public.profiles (
   travel_break_minutes integer not null default 30 check (travel_break_minutes between 0 and 240),
   overtime_threshold integer not null default 10 check (overtime_threshold between 0 and 240),
   ticket_office boolean not null default true,
-  ticket_smart boolean not null default false,
-  ticket_travel boolean not null default false,
+  ticket_smart boolean not null default true,
+  ticket_travel boolean not null default true,
   timezone text not null default 'Europe/Rome',
   family_settings jsonb not null default '{"children":[]}'::jsonb check (jsonb_typeof(family_settings) = 'object'),
   updated_at timestamptz not null default now()

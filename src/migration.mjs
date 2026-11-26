@@ -37,7 +37,7 @@ const absenceMap = {
   suppressedHoliday: "holiday",
   publicHoliday: "holiday",
   holiday: "holiday",
-  restRecovery: "recovery",
+  restRecovery: "sunday_holiday_recovery",
   recovery: "recovery",
   other: "leave"
 };
@@ -134,7 +134,10 @@ function convertMvpDay(workDate, day = {}) {
   if (!absence && !actual && (day.start || day.end)) actual = planned;
   const notes = [
     typeof day.notes === "string" ? day.notes.trim() : "",
-    day.tripDestination ? `Destinazione trasferta: ${String(day.tripDestination).trim()}` : ""
+    day.tripDestination ? `Destinazione trasferta: ${String(day.tripDestination).trim()}` : "",
+    day.absenceType === "publicHoliday" ? "Causale Excel: FESTIVO" : "",
+    day.absenceType === "restRecovery" ? "Causale Excel: REC.RIPOSO" : "",
+    day.absenceType === "recovery" ? "Causale Excel: REC. MAGG. PRES." : ""
   ].filter(Boolean).join("\n");
 
   return {

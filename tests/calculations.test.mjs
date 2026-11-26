@@ -1,10 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+
+process.env.TZ = "Europe/Rome";
 import {
   calculateDay,
+  calculateDayWithBreakPolicy,
+  calculateDayWithPolicies,
   calculateDayWithOvertimePolicy,
   annualLeaveBalance,
   childSicknessEntitlement,
+  childSicknessPeriodsForYear,
   canUseSundayHolidayRecovery,
   easterSunday,
   eventsFromLocalTimes,
@@ -12,13 +17,19 @@ import {
   forecastExit,
   formatTime,
   holidayRecoveryBalance,
+  isSuppressedHolidayDay,
+  isWorkingSaturday,
   minutesToDuration,
+  maternityMandatoryEntitlement,
   overtimeEnabledForType,
+  paternityMandatoryEntitlement,
   recognizedItalianHolidays,
   secondsToDuration,
   sundayHolidays,
   SUNDAY_HOLIDAY_RULES,
-  ticketForDay
+  theoreticalWorkdays,
+  ticketForDay,
+  workbookMonthlySummary
 } from "../src/calculations.mjs";
 
 const at = (time) => `2026-11-26T${time}:00+01:00`;
@@ -104,7 +115,7 @@ test("riepilogo annuale separa ferie precedenti, correnti e residue", () => {
       absence_type: "vacation"
     })),
     ...Array.from({ length: 4 }, (_, index) => ({
-      work_date: `2026-01-${String(index + 1).padStart(2, "0")}`,
+      work_date: `2026-01-${String(index + 7).padStart(2, "0")}`,
       planned_type: "absence",
       actual_type: null,
       absence_type: "holiday"
@@ -171,12 +182,12 @@ test("malattia bambino: i 30 giorni seguono l'anno di vita, non l'anno solare", 
   const firstLifeYear = childSicknessEntitlement(child, "2025-01-15", 4, 2);
   assert.equal(firstLifeYear.tier, "under_three");
   assert.equal(firstLifeYear.lifeYear, 1);
-  assert.equal(firstLifeYear.periodEnd, "2025-06-10");
+  assert.equal(firstLifeYear.periodEnd, "2025-06-09");
   assert.equal(firstLifeYear.remainingPaidDays, 24);
 
-  const secondLifeYear = childSicknessEntitlement(child, "2025-06-11", 1, 0);
+  const secondLifeYear = childSicknessEntitlement(child, "2025-06-10", 1, 0);
   assert.equal(secondLifeYear.lifeYear, 2);
-  assert.equal(secondLifeYear.periodStart, "2025-06-11");
+  assert.equal(secondLifeYear.periodStart, "2025-06-10");
   assert.equal(secondLifeYear.remainingPaidDays, 29);
 });
 
@@ -209,8 +220,8 @@ test("festività: calcola Pasqua e Lunedì dell’Angelo 2026", () => {
   assert.ok(recognizedItalianHolidays(2026).some((item) => item.date === "2026-04-06"));
 });
 
-test("festività: rileva Ognissanti come festività domenicale 2026", () => {
-  assert.deepEqual(sundayHolidays(2026).map((item) => item.date), ["2026-11-01"]);
+test("festività: rileva San Francesco e Ognissanti come domeniche nel 2026", () => {
+  assert.deepEqual(sundayHolidays(2026).map((item) => item.date), ["2026-10-04", "2026-11-01"]);
 });
 
 test("festività: non duplica il credito se la festa locale coincide con quella nazionale", () => {
@@ -221,8 +232,8 @@ test("festività: non duplica il credito se la festa locale coincide con quella 
 test("recuperi: matura soltanto quando la festività domenicale è trascorsa", () => {
   const before = holidayRecoveryBalance({ year: 2026, rule: SUNDAY_HOLIDAY_RULES.ACCRUE_DAY, asOf: "2026-10-31" });
   const after = holidayRecoveryBalance({ year: 2026, rule: SUNDAY_HOLIDAY_RULES.ACCRUE_DAY, asOf: "2026-11-01" });
-  assert.equal(before.automaticAccrued, 0);
-  assert.equal(after.automaticAccrued, 1);
+  assert.equal(before.automaticAccrued, 1);
+  assert.equal(after.automaticAccrued, 2);
 });
 
 test("recuperi: utilizzati e correzione aggiornano il disponibile", () => {
@@ -245,4 +256,218 @@ test("recuperi: compensazione economica e nessun recupero non creano saldo", () 
     assert.equal(balance.available, 0);
     assert.equal(canUseSundayHolidayRecovery(balance, "2026-11-10").allowed, false);
   }
+});
+
+
+test("pausa predefinita Excel: viene sottratta se non esiste una pausa manuale", () => {
+  const office = calculateDayWithBreakPolicy(
+    [{ type: "entry", at: at("08:35") }, { type: "exit", at: at("16:41") }],
+    456, 10, 30, new Date(at("16:41"))
+  );
+  assert.equal(office.workedMinutes, 456);
+  assert.equal(office.pausedMinutes, 30);
+  assert.equal(office.breakSource, "default");
+
+  const smart = calculateDayWithPolicies(
+    [{ type: "entry", at: at("08:00") }, { type: "exit", at: at("16:36") }],
+    456, 10, "smart", { smart: true }, 60, new Date(at("16:36"))
+  );
+  assert.equal(smart.workedMinutes, 456);
+  assert.equal(smart.pausedMinutes, 60);
+
+  const travel = calculateDayWithPolicies(
+    [{ type: "entry", at: at("08:00") }, { type: "exit", at: at("16:06") }],
+    456, 10, "travel", { travel: true }, 30, new Date(at("16:06"))
+  );
+  assert.equal(travel.workedMinutes, 456);
+});
+
+test("pausa manuale sostituisce la predefinita senza doppio conteggio", () => {
+  const events = [
+    { type: "entry", at: at("08:35") },
+    { type: "pause", at: at("13:00") },
+    { type: "resume", at: at("13:15") },
+    { type: "exit", at: at("16:26") }
+  ];
+  const result = calculateDayWithBreakPolicy(events, 456, 10, 60, new Date(at("16:26")));
+  assert.equal(result.workedMinutes, 456);
+  assert.equal(result.pausedMinutes, 15);
+  assert.equal(result.breakSource, "manual");
+  assert.equal(formatTime(forecastExit(events.slice(0, -1), 456, 60, new Date(at("14:00")))), "16:26");
+});
+
+test("contatore live applica la pausa implicita alle 13 e resta al secondo", () => {
+  const before = calculateDayWithBreakPolicy([{ type: "entry", at: at("08:35") }], 456, 10, 30, new Date(at("12:59")));
+  const during = calculateDayWithBreakPolicy([{ type: "entry", at: at("08:35") }], 456, 10, 30, new Date("2026-11-26T13:00:07+01:00"));
+  assert.equal(before.defaultBreakAppliedSeconds, 0);
+  assert.equal(during.defaultBreakAppliedSeconds, 7);
+  assert.equal(during.workedSeconds, before.workedSeconds + 60);
+});
+
+test("sabato lavorativo: nessun ticket automatico, ma la forzatura resta esplicita", () => {
+  const saturday = { work_date: "2026-11-28", actual_type: "office", ticket_override: null };
+  assert.equal(isWorkingSaturday(saturday), true);
+  assert.equal(ticketForDay({ ticket_office: true }, saturday), false);
+  assert.equal(ticketForDay({ ticket_office: true }, { ...saturday, actual_type: "smart" }), false);
+  assert.equal(ticketForDay({ ticket_office: true }, { ...saturday, ticket_override: true }), true);
+  assert.equal(isWorkingSaturday({ ...saturday, work_date: "2026-11-27" }), false);
+});
+
+test("ticket Excel: ufficio, smart, trasferta e giornata incompleta maturano per default", () => {
+  const profile = { ticket_office: true, ticket_smart: true, ticket_travel: true };
+  for (const type of ["office", "smart", "travel"]) {
+    assert.equal(ticketForDay(profile, { work_date: "2026-11-27", planned_type: type, events: [] }), true);
+  }
+  assert.equal(ticketForDay(profile, { work_date: "2026-11-27", planned_type: "absence", absence_type: "vacation" }), false);
+});
+
+test("festività soppresse: FESTIVO nazionale non viene mescolato alla causale Excel", () => {
+  assert.equal(isSuppressedHolidayDay({ work_date: "2026-01-01", actual_type: "absence", absence_type: "holiday" }), false);
+  assert.equal(isSuppressedHolidayDay({ work_date: "2026-01-07", actual_type: "absence", absence_type: "holiday" }), true);
+  const days = [
+    ...["01-01", "01-06", "04-06", "05-01", "06-02", "12-08", "12-25", "12-26"].map((suffix) => ({
+      work_date: `2026-${suffix}`, actual_type: "absence", absence_type: "holiday"
+    })),
+    ...["01-07", "02-03", "03-04", "04-07"].map((suffix) => ({
+      work_date: `2026-${suffix}`, actual_type: "absence", absence_type: "holiday"
+    }))
+  ];
+  assert.equal(annualLeaveBalance({ year: 2026, days }).suppressedHolidays.used, 4);
+});
+
+test("riepilogo Excel 2026: competenza -2 mesi, rettifiche e recupero maggiori prestazioni", () => {
+  const jan = [
+    { work_date: "2026-01-07", actual_type: "absence", absence_type: "vacation" },
+    ...["08", "09", "12", "13"].map((day) => ({ work_date: `2026-01-${day}`, actual_type: "absence", absence_type: "holiday" })),
+    { work_date: "2026-01-14", actual_type: "office", ticket_override: false }
+  ];
+  const mar = [
+    { work_date: "2026-03-02", actual_type: "office", overtime_minutes: 200, worked_minutes: 456 },
+    { work_date: "2026-03-03", actual_type: "smart", overtime_minutes: 400, worked_minutes: 456 },
+    { work_date: "2026-03-04", actual_type: "travel", worked_minutes: 456 },
+    { work_date: "2026-03-07", actual_type: "office", worked_minutes: 456 },
+    { work_date: "2026-03-09", actual_type: "absence", absence_type: "recovery" }
+  ];
+  const result = workbookMonthlySummary({
+    year: 2026,
+    month: 2,
+    days: [...jan, ...mar],
+    competenceDays: [...jan, ...mar],
+    profile: { ticket_office: true, ticket_smart: true, ticket_travel: true },
+    targetMinutes: 456
+  });
+  assert.equal(theoreticalWorkdays(2026, 2), 22);
+  assert.equal(result.mealVouchers, 16); // 22 teorici del mese di accredito - 5 causali di gennaio - 1 rettifica NO
+  assert.equal(result.mealVoucherCompetenceAdjustments, -1);
+  assert.equal(result.mealVouchersEarned, 3); // il sabato e REC. MAGG. PRES. non maturano
+  assert.equal(result.workingSaturdays, 1);
+  assert.equal(result.overtimeMinutes, 600);
+  assert.equal(result.performanceRecoveryMinutes, 456);
+  assert.equal(result.netOvertimeMinutes, 144);
+});
+
+test("recupero riposo festività 2026: un utilizzo su due domeniche riconosciute", () => {
+  const balance = holidayRecoveryBalance({
+    year: 2026,
+    rule: SUNDAY_HOLIDAY_RULES.ACCRUE_DAY,
+    usedDates: ["2026-11-02"],
+    asOf: "2026-12-31"
+  });
+  assert.equal(balance.accrued, 2);
+  assert.equal(balance.used, 1);
+  assert.equal(balance.available, 1);
+});
+
+
+test("malattia bambino: il plafond riparte esattamente il giorno del compleanno", () => {
+  const elena = { id: "elena", birth_date: "2025-11-30" };
+  const before = childSicknessEntitlement(elena, "2026-11-29", 7, 0);
+  const birthday = childSicknessEntitlement(elena, "2026-11-30", 0, 0);
+  assert.equal(before.lifeYear, 1);
+  assert.equal(before.periodEnd, "2026-11-29");
+  assert.equal(before.remainingPaidDays, 23);
+  assert.equal(birthday.lifeYear, 2);
+  assert.equal(birthday.periodStart, "2026-11-30");
+  assert.equal(birthday.remainingPaidDays, 30);
+});
+
+test("malattia bambino: periodi storici separati per figlio e anno di vita", () => {
+  const periods = childSicknessPeriodsForYear({ id: "elena", birth_date: "2025-11-30" }, 2026);
+  assert.deepEqual(periods.map((period) => [period.periodKey, period.displayStart, period.displayEnd, period.limit]), [
+    ["life-1-2025-11-30", "2026-01-01", "2026-11-29", 30],
+    ["life-2-2025-11-30", "2026-11-30", "2026-12-31", 30]
+  ]);
+  const elena = childSicknessEntitlement({ birth_date: "2025-11-30" }, "2026-06-01", 7, 0);
+  const marco = childSicknessEntitlement({ birth_date: "2025-11-30" }, "2026-06-01", 2, 0);
+  assert.equal(elena.remainingPaidDays, 23);
+  assert.equal(marco.remainingPaidDays, 28);
+});
+
+test("malattia bambino: al terzo compleanno passa al plafond per anno solare", () => {
+  const child = { birth_date: "2023-11-30" };
+  const before = childSicknessEntitlement(child, "2026-11-29", 5, 0);
+  const birthday = childSicknessEntitlement(child, "2026-11-30", 0, 0);
+  const nextYear = childSicknessEntitlement(child, "2027-01-01", 0, 0);
+  assert.equal(before.tier, "under_three");
+  assert.equal(before.lifeYear, 3);
+  assert.equal(birthday.tier, "three_to_fourteen");
+  assert.equal(birthday.periodKind, "calendar_year");
+  assert.equal(birthday.periodStart, "2026-11-30");
+  assert.equal(birthday.remainingDays, 10);
+  assert.equal(nextYear.periodStart, "2027-01-01");
+  assert.equal(nextYear.remainingDays, 10);
+});
+
+
+test("paternità obbligatoria: finestra, scadenza e residuo storico per evento", () => {
+  const child = { birth_date: "2026-12-05", expected_birth_date: "2026-11-30", paternity_event_type: "birth" };
+  const before = paternityMandatoryEntitlement(child, "2026-09-29", 0);
+  const firstDay = paternityMandatoryEntitlement(child, "2026-09-30", 3);
+  const lastDay = paternityMandatoryEntitlement(child, "2027-05-05", 3);
+  const expired = paternityMandatoryEntitlement(child, "2027-05-06", 3);
+  assert.equal(before.status, "upcoming");
+  assert.equal(firstDay.status, "active");
+  assert.equal(firstDay.windowStart, "2026-09-30");
+  assert.equal(lastDay.windowEnd, "2027-05-05");
+  assert.equal(lastDay.remainingDays, 7);
+  assert.equal(expired.status, "expired");
+  assert.equal(expired.availableDays, 0);
+  assert.equal(expired.expiredUnusedDays, 7);
+});
+
+test("paternità obbligatoria: parto plurimo e più figli hanno plafond indipendenti", () => {
+  const twins = paternityMandatoryEntitlement({ birth_date: "2026-06-01", multiple_birth: true }, "2026-07-01", 6);
+  const first = paternityMandatoryEntitlement({ birth_date: "2026-06-01" }, "2026-07-01", 4);
+  const second = paternityMandatoryEntitlement({ birth_date: "2026-09-01" }, "2026-10-01", 1);
+  assert.equal(twins.totalDays, 20);
+  assert.equal(twins.remainingDays, 14);
+  assert.equal(first.remainingDays, 6);
+  assert.equal(second.remainingDays, 9);
+});
+
+test("maternità obbligatoria: calcola le modalità 2+3, 1+4 e 0+5", () => {
+  const base = { birth_date: "2026-12-05", expected_birth_date: "2026-11-30" };
+  const ordinary = maternityMandatoryEntitlement({ ...base, maternity_mode: "2+3" }, "2026-10-01", 5);
+  const flexible = maternityMandatoryEntitlement({ ...base, maternity_mode: "1+4" }, "2026-11-01", 5);
+  const afterBirth = maternityMandatoryEntitlement({ ...base, maternity_mode: "0+5" }, "2026-12-05", 0);
+  assert.deepEqual([ordinary.windowStart, ordinary.windowEnd], ["2026-09-30", "2027-03-05"]);
+  assert.deepEqual([flexible.windowStart, flexible.windowEnd], ["2026-10-30", "2027-04-05"]);
+  assert.deepEqual([afterBirth.windowStart, afterBirth.windowEnd], ["2026-12-05", "2027-05-05"]);
+  assert.equal(ordinary.requiresCertification, false);
+  assert.equal(flexible.requiresCertification, true);
+  assert.equal(afterBirth.requiresCertification, true);
+});
+
+test("maternità obbligatoria: la data reale aggiorna il termine senza creare un reset", () => {
+  const planned = maternityMandatoryEntitlement({
+    birth_date: "2026-12-05", expected_birth_date: "2026-11-30", maternity_mode: "1+4"
+  }, "2027-04-06", 40);
+  const updated = maternityMandatoryEntitlement({
+    birth_date: "2026-12-10", expected_birth_date: "2026-11-30", maternity_mode: "1+4"
+  }, "2027-04-06", 40);
+  assert.equal(planned.windowEnd, "2027-04-05");
+  assert.equal(planned.status, "expired");
+  assert.equal(updated.windowEnd, "2027-04-10");
+  assert.equal(updated.status, "active");
+  assert.equal(updated.usedDays, 40);
 });

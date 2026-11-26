@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.8.0 — Riepilogo Excel, timer affidabile e plafond per evento
+
+- replica delle formule di `Riepilogo_2026`/`Riepilogo_2027` con tabella mensile/annuale completa e registro delle date per ogni causale;
+- separazione rigorosa fra `FESTIVO`, festività soppresse, recupero riposo festività e recupero maggiori prestazioni;
+- correzione del conteggio festività soppresse e riconoscimento di San Francesco d’Assisi dal 2026; nel 2026 le festività riconosciute di domenica sono 4 ottobre e 1 novembre;
+- sabato lavorativo rilevato e riepilogato separatamente, senza buono automatico;
+- buoni pasto distinti tra maturati nel mese, competenza/accredito −2 mesi e rettifiche;
+- straordinario lordo, recupero maggiori prestazioni esplicito e netto/residuo senza conversione automatica delle uscite anticipate;
+- pausa configurata applicata quando manca una pausa manuale; la pausa effettiva sostituisce quella predefinita;
+- clock Home singleton al secondo, riavviato su `visibilitychange`, `pageshow` e focus PWA senza valori stale o timer duplicati;
+- malattia bambino separata per figlio e periodo, con reset al compleanno fino a 3 anni e per anno solare nella fascia 3–14;
+- paternità obbligatoria per evento (10/20 giorni, finestra −2/+5 mesi) con residuo scaduto conservato;
+- maternità obbligatoria per evento con scelta 2+3, 1+4 o 0+5, periodo, stato e avviso certificazioni;
+- causali di maternità, paternità obbligatoria/alternativa, parentale e matrimoniale mantenute sempre distinte;
+- cache PWA aggiornata a `chrono-flow-v2.8.0` e documentazione formule in `docs/EXCEL_LOGIC.md`.
+
 ## 2.7.0 — Bilancio annuale ferie e festività
 
 - nuovo bilancio annuale ispirato al foglio Excel con **Ferie anno precedente**, **Ferie anno corrente**, **Festività soppresse**, **Recupero riposo festività** e **Ferie residue**;

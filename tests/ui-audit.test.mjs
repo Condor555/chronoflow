@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const root = new URL("../", import.meta.url);
-const [html, css, app] = await Promise.all([
+const [html, css, app, liveClock] = await Promise.all([
   readFile(new URL("index.html", root), "utf8"),
   readFile(new URL("styles.css", root), "utf8"),
-  readFile(new URL("src/app.js", root), "utf8")
+  readFile(new URL("src/app.js", root), "utf8"),
+  readFile(new URL("src/live-clock.mjs", root), "utf8")
 ]);
 
 test("MonthSelector Chrono Flow sostituisce i controlli month nativi", () => {
@@ -45,6 +46,11 @@ test("riepilogo annuale espone massimali, residuo e categorie del foglio Excel",
   assert.match(html, /Recupero riposo festività/);
   assert.match(css, /\.annual-entitlement-list/);
   assert.match(app, /annualLeaveBalanceForYear/);
+  for (const id of ["excel-summary-metrics", "annual-monthly-table-body", "family-limit-metrics", "meal-competence-note"]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /Sabati lavorativi|Sabato lavorativo/);
+  assert.match(css, /\.annual-monthly-table/);
 });
 
 test("icone, focus, touch target e movimento ridotto seguono il design system", () => {
@@ -65,7 +71,11 @@ test("layout contiene regole responsive per smartphone e desktop", () => {
 });
 
 test("home e recuperi hanno aggiornamento immediato", () => {
-  assert.match(app, /setInterval\(renderTodayTick,\s*1000\)/);
+  assert.match(app, /createLiveClock\(\{\s*tick:\s*renderTodayTick,\s*intervalMs:\s*1000\s*\}\)/);
+  assert.match(app, /visibilitychange/);
+  assert.match(app, /pageshow/);
+  assert.match(app, /pagehide/);
+  assert.match(liveClock, /function start[\s\S]*stop\(\)/);
   assert.match(app, /previewSundayHolidaySettings/);
   assert.match(app, /\[name='sunday-holiday-rule'\]/);
 });
@@ -74,4 +84,17 @@ test("assenze mostrano dati non mappati ed empty state esplicito", () => {
   assert.match(app, /Object\.entries\(counts\)/);
   assert.match(app, /Nessuna assenza nel periodo/);
   assert.match(css, /\.empty-state/);
+});
+
+
+test("riepilogo tracciabile e impostazioni evento mantengono causali e plafond separati", () => {
+  for (const id of ["traceability-list", "child-expected-date", "child-event-type", "child-maternity-mode", "child-multiple-birth"]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /2\+3 · ordinaria/);
+  assert.match(html, /1\+4 · flessibile/);
+  assert.match(html, /0\+5 · dopo il parto/);
+  assert.match(app, /paternityMandatoryEntitlement/);
+  assert.match(app, /maternityMandatoryEntitlement/);
+  assert.match(css, /\.traceability-list/);
 });

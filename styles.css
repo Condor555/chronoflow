@@ -131,6 +131,7 @@ main { width: min(100%, 880px); margin: 0 auto; padding: 24px 16px calc(98px + v
 .type-badge.smart { color: var(--smart-ink); background: var(--smart); }
 .type-badge.travel { color: var(--travel-ink); background: var(--travel); }
 .type-badge.absence { color: var(--absence-ink); background: var(--absence); }
+.type-badge.saturday { box-shadow: inset 0 0 0 2px var(--accent); }
 
 .location-choice { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin: 0 0 14px; padding: 0; border: 0; }
 .location-choice legend { width: 100%; margin-bottom: 7px; color: var(--muted); font-size: .88rem; font-weight: 760; }
@@ -192,6 +193,40 @@ details[open] > summary .disclosure-icon { transform: rotate(180deg); }
 .summary-card { padding: 18px; background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-soft); }
 .summary-card span { color: var(--muted); font-size: .86rem; }
 .summary-card strong { display: block; margin-top: 6px; font-size: 1.65rem; }
+.panel-heading-inline { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.panel-heading-inline h2 { margin: 0; }
+.excel-summary { background: linear-gradient(145deg, #fff, #f6fbfa); border-color: #c7ded9; }
+.excel-metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin: 18px 0; }
+.excel-metric-grid div, .family-limit-grid div { min-width: 0; padding: 12px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+.excel-metric-grid dt, .family-limit-grid dt { color: var(--muted); font-size: .78rem; }
+.excel-metric-grid dd, .family-limit-grid dd { margin: 4px 0 0; color: var(--primary); font-size: 1.22rem; font-weight: 850; font-variant-numeric: tabular-nums; }
+.family-limit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 9px; margin: 16px 0; }
+.family-limit-grid small { display: block; margin-top: 4px; color: var(--muted); font-size: .74rem; }
+.deadline-list { display: grid; gap: 8px; padding: 0; margin: 14px 0 0; list-style: none; }
+.deadline-list li { display: grid; gap: 2px; padding: 10px 12px; background: var(--accent-soft); border-radius: 10px; }
+.deadline-list span { color: var(--muted); font-size: .82rem; }
+.traceability-list { display: grid; gap: 8px; margin-top: 14px; }
+.trace-item { overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: #fff; }
+.trace-item > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 9px 12px; color: var(--primary); list-style: none; cursor: pointer; }
+.trace-item > summary::-webkit-details-marker { display: none; }
+.trace-item > summary span { font-size: .88rem; font-weight: 720; }
+.trace-item > summary strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.trace-item-body { padding: 10px 12px 12px; border-top: 1px solid var(--line); }
+.trace-item-body p { margin: 0 0 8px; color: var(--muted); font-size: .8rem; }
+.trace-item-body ul { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0; list-style: none; }
+.trace-item-body li { padding: 4px 8px; color: var(--primary); background: var(--accent-soft); border-radius: 999px; font-size: .76rem; }
+.annual-table-disclosure { padding: 0; }
+.annual-table-disclosure > summary { padding: 14px 18px; }
+.annual-table-disclosure > summary span { display: grid; gap: 2px; }
+.annual-table-disclosure > summary small { color: var(--muted); font-size: .8rem; }
+.summary-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+.summary-table-scroll:focus-visible { box-shadow: inset 0 0 0 3px var(--primary); outline: 0; }
+.annual-monthly-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: .78rem; font-variant-numeric: tabular-nums; }
+.annual-monthly-table th, .annual-monthly-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.annual-monthly-table th:first-child { position: sticky; left: 0; z-index: 1; color: var(--primary); background: #fff; text-align: left; }
+.annual-monthly-table thead th { position: sticky; top: 0; color: #fff; background: var(--primary); font-weight: 780; }
+.annual-monthly-table thead th:first-child { z-index: 2; background: var(--primary); }
+.annual-monthly-table tfoot th, .annual-monthly-table tfoot td { color: var(--primary); background: var(--accent-soft); border-bottom: 0; font-weight: 850; }
 .annual-balance { overflow: hidden; background: linear-gradient(145deg, #fff, #f2faf8); border-color: #b9dcd5; }
 .annual-balance-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .annual-balance-heading .eyebrow { margin: 0 0 5px; }
@@ -265,6 +300,7 @@ details[open] > summary .disclosure-icon { transform: rotate(180deg); }
 .child-info { flex: 1; min-width: 0; }
 .child-info strong, .child-info span { display: block; }
 .child-policy { margin: 7px 0 10px; padding: 8px 10px; color: var(--primary); background: var(--accent-soft); border-radius: 9px; font-size: .86rem; }
+.child-policy.event-policy { background: #f1f5f9; }
 .child-usage-field { max-width: 280px; margin: 0; }
 .child-usage-field label { display: block; margin-bottom: 5px; color: var(--ink); font-size: .82rem; font-weight: 700; }
 .child-usage-field input { min-height: 42px !important; }
@@ -308,6 +344,8 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
   .install-banner-actions .button { flex: 1; }
   .sync-status { position: absolute; top: 47px; right: 0; width: max-content; padding: 2px 7px; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
   .metrics-grid, .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .excel-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .family-limit-grid { grid-template-columns: 1fr; }
   .calendar-day { min-height: 64px; padding: 6px 4px; }
   .calendar-day .day-code { min-width: 22px; min-height: 22px; margin-top: 3px; font-size: .68rem; }
   .field-grid { grid-template-columns: 1fr; gap: 0; }
@@ -338,6 +376,8 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
   .button-row > .button, .button-row > .file-button { flex: 1 1 100%; width: 100%; }
   .dialog-actions > .button { flex: 1 1 100%; width: 100%; }
   .settings-summary-copy small { max-width: 230px; }
+  .panel-heading-inline { flex-direction: column; }
+  .excel-metric-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 340px) {

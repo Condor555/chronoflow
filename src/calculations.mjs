@@ -16,7 +16,7 @@ export const ABSENCE_TYPES = {
   marriage_leave: "Congedo matrimoniale",
   mandatory_leave: "Congedo obbligatorio (storico)",
   leave: "Congedo (storico)",
-  recovery: "Recupero",
+  recovery: "Recupero maggiori prestazioni",
   sunday_holiday_recovery: "Recupero festività caduta di domenica",
   holiday: "Festività soppresse"
 };
@@ -49,6 +49,17 @@ const FIXED_ITALIAN_HOLIDAYS = Object.freeze([
   [12, 26, "Santo Stefano"]
 ]);
 
+const EXCEL_ABSENCE_GROUPS = Object.freeze({
+  vacation: new Set(["vacation"]),
+  suppressedHolidays: new Set(["holiday"]),
+  holidayRecovery: new Set(["sunday_holiday_recovery"]),
+  sickness: new Set(["sickness"]),
+  childSickness: new Set(["child_sickness"]),
+  mandatoryLeave: new Set(["maternity_leave", "paternity_mandatory", "paternity_alternative", "mandatory_leave"]),
+  optionalLeave: new Set(["parental_leave", "leave"]),
+  performanceRecovery: new Set(["recovery"])
+});
+
 export function clampInt(value, min, max, fallback = min) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed)) return fallback;
@@ -67,11 +78,29 @@ function optionalCarryoverOverride(settings, year) {
   return Number.isFinite(parsed) ? clampInt(parsed, 0, 366, 0) : null;
 }
 
+export function isRecognizedPublicHolidayDay(day, localHoliday = null) {
+  const date = String(day?.work_date || "").slice(0, 10);
+  const year = Number(date.slice(0, 4));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isInteger(year)) return false;
+  if (/\b(FESTIVO|PUBLIC[ _-]?HOLIDAY)\b/i.test(String(day?.notes || ""))) return true;
+  return recognizedItalianHolidays(year, localHoliday).some((holiday) => holiday.date === date);
+}
+
+export function isSuppressedHolidayDay(day, localHoliday = null) {
+  const effectiveType = day?.actual_type || day?.planned_type;
+  return effectiveType === "absence"
+    && day?.absence_type === "holiday"
+    && !isRecognizedPublicHolidayDay(day, localHoliday);
+}
+
 function countedAnnualAbsences(days, year, absenceType) {
   return (days || []).filter((day) => {
     const effectiveType = day?.actual_type || day?.planned_type;
+    const matchesType = absenceType === "holiday"
+      ? isSuppressedHolidayDay(day)
+      : day?.absence_type === absenceType;
     return effectiveType === "absence"
-      && day?.absence_type === absenceType
+      && matchesType
       && String(day?.work_date || "").startsWith(`${year}-`);
   }).length;
 }
@@ -215,11 +244,80 @@ export function calculateDayWithOvertimePolicy(
   return overtimeEnabledForType(type, settings) ? result : { ...result, overtimeMinutes: 0 };
 }
 
+function manualPauseWasRecorded(events = []) {
+  return events.some((event) => event?.type === "pause" || event?.type === "resume");
+}
+
+function implicitBreakSeconds(events, result, targetMinutes, defaultBreakMinutes, now) {
+  const configuredSeconds = Math.max(0, Number(defaultBreakMinutes) || 0) * 60;
+  if (!configuredSeconds || !result.firstEntry || manualPauseWasRecorded(events)) return 0;
+  if (result.state === "finished") return Math.min(configuredSeconds, result.workedSeconds);
+  if (!['working', 'paused'].includes(result.state)) return 0;
+
+  const current = now instanceof Date ? now : new Date(now);
+  const scheduled = new Date(result.firstEntry);
+  scheduled.setHours(13, 0, 0, 0);
+  if (scheduled <= result.firstEntry) {
+    scheduled.setTime(result.firstEntry.getTime() + Math.max(1, Math.floor(targetMinutes / 2)) * 60000);
+  }
+  return Math.max(0, Math.min(configuredSeconds, Math.floor((current - scheduled) / 1000)));
+}
+
+export function calculateDayWithBreakPolicy(
+  events = [],
+  targetMinutes = 456,
+  overtimeThreshold = 10,
+  defaultBreakMinutes = 30,
+  now = new Date()
+) {
+  const raw = calculateDay(events, targetMinutes, overtimeThreshold, now);
+  const defaultBreakSeconds = implicitBreakSeconds(events, raw, targetMinutes, defaultBreakMinutes, now);
+  const workedSeconds = Math.max(0, raw.workedSeconds - defaultBreakSeconds);
+  const pausedSeconds = raw.pausedSeconds + defaultBreakSeconds;
+  const workedMinutes = Math.floor(workedSeconds / 60);
+  const pausedMinutes = Math.floor(pausedSeconds / 60);
+  const rawOvertime = Math.max(0, workedMinutes - targetMinutes);
+  const overtimeMinutes = rawOvertime >= overtimeThreshold ? rawOvertime : 0;
+  return {
+    ...raw,
+    workedSeconds,
+    pausedSeconds,
+    workedMinutes,
+    pausedMinutes,
+    overtimeMinutes,
+    remainingMinutes: Math.max(0, targetMinutes - workedMinutes),
+    remainingSeconds: Math.max(0, targetMinutes * 60 - workedSeconds),
+    breakSource: manualPauseWasRecorded(events) ? "manual" : "default",
+    defaultBreakAppliedSeconds: defaultBreakSeconds
+  };
+}
+
+export function calculateDayWithPolicies(
+  events = [],
+  targetMinutes = 456,
+  overtimeThreshold = 10,
+  type = "office",
+  settings = {},
+  defaultBreakMinutes = 30,
+  now = new Date()
+) {
+  const result = calculateDayWithBreakPolicy(
+    events,
+    targetMinutes,
+    overtimeThreshold,
+    defaultBreakMinutes,
+    now
+  );
+  return overtimeEnabledForType(type, settings) ? result : { ...result, overtimeMinutes: 0 };
+}
+
 export function forecastExit(events = [], targetMinutes = 456, plannedBreakMinutes = 30, now = new Date()) {
   const result = calculateDay(events, targetMinutes, 0, now);
   if (!result.firstEntry || result.state === "finished") return result.lastExit;
-  const breakToCount = Math.max(plannedBreakMinutes, result.pausedMinutes);
-  return new Date(result.firstEntry.getTime() + (targetMinutes + breakToCount) * 60000);
+  const breakSeconds = manualPauseWasRecorded(events)
+    ? result.pausedSeconds
+    : Math.max(0, Number(plannedBreakMinutes) || 0) * 60;
+  return new Date(result.firstEntry.getTime() + targetMinutes * 60000 + breakSeconds * 1000);
 }
 
 export function formatTime(value) {
@@ -271,6 +369,9 @@ export function recognizedItalianHolidays(year, localHoliday = null) {
   const easterMonday = easterSunday(year);
   easterMonday.setDate(easterMonday.getDate() + 1);
   holidays.push({ date: isoDateLocal(easterMonday), name: "Lunedì dell’Angelo", scope: "national" });
+  if (Number(year) >= 2026) {
+    holidays.push({ date: holidayIso(year, 10, 4), name: "San Francesco d’Assisi", scope: "national" });
+  }
 
   const month = Number(localHoliday?.month);
   const day = Number(localHoliday?.day);
@@ -350,9 +451,143 @@ export function ticketForDay(profile, day) {
   const type = day.actual_type || day.planned_type || "office";
   if (type === "absence") return false;
   if (typeof day.ticket_override === "boolean") return day.ticket_override;
-  if (type === "smart") return Boolean(profile.ticket_smart);
-  if (type === "travel") return Boolean(profile.ticket_travel);
-  return Boolean(profile.ticket_office);
+  if (isWorkingSaturday(day)) return false;
+  if (type === "smart") return profile.ticket_smart !== false;
+  if (type === "travel") return profile.ticket_travel !== false;
+  return profile.ticket_office !== false;
+}
+
+export function excelTicketForDay(day) {
+  const type = day.actual_type || day.planned_type;
+  if (!type || type === "absence" || isWorkingSaturday(day)) return false;
+  if (typeof day.ticket_override === "boolean") return day.ticket_override;
+  return ["office", "smart", "travel"].includes(type);
+}
+
+export function isWorkingSaturday(day = {}) {
+  const date = localDate(day.work_date);
+  const type = day.actual_type || day.planned_type || "office";
+  return Boolean(date && date.getDay() === 6 && type !== "absence");
+}
+
+function monthDateBounds(year, monthIndex) {
+  return {
+    start: new Date(year, monthIndex, 1, 12),
+    end: new Date(year, monthIndex + 1, 0, 12)
+  };
+}
+
+export function theoreticalWorkdays(year, monthIndex, localHoliday = null) {
+  const { start, end } = monthDateBounds(Number(year), Number(monthIndex));
+  const holidays = new Set(recognizedItalianHolidays(Number(year), localHoliday).map((item) => item.date));
+  let total = 0;
+  for (const cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+    const weekday = cursor.getDay();
+    if (weekday === 0 || weekday === 6) continue;
+    if (!holidays.has(isoDateLocal(cursor))) total += 1;
+  }
+  return total;
+}
+
+function countAbsence(days, set, localHoliday = null) {
+  return days.filter((day) => {
+    if ((day.actual_type || day.planned_type) !== "absence" || !set.has(day.absence_type)) return false;
+    if (set === EXCEL_ABSENCE_GROUPS.suppressedHolidays) return isSuppressedHolidayDay(day, localHoliday);
+    return true;
+  }).length;
+}
+
+export function workbookMonthlySummary({
+  year,
+  month,
+  days = [],
+  competenceDays = days,
+  profile = {},
+  localHoliday = null,
+  targetMinutes = 456
+} = {}) {
+  const selectedYear = Number(year);
+  const selectedMonth = Number(month);
+  const prefix = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
+  const monthDays = days.filter((day) => String(day.work_date || "").startsWith(prefix));
+  const sourceDate = new Date(selectedYear, selectedMonth - 2, 1, 12);
+  const sourcePrefix = `${sourceDate.getFullYear()}-${String(sourceDate.getMonth() + 1).padStart(2, "0")}`;
+  const sourceDays = competenceDays.filter((day) => String(day.work_date || "").startsWith(sourcePrefix));
+  const theoretical = theoreticalWorkdays(selectedYear, selectedMonth, localHoliday);
+  const vacation = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.vacation);
+  const suppressedHolidays = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.suppressedHolidays, localHoliday);
+  const holidayRecovery = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.holidayRecovery);
+  const sickness = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.sickness);
+  const childSickness = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.childSickness);
+  const mandatoryLeave = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.mandatoryLeave);
+  const optionalLeave = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.optionalLeave);
+  const parentalLeave = countAbsence(monthDays, new Set(["parental_leave"]));
+  const maternityLeave = countAbsence(monthDays, new Set(["maternity_leave"]));
+  const paternityMandatory = countAbsence(monthDays, new Set(["paternity_mandatory"]));
+  const paternityAlternative = countAbsence(monthDays, new Set(["paternity_alternative"]));
+  const marriageLeave = countAbsence(monthDays, new Set(["marriage_leave"]));
+  const mandatoryHistorical = countAbsence(monthDays, new Set(["mandatory_leave"]));
+  const leaveHistorical = countAbsence(monthDays, new Set(["leave"]));
+  const performanceRecoveryDays = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.performanceRecovery);
+  const absencesForEffectiveDays = vacation + suppressedHolidays + holidayRecovery + sickness
+    + childSickness + mandatoryLeave + optionalLeave + marriageLeave;
+  const overtimeMinutes = monthDays.reduce((total, day) => total + Math.max(0, Number(day.overtime_minutes) || 0), 0);
+  const performanceRecoveryMinutes = performanceRecoveryDays * Math.max(0, Number(targetMinutes) || 0);
+  const mealVouchersEarnedBase = monthDays.filter((day) => excelTicketForDay({ ...day, ticket_override: null })).length;
+  const mealVouchersEarned = monthDays.filter((day) => ticketForDay(profile, day)).length;
+  const sourceTheoretical = theoreticalWorkdays(sourceDate.getFullYear(), sourceDate.getMonth(), localHoliday);
+  const sourceExcluded = countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.vacation)
+    + countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.suppressedHolidays, localHoliday)
+    + countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.holidayRecovery)
+    + countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.sickness)
+    + countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.childSickness)
+    + countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.mandatoryLeave)
+    + countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.optionalLeave)
+    + countAbsence(sourceDays, new Set(["marriage_leave"]))
+    + countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.performanceRecovery);
+  const sourceNegativeAdjustments = sourceDays.filter((day) => {
+    const baseline = excelTicketForDay({ ...day, ticket_override: null });
+    return baseline && !ticketForDay(profile, day);
+  }).length;
+  const competenceAvailable = !(selectedYear === 2026 && selectedMonth <= 1);
+  const competenceTheoretical = selectedYear === 2026 ? theoretical : sourceTheoretical;
+  const mealVouchers = competenceAvailable
+    ? Math.max(0, competenceTheoretical - sourceExcluded - sourceNegativeAdjustments)
+    : null;
+
+  return {
+    year: selectedYear,
+    month: selectedMonth,
+    theoreticalWorkdays: theoretical,
+    vacation,
+    suppressedHolidays,
+    holidayRecovery,
+    sickness,
+    childSickness,
+    mandatoryLeave,
+    optionalLeave,
+    parentalLeave,
+    maternityLeave,
+    paternityMandatory,
+    paternityAlternative,
+    marriageLeave,
+    mandatoryHistorical,
+    leaveHistorical,
+    effectiveWorkdays: Math.max(0, theoretical - absencesForEffectiveDays),
+    smartDays: monthDays.filter((day) => (day.actual_type || day.planned_type) === "smart").length,
+    workingSaturdays: monthDays.filter(isWorkingSaturday).length,
+    mealVouchersEarned,
+    mealVoucherEarnedAdjustments: mealVouchersEarned - mealVouchersEarnedBase,
+    mealVouchers,
+    mealVoucherCompetenceAdjustments: -sourceNegativeAdjustments,
+    mealVoucherSourceYear: sourceDate.getFullYear(),
+    mealVoucherSourceMonth: sourceDate.getMonth(),
+    workedMinutes: monthDays.reduce((total, day) => total + Math.max(0, Number(day.worked_minutes) || 0), 0),
+    overtimeMinutes,
+    performanceRecoveryMinutes,
+    netOvertimeMinutes: Math.max(0, overtimeMinutes - performanceRecoveryMinutes),
+    registeredDays: monthDays.length
+  };
 }
 
 function localDate(value) {
@@ -379,6 +614,12 @@ function nextDay(date) {
   return result;
 }
 
+function previousDay(date) {
+  const result = new Date(date);
+  result.setDate(result.getDate() - 1);
+  return result;
+}
+
 export function childSicknessEntitlement(child, onDate = new Date(), usedInApp = 0, usedOutsideApp = 0) {
   const birthDate = localDate(child?.birth_date || child?.birthDate);
   const currentDate = localDate(onDate) || localDate(isoDateLocal(onDate instanceof Date ? onDate : new Date()));
@@ -392,18 +633,18 @@ export function childSicknessEntitlement(child, onDate = new Date(), usedInApp =
   const fourteenthBirthday = anniversary(birthDate, 14);
   const used = Math.max(0, Number(usedInApp) || 0) + Math.max(0, Number(usedOutsideApp) || 0);
 
-  if (currentDate <= thirdBirthday) {
+  if (currentDate < thirdBirthday) {
     let lifeYear = 1;
     let periodStart = birthDate;
-    let periodEnd = firstBirthday;
-    if (currentDate > firstBirthday && currentDate <= secondBirthday) {
+    let periodEnd = previousDay(firstBirthday);
+    if (currentDate >= firstBirthday && currentDate < secondBirthday) {
       lifeYear = 2;
-      periodStart = nextDay(firstBirthday);
-      periodEnd = secondBirthday;
-    } else if (currentDate > secondBirthday) {
+      periodStart = firstBirthday;
+      periodEnd = previousDay(secondBirthday);
+    } else if (currentDate >= secondBirthday) {
       lifeYear = 3;
-      periodStart = nextDay(secondBirthday);
-      periodEnd = thirdBirthday;
+      periodStart = secondBirthday;
+      periodEnd = previousDay(thirdBirthday);
     }
     return {
       eligible: true,
@@ -423,12 +664,14 @@ export function childSicknessEntitlement(child, onDate = new Date(), usedInApp =
 
   if (currentDate <= fourteenthBirthday) {
     const year = currentDate.getFullYear();
+    const calendarStart = new Date(year, 0, 1, 12);
+    const periodStart = thirdBirthday > calendarStart ? thirdBirthday : calendarStart;
     return {
       eligible: true,
       tier: "three_to_fourteen",
       periodKind: "calendar_year",
       periodKey: `calendar-${year}`,
-      periodStart: `${year}-01-01`,
+      periodStart: isoDateOnly(periodStart),
       periodEnd: `${year}-12-31`,
       totalDaysLimit: 10,
       paidDaysLimit: 0,
@@ -439,6 +682,129 @@ export function childSicknessEntitlement(child, onDate = new Date(), usedInApp =
   }
 
   return { eligible: false, reason: "Il figlio ha più di 14 anni" };
+}
+
+export function childSicknessPeriodsForYear(child, year) {
+  const birthDate = localDate(child?.birth_date || child?.birthDate);
+  const selectedYear = Number(year);
+  if (!birthDate || !Number.isInteger(selectedYear)) return [];
+  const yearStart = new Date(selectedYear, 0, 1, 12);
+  const yearEnd = new Date(selectedYear, 11, 31, 12);
+  const periods = [];
+  for (let lifeYear = 1; lifeYear <= 3; lifeYear += 1) {
+    const start = lifeYear === 1 ? birthDate : anniversary(birthDate, lifeYear - 1);
+    const end = previousDay(anniversary(birthDate, lifeYear));
+    if (end < yearStart || start > yearEnd) continue;
+    periods.push({
+      tier: "under_three",
+      lifeYear,
+      periodKind: "life_year",
+      periodKey: `life-${lifeYear}-${isoDateOnly(birthDate)}`,
+      periodStart: isoDateOnly(start),
+      periodEnd: isoDateOnly(end),
+      displayStart: isoDateOnly(start > yearStart ? start : yearStart),
+      displayEnd: isoDateOnly(end < yearEnd ? end : yearEnd),
+      limit: 30
+    });
+  }
+  const thirdBirthday = anniversary(birthDate, 3);
+  const fourteenthBirthday = anniversary(birthDate, 14);
+  const nextYearStart = new Date(selectedYear + 1, 0, 1, 12);
+  const calendarStart = thirdBirthday > yearStart ? thirdBirthday : yearStart;
+  const calendarEnd = fourteenthBirthday < yearEnd ? fourteenthBirthday : yearEnd;
+  if (calendarStart < nextYearStart && calendarEnd >= calendarStart && yearEnd >= thirdBirthday && yearStart <= fourteenthBirthday) {
+    periods.push({
+      tier: "three_to_fourteen",
+      periodKind: "calendar_year",
+      periodKey: `calendar-${selectedYear}`,
+      periodStart: isoDateOnly(calendarStart),
+      periodEnd: isoDateOnly(calendarEnd),
+      displayStart: isoDateOnly(calendarStart),
+      displayEnd: isoDateOnly(calendarEnd),
+      limit: 10
+    });
+  }
+  return periods;
+}
+
+function addMonths(date, amount) {
+  const result = new Date(date);
+  const originalDay = result.getDate();
+  result.setDate(1);
+  result.setMonth(result.getMonth() + amount);
+  result.setDate(Math.min(originalDay, new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate()));
+  return result;
+}
+
+function entitlementStatus(onDate, start, end) {
+  if (onDate < start) return "upcoming";
+  if (onDate > end) return "expired";
+  return "active";
+}
+
+export function paternityMandatoryEntitlement(child, onDate = new Date(), usedDays = 0) {
+  const eventDate = localDate(child?.paternity_event_date || child?.event_date || child?.birth_date);
+  const expectedDate = localDate(child?.expected_birth_date) || eventDate;
+  const currentDate = localDate(onDate) || localDate(isoDateLocal(onDate instanceof Date ? onDate : new Date()));
+  if (!eventDate || !currentDate) return { eligible: false, reason: "Dati dell’evento non completi" };
+  const eventType = child?.paternity_event_type || child?.event_type || "birth";
+  const windowStart = eventType === "birth" ? addMonths(expectedDate, -2) : eventDate;
+  const windowEnd = addMonths(eventDate, 5);
+  const total = child?.multiple_birth === true ? 20 : 10;
+  const used = Math.max(0, Math.trunc(Number(usedDays) || 0));
+  const remaining = Math.max(0, total - used);
+  const status = entitlementStatus(currentDate, windowStart, windowEnd);
+  return {
+    eligible: status === "active" && remaining > 0,
+    eventType,
+    multipleBirth: child?.multiple_birth === true,
+    windowStart: isoDateOnly(windowStart),
+    windowEnd: isoDateOnly(windowEnd),
+    totalDays: total,
+    usedDays: used,
+    remainingDays: remaining,
+    availableDays: status === "active" ? remaining : 0,
+    expiredUnusedDays: status === "expired" ? remaining : 0,
+    status,
+    reason: status === "upcoming" ? "La finestra non è ancora iniziata" : status === "expired" ? "Plafond scaduto" : remaining ? "" : "Plafond esaurito"
+  };
+}
+
+function weekdaysBetween(start, end) {
+  let total = 0;
+  for (const cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+    if (![0, 6].includes(cursor.getDay())) total += 1;
+  }
+  return total;
+}
+
+export function maternityMandatoryEntitlement(child, onDate = new Date(), usedDays = 0) {
+  const actualDate = localDate(child?.maternity_event_date || child?.event_date || child?.birth_date);
+  const expectedDate = localDate(child?.expected_birth_date) || actualDate;
+  const currentDate = localDate(onDate) || localDate(isoDateLocal(onDate instanceof Date ? onDate : new Date()));
+  if (!actualDate || !expectedDate || !currentDate) return { eligible: false, reason: "Dati dell’evento non completi" };
+  const mode = ["2+3", "1+4", "0+5"].includes(child?.maternity_mode) ? child.maternity_mode : "2+3";
+  const [beforeMonths, afterMonths] = mode.split("+").map(Number);
+  const windowStart = beforeMonths ? addMonths(expectedDate, -beforeMonths) : actualDate;
+  const windowEnd = addMonths(actualDate, afterMonths);
+  const totalWorkdays = weekdaysBetween(windowStart, windowEnd);
+  const used = Math.max(0, Math.trunc(Number(usedDays) || 0));
+  const remaining = Math.max(0, totalWorkdays - used);
+  const status = entitlementStatus(currentDate, windowStart, windowEnd);
+  return {
+    eligible: status === "active",
+    mode,
+    windowStart: isoDateOnly(windowStart),
+    windowEnd: isoDateOnly(windowEnd),
+    totalWorkdays,
+    usedDays: used,
+    remainingWorkdays: remaining,
+    availableWorkdays: status === "active" ? remaining : 0,
+    expiredUnusedWorkdays: status === "expired" ? remaining : 0,
+    status,
+    requiresCertification: mode !== "2+3",
+    reason: status === "upcoming" ? "Il periodo non è ancora iniziato" : status === "expired" ? "Periodo concluso" : ""
+  };
 }
 
 function parseClock(value) {

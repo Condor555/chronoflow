@@ -114,3 +114,27 @@ test("preserva le nuove tipologie di congedo e il collegamento al figlio", () =>
   assert.equal(found.days[1].child_id, "child-1");
   assert.equal(found.days[2].child_id, null);
 });
+
+
+test("migrazione separa FESTIVO, festività soppressa e REC.RIPOSO", () => {
+  const storage = new MemoryStorage({
+    "orari-mobile-mvp-v1": JSON.stringify({
+      version: 1,
+      days: {
+        "2026-01-01": { plannedMode: "absence", actualMode: "absence", absenceType: "publicHoliday" },
+        "2026-01-07": { plannedMode: "absence", actualMode: "absence", absenceType: "suppressedHoliday" },
+        "2026-11-02": { plannedMode: "absence", actualMode: "absence", absenceType: "restRecovery" },
+        "2026-11-03": { plannedMode: "absence", actualMode: "absence", absenceType: "recovery" }
+      }
+    })
+  });
+  const found = detectLegacyData(storage);
+  assert.equal(found.days[0].absence_type, "holiday");
+  assert.match(found.days[0].notes, /FESTIVO/);
+  assert.equal(found.days[1].absence_type, "holiday");
+  assert.doesNotMatch(found.days[1].notes, /FESTIVO/);
+  assert.equal(found.days[2].absence_type, "sunday_holiday_recovery");
+  assert.match(found.days[2].notes, /REC\.RIPOSO/);
+  assert.equal(found.days[3].absence_type, "recovery");
+  assert.match(found.days[3].notes, /REC\. MAGG\. PRES\./);
+});

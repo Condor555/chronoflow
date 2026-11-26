@@ -4,8 +4,9 @@ import {
   DAY_TYPES,
   annualLeaveBalance,
   breakForType,
-  calculateDayWithOvertimePolicy,
+  calculateDayWithPolicies,
   childSicknessEntitlement,
+  childSicknessPeriodsForYear,
   canUseSundayHolidayRecovery,
   clampInt,
   eventsFromLocalTimes,
@@ -13,13 +14,19 @@ import {
   forecastExit,
   formatTime,
   holidayRecoveryBalance,
+  isSuppressedHolidayDay,
+  isWorkingSaturday,
   isoDateLocal,
   minutesToDuration,
+  maternityMandatoryEntitlement,
+  paternityMandatoryEntitlement,
   recognizedItalianHolidays,
   secondsToDuration,
   SUNDAY_HOLIDAY_RULES,
-  ticketForDay
+  ticketForDay,
+  workbookMonthlySummary
 } from "./calculations.mjs";
+import { createLiveClock } from "./live-clock.mjs";
 import { clearMigratedLegacyData, detectLegacyData } from "./migration.mjs";
 import {
   installBannerKind,
@@ -46,8 +53,8 @@ const DEFAULT_PROFILE = {
   travel_break_minutes: 30,
   overtime_threshold: 10,
   ticket_office: true,
-  ticket_smart: false,
-  ticket_travel: false,
+  ticket_smart: true,
+  ticket_travel: true,
   timezone: "Europe/Rome",
   family_settings: {
     children: [],
@@ -90,6 +97,8 @@ const state = {
   undo: null,
   busy: false
 };
+
+const homeClock = createLiveClock({ tick: renderTodayTick, intervalMs: 1000 });
 
 function defaultDay(date) {
   return {
@@ -209,12 +218,13 @@ function overtimeSettings() {
 
 function calculateTrackedDay(day, now = new Date()) {
   const effectiveType = day.actual_type || day.planned_type || "office";
-  return calculateDayWithOvertimePolicy(
+  return calculateDayWithPolicies(
     day.events,
     state.profile.target_minutes,
     state.profile.overtime_threshold,
     effectiveType,
     overtimeSettings(),
+    breakForType(state.profile, effectiveType),
     now
   );
 }
@@ -491,7 +501,10 @@ async function fetchChildSicknessUsage() {
   const { data, error } = await state.supabase
     .from("work_days")
     .select("work_date,child_id,absence_type,planned_type,actual_type")
-    .in("absence_type", ["child_sickness", "parental_leave", "maternity_leave", "paternity_mandatory", "paternity_alternative"])
+    .in("absence_type", [
+      "child_sickness", "parental_leave", "maternity_leave", "paternity_mandatory",
+      "paternity_alternative", "mandatory_leave", "leave"
+    ])
     .order("work_date");
   if (error) throw error;
   state.childSicknessDays = data || [];
@@ -760,6 +773,19 @@ function updateChildPolicyHint(scope) {
       : `${entitlement.remainingDays} dei 10 giorni lavorativi ancora disponibili nell’anno solare ${entitlement.periodStart.slice(0, 4)}.`;
     return;
   }
+  const workDate = scope === "day" ? $("#day-date").value : isoDateLocal();
+  if (absenceType === "paternity_mandatory") {
+    const used = childAbsenceCount(child.id, "paternity_mandatory");
+    const entitlement = paternityMandatoryEntitlement(child, workDate, used);
+    hint.textContent = `${entitlement.usedDays}/${entitlement.totalDays} giorni utilizzati · ${entitlement.remainingDays} residui · finestra ${entitlement.windowStart}–${entitlement.windowEnd} · ${entitlement.status === "expired" ? "scaduto" : entitlement.status === "upcoming" ? "non ancora attivo" : "attivo"}.`;
+    return;
+  }
+  if (absenceType === "maternity_leave") {
+    const used = childAbsenceCount(child.id, "maternity_leave");
+    const entitlement = maternityMandatoryEntitlement(child, workDate, used);
+    hint.textContent = `Modalità ${entitlement.mode} · ${used} giornate lavorative registrate · periodo ${entitlement.windowStart}–${entitlement.windowEnd}${entitlement.requiresCertification ? " · certificazione richiesta" : ""}.`;
+    return;
+  }
   const messages = {
     parental_leave: "Congedo parentale facoltativo: associato al figlio, fruibile entro i 14 anni. I limiti individuali e di coppia vanno verificati sul totale di entrambi i genitori.",
     maternity_leave: "Congedo di maternità obbligatorio: collegato al figlio. Il periodo ordinario è di 5 mesi, con le flessibilità ammesse previa certificazione.",
@@ -769,6 +795,21 @@ function updateChildPolicyHint(scope) {
   hint.textContent = messages[absenceType] || "Assenza collegata al figlio selezionato.";
 }
 
+function childEventAbsenceError(absenceType, childId, workDate) {
+  if (!["paternity_mandatory", "maternity_leave"].includes(absenceType)) return "";
+  const child = familyChildren().find((item) => item.id === childId);
+  if (!child) return "Seleziona il figlio/evento collegato.";
+  const alreadyUsed = state.childSicknessDays.some((day) => day.work_date === workDate && day.child_id === childId && day.absence_type === absenceType);
+  const used = Math.max(0, childAbsenceCount(childId, absenceType) - (alreadyUsed ? 1 : 0));
+  const entitlement = absenceType === "paternity_mandatory"
+    ? paternityMandatoryEntitlement(child, workDate, used)
+    : maternityMandatoryEntitlement(child, workDate, used);
+  if (entitlement.status === "upcoming") return `La giornata precede l’inizio del periodo (${entitlement.windowStart}).`;
+  if (entitlement.status === "expired") return `La giornata supera il termine del periodo (${entitlement.windowEnd}).`;
+  if (absenceType === "paternity_mandatory" && entitlement.remainingDays <= 0) return "Il plafond di paternità obbligatoria è esaurito.";
+  return "";
+}
+
 function toggleAbsenceFields(scope) {
   const actual = $(`#${scope}-actual-type`).value || $(`#${scope}-planned-type`).value;
   const absenceField = $(`#${scope}-absence-field`);
@@ -776,6 +817,8 @@ function toggleAbsenceFields(scope) {
   absenceField.hidden = actual !== "absence";
   const childField = $(`#${scope}-child-field`);
   childField.hidden = actual !== "absence" || !CHILD_LINKED_ABSENCE_TYPES.has(absenceType.value);
+  const childSelect = $(`#${scope}-child-id`);
+  if (childSelect) childSelect.required = !childField.hidden;
   const ticket = $(`#${scope}-ticket`);
   if (ticket) {
     ticket.disabled = actual === "absence";
@@ -858,7 +901,7 @@ function updateLocationChoice(effectiveType) {
 
 function updateTodayLiveDisplay(day, effectiveType, result, forecast) {
   const isLive = ["working", "paused"].includes(result.state);
-  $("#worked-value").textContent = result.state === "working"
+  $("#worked-value").textContent = isLive
     ? secondsToDuration(result.workedSeconds)
     : minutesToDuration(result.workedMinutes);
   $("#forecast-value").textContent = formatTime(forecast);
@@ -881,14 +924,18 @@ function updateTodayLiveDisplay(day, effectiveType, result, forecast) {
     $("#work-main-caption").textContent = "Registra l’entrata quando inizi.";
     primary.textContent = "Registra entrata";
   } else if (result.state === "working") {
-    $("#work-state-label").textContent = "Stai lavorando";
+    $("#work-state-label").textContent = result.defaultBreakAppliedSeconds > 0
+      ? "Pausa predefinita applicata"
+      : "Stai lavorando";
     $("#work-main-value").textContent = secondsToDuration(result.workedSeconds);
-    $("#work-main-caption").textContent = `Restano ${secondsToDuration(result.remainingSeconds)} di lavoro.`;
+    $("#work-main-caption").textContent = result.defaultBreakAppliedSeconds > 0
+      ? `La pausa configurata è inclusa. Restano ${secondsToDuration(result.remainingSeconds)} di lavoro.`
+      : `Restano ${secondsToDuration(result.remainingSeconds)} di lavoro.`;
     primary.textContent = "Inizia pausa";
   } else if (result.state === "paused") {
     $("#work-state-label").textContent = "Pausa in corso";
     $("#work-main-value").textContent = secondsToDuration(result.pausedSeconds);
-    $("#work-main-caption").textContent = "Il tempo di pausa non viene conteggiato come lavoro.";
+    $("#work-main-caption").textContent = `Lavorate ${secondsToDuration(result.workedSeconds)} · restano ${secondsToDuration(result.remainingSeconds)}.`;
     primary.textContent = "Termina pausa";
   } else {
     $("#work-state-label").textContent = "Giornata conclusa";
@@ -910,6 +957,11 @@ function renderTodayTick() {
   updateTodayLiveDisplay(day, effectiveType, result, forecast);
 }
 
+function syncHomeClock() {
+  if (state.user && !document.hidden && !$("#today-screen").hidden) homeClock.resume();
+  else homeClock.stop();
+}
+
 function renderToday() {
   if (!state.user) return;
   const now = new Date();
@@ -920,10 +972,18 @@ function renderToday() {
   const plannedBreak = breakForType(state.profile, effectiveType);
   const forecast = forecastExit(day.events, state.profile.target_minutes, plannedBreak, now);
   const dayType = DAY_TYPES[effectiveType] || DAY_TYPES.office;
+  const saturday = isWorkingSaturday(day);
 
   $("#today-date").textContent = formatLongDate(now);
-  $("#today-type-badge").textContent = dayType.label;
-  $("#today-type-badge").className = `type-badge ${effectiveType}`;
+  $("#today-type-badge").textContent = saturday ? `Sabato lavorativo · ${dayType.label}` : dayType.label;
+  $("#today-type-badge").className = `type-badge ${effectiveType}${saturday ? " saturday" : ""}`;
+  const saturdayNote = $("#today-saturday-note");
+  if (saturdayNote) {
+    saturdayNote.hidden = !saturday;
+    saturdayNote.textContent = saturday
+      ? "Sabato lavorativo: il buono pasto automatico non matura, come nel foglio Excel. Un’eventuale forzatura resta esplicita."
+      : "";
+  }
   updateTodayLiveDisplay(day, effectiveType, result, forecast);
   updateLocationChoice(effectiveType);
   scheduleExitNotification(day, result, forecast);
@@ -1045,6 +1105,7 @@ function openDayDialog(date) {
   $("#day-pause-start-time").value = clockValueForEvent(day.events, "pause");
   $("#day-pause-end-time").value = clockValueForEvent(day.events, "resume");
   $("#day-exit-time").value = clockValueForEvent(day.events, "exit");
+  $("#day-saturday-note").hidden = !isWorkingSaturday(day);
   $("#delete-day").hidden = !state.days.has(date);
   toggleAbsenceFields("day");
   $("#day-dialog").showModal();
@@ -1177,9 +1238,11 @@ function previewSundayHolidaySettings() {
 
 function absenceCountsForDays(days) {
   const counts = {};
+  const localHoliday = sundayHolidayContract().local_holiday;
   for (const day of days) {
     if ((day.actual_type || day.planned_type) !== "absence") continue;
     const absenceType = day.absence_type || "leave";
+    if (absenceType === "holiday" && !isSuppressedHolidayDay(day, localHoliday)) continue;
     counts[absenceType] = (counts[absenceType] || 0) + 1;
   }
   return counts;
@@ -1224,32 +1287,390 @@ function renderAbsenceBreakdown(target, counts) {
   }));
 }
 
+const EXCEL_SUMMARY_METRICS = [
+  ["Giorni lavorativi teorici", "theoreticalWorkdays", "days"],
+  ["Ferie", "vacation", "days"],
+  ["Festività soppresse", "suppressedHolidays", "days"],
+  ["Recupero riposo festività", "holidayRecovery", "days"],
+  ["Malattia", "sickness", "days"],
+  ["Malattia bambino", "childSickness", "days"],
+  ["Congedo parentale facoltativo", "parentalLeave", "days"],
+  ["Maternità obbligatoria", "maternityLeave", "days"],
+  ["Paternità obbligatoria", "paternityMandatory", "days"],
+  ["Paternità alternativa", "paternityAlternative", "days"],
+  ["Congedo matrimoniale", "marriageLeave", "days"],
+  ["Congedo obbligatorio storico", "mandatoryHistorical", "days"],
+  ["Congedo non classificato storico", "leaveHistorical", "days"],
+  ["Giorni lavorativi effettivi", "effectiveWorkdays", "days"],
+  ["Giorni smart", "smartDays", "days"],
+  ["Sabati lavorativi", "workingSaturdays", "days"],
+  ["Buoni maturati nel mese", "mealVouchersEarned", "count"],
+  ["Rettifiche buoni maturati", "mealVoucherEarnedAdjustments", "signed"],
+  ["Buoni di competenza/accredito · −2 mesi", "mealVouchers", "count"],
+  ["Rettifiche buoni competenza", "mealVoucherCompetenceAdjustments", "signed"],
+  ["Ore straordinario", "overtimeMinutes", "duration"],
+  ["Recupero maggiori prestazioni", "performanceRecoveryMinutes", "duration"],
+  ["Ore straordinario nette", "netOvertimeMinutes", "duration"]
+];
+
+function summaryValue(metric, key, format) {
+  const raw = metric?.[key];
+  if (raw === null || raw === undefined) return "—";
+  const value = Number(raw) || 0;
+  if (format === "duration") return minutesToDuration(value);
+  if (format === "signed" && value > 0) return `+${value}`;
+  return String(value);
+}
+
+function decoratedSummaryDays(days) {
+  return days.map((day) => {
+    const result = calculateTrackedDay(day, calculationNow(day));
+    return { ...day, worked_minutes: result.workedMinutes, overtime_minutes: result.overtimeMinutes };
+  });
+}
+
+function summaryRowsForYear(year) {
+  const combined = decoratedSummaryDays([...state.summaryPreviousYearDays, ...state.summaryYearDays]);
+  const localHoliday = sundayHolidayContract().local_holiday;
+  return Array.from({ length: 12 }, (_, month) => workbookMonthlySummary({
+    year,
+    month,
+    days: combined,
+    competenceDays: combined,
+    profile: state.profile,
+    localHoliday,
+    targetMinutes: state.profile.target_minutes
+  }));
+}
+
+function renderExcelSummary(selected, rows) {
+  const grid = $("#excel-summary-metrics");
+  grid.replaceChildren(...EXCEL_SUMMARY_METRICS.map(([label, key, format]) => {
+    const item = document.createElement("div");
+    const term = document.createElement("dt");
+    const value = document.createElement("dd");
+    term.textContent = label;
+    value.textContent = summaryValue(selected, key, format);
+    item.append(term, value);
+    return item;
+  }));
+  $("#meal-competence-note").textContent = selected.mealVouchers === null
+    ? `Nel foglio Riepilogo_2026 la competenza di ${MONTH_NAMES[selected.month]} resta vuota perché richiederebbe dati dell’anno precedente.`
+    : `I buoni di ${MONTH_NAMES[selected.month]} sono quelli di competenza ${MONTH_NAMES[selected.mealVoucherSourceMonth]} ${selected.mealVoucherSourceYear}. Il sabato lavorativo è escluso automaticamente, salvo forzatura esplicita.`;
+
+  const body = $("#annual-monthly-table-body");
+  body.replaceChildren(...rows.map((metric) => {
+    const tr = document.createElement("tr");
+    const month = document.createElement("th");
+    month.scope = "row";
+    month.textContent = MONTH_NAMES[metric.month].slice(0, 3);
+    tr.append(month);
+    for (const [, key, format] of EXCEL_SUMMARY_METRICS) {
+      const td = document.createElement("td");
+      td.textContent = summaryValue(metric, key, format);
+      tr.append(td);
+    }
+    return tr;
+  }));
+
+  const totals = {};
+  for (const [, key] of EXCEL_SUMMARY_METRICS) totals[key] = rows.reduce((sum, row) => sum + (Number(row[key]) || 0), 0);
+  const totalRow = $("#annual-monthly-table-total");
+  totalRow.replaceChildren();
+  const label = document.createElement("th");
+  label.scope = "row";
+  label.textContent = "Totale";
+  totalRow.append(label);
+  for (const [, key, format] of EXCEL_SUMMARY_METRICS) {
+    const td = document.createElement("td");
+    td.textContent = summaryValue(totals, key, format);
+    totalRow.append(td);
+  }
+}
+
+function addYears(dateValue, years) {
+  const date = new Date(`${dateValue}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return "—";
+  date.setFullYear(date.getFullYear() + years);
+  return new Intl.DateTimeFormat("it-IT").format(date);
+}
+
+function renderFamilyLimits(year) {
+  const allFamilyDays = state.childSicknessDays.filter((day) => (day.actual_type || day.planned_type) === "absence");
+  const annual = allFamilyDays.filter((day) => String(day.work_date || "").startsWith(`${year}-`));
+  const childUsed = annual.filter((day) => day.absence_type === "child_sickness").length;
+  const optionalUsed = allFamilyDays.filter((day) => ["parental_leave", "leave"].includes(day.absence_type) && day.work_date <= `${year}-12-31`).length;
+  const children = familyChildren();
+  const childLimit = children.reduce((total, child) => total
+    + childSicknessPeriodsForYear(child, year).reduce((sum, period) => sum + period.limit, 0), 0);
+  const metrics = [
+    ["Malattia bambino", `${childUsed} / ${childLimit}`, childLimit ? "somma di plafond distinti per figlio/periodo" : "configura i figli"],
+    ["Paternità obbligatoria", String(annual.filter((day) => day.absence_type === "paternity_mandatory").length), "plafond separati 10/20 per evento"],
+    ["Maternità obbligatoria", String(annual.filter((day) => day.absence_type === "maternity_leave").length), "periodi separati 2+3, 1+4 o 0+5"],
+    ["Congedo parentale facoltativo", `${optionalUsed} / 60`, "cumulativo Excel; dettaglio per figlio nello storico"]
+  ];
+  $("#family-limit-metrics").replaceChildren(...metrics.map(([name, value, note]) => {
+    const item = document.createElement("div");
+    item.innerHTML = `<dt></dt><dd></dd><small></small>`;
+    item.querySelector("dt").textContent = name;
+    item.querySelector("dd").textContent = value;
+    item.querySelector("small").textContent = note;
+    return item;
+  }));
+  const deadlines = $("#family-deadlines");
+  if (!children.length) {
+    deadlines.replaceChildren();
+    return;
+  }
+  deadlines.replaceChildren(...children.map((child) => {
+    const li = document.createElement("li");
+    const name = document.createElement("strong");
+    name.textContent = child.name || "Figlio";
+    li.append(name);
+    const periods = childSicknessPeriodsForYear(child, year);
+    for (const period of periods) {
+      const copy = document.createElement("span");
+      const usedInApp = childAbsenceCount(child.id, "child_sickness", period.periodStart, period.periodEnd);
+      const outside = Number(child.external_usage?.[period.periodKey] || 0);
+      const used = usedInApp + outside;
+      const label = period.tier === "under_three" ? `${period.lifeYear}° anno di vita` : `fascia 3–14 · anno solare ${year}`;
+      copy.textContent = `${label}: ${used}/${period.limit} · periodo ${period.displayStart}–${period.displayEnd}`;
+      li.append(copy);
+    }
+    const optional = document.createElement("span");
+    optional.textContent = `Scadenza congedo facoltativo: ${addYears(child.birth_date, 12)}`;
+    li.append(optional);
+    const paternity = paternityMandatoryEntitlement(child, `${year}-12-31`, childAbsenceCount(child.id, "paternity_mandatory"));
+    const paternityCopy = document.createElement("span");
+    paternityCopy.textContent = `Paternità obbligatoria: ${paternity.usedDays}/${paternity.totalDays}, termine ${paternity.windowEnd}${paternity.status === "expired" ? ` · scaduto, ${paternity.expiredUnusedDays} non fruibili` : ""}`;
+    li.append(paternityCopy);
+    const maternity = maternityMandatoryEntitlement(child, `${year}-12-31`, childAbsenceCount(child.id, "maternity_leave"));
+    const maternityCopy = document.createElement("span");
+    maternityCopy.textContent = `Maternità ${maternity.mode}: ${maternity.windowStart}–${maternity.windowEnd} · ${maternity.status}${maternity.requiresCertification ? " · certificazione richiesta" : ""}`;
+    li.append(maternityCopy);
+    return li;
+  }));
+}
+
+const TRACE_ABSENCE_TYPES = [
+  ["sickness", "Malattia"],
+  ["marriage_leave", "Congedo matrimoniale"],
+  ["mandatory_leave", "Congedo obbligatorio (storico)"],
+  ["leave", "Congedo non classificato (storico)"]
+];
+
+function shortDate(date) {
+  return new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", year: "numeric" })
+    .format(new Date(`${date}T12:00:00`));
+}
+
+function traceDetails(item) {
+  const details = document.createElement("details");
+  details.className = "trace-item";
+  const summary = document.createElement("summary");
+  const name = document.createElement("span");
+  const value = document.createElement("strong");
+  name.textContent = item.label;
+  value.textContent = item.value;
+  summary.append(name, value);
+  const body = document.createElement("div");
+  body.className = "trace-item-body";
+  if (item.note) {
+    const note = document.createElement("p");
+    note.textContent = item.note;
+    body.append(note);
+  }
+  const list = document.createElement("ul");
+  if (item.entries.length) {
+    for (const entry of item.entries) {
+      const li = document.createElement("li");
+      li.textContent = entry;
+      list.append(li);
+    }
+  } else {
+    const li = document.createElement("li");
+    li.textContent = "Nessuna giornata registrata.";
+    list.append(li);
+  }
+  body.append(list);
+  details.append(summary, body);
+  return details;
+}
+
+function renderTraceabilityLedger(yearDays, year) {
+  const sorted = [...yearDays].sort((a, b) => a.work_date.localeCompare(b.work_date));
+  const balance = annualLeaveBalanceForYear(year);
+  const recovery = sundayHolidayBalance(year);
+  const vacations = sorted.filter((day) => (day.actual_type || day.planned_type) === "absence" && day.absence_type === "vacation");
+  const previousVacation = vacations.slice(0, balance.vacation.previous.used);
+  const currentVacation = vacations.slice(balance.vacation.previous.used);
+  const suppressed = sorted.filter((day) => isSuppressedHolidayDay(day, sundayHolidayContract().local_holiday));
+  const publicHolidays = sorted.filter((day) => (day.actual_type || day.planned_type) === "absence"
+    && day.absence_type === "holiday" && !isSuppressedHolidayDay(day, sundayHolidayContract().local_holiday));
+  const usedRecovery = sorted.filter((day) => (day.actual_type || day.planned_type) === "absence"
+    && day.absence_type === "sunday_holiday_recovery");
+  const decorated = decoratedSummaryDays(sorted);
+  const grossDays = decorated.filter((day) => day.overtime_minutes > 0);
+  const performanceDays = sorted.filter((day) => (day.actual_type || day.planned_type) === "absence" && day.absence_type === "recovery");
+  const grossMinutes = grossDays.reduce((sum, day) => sum + day.overtime_minutes, 0);
+  const performanceMinutes = performanceDays.length * state.profile.target_minutes;
+  const ticketDays = sorted.filter((day) => ticketForDay(state.profile, day));
+  const ticketAdjustments = sorted.filter((day) => typeof day.ticket_override === "boolean"
+    || (["office", "smart", "travel"].includes(day.actual_type || day.planned_type)
+      && !ticketForDay(state.profile, { ...day, ticket_override: null })
+      && !isWorkingSaturday(day)));
+
+  const items = [
+    {
+      label: "Ferie anno precedente",
+      value: `${balance.vacation.previous.used} / ${balance.vacation.previous.total}`,
+      entries: previousVacation.map((day) => shortDate(day.work_date)),
+      note: "Le prime giornate dell’anno consumano il riporto, come nel bilancio Excel."
+    },
+    {
+      label: "Ferie anno corrente",
+      value: `${balance.vacation.current.used} / ${balance.vacation.current.total}`,
+      entries: currentVacation.map((day) => shortDate(day.work_date))
+    },
+    {
+      label: "Festività soppresse",
+      value: `${balance.suppressedHolidays.used} / ${balance.suppressedHolidays.total}`,
+      entries: suppressed.map((day) => shortDate(day.work_date)),
+      note: "FESTIVO e festività nazionali riconosciute sono esclusi da questo saldo."
+    },
+    {
+      label: "FESTIVO / festività riconosciute",
+      value: String(publicHolidays.length),
+      entries: publicHolidays.map((day) => shortDate(day.work_date))
+    },
+    {
+      label: "Recupero riposo festività",
+      value: `${recovery.used} / ${recovery.accrued}`,
+      entries: usedRecovery.map((day) => shortDate(day.work_date)),
+      note: `${recovery.available} ancora disponibili secondo la regola contrattuale configurata.`
+    }
+  ];
+
+  for (const [type, label] of TRACE_ABSENCE_TYPES) {
+    const days = sorted.filter((day) => (day.actual_type || day.planned_type) === "absence" && day.absence_type === type);
+    items.push({ label, value: String(days.length), entries: days.map((day) => shortDate(day.work_date)) });
+  }
+
+  for (const child of familyChildren()) {
+    for (const period of childSicknessPeriodsForYear(child, year)) {
+      const days = sorted.filter((day) => day.absence_type === "child_sickness"
+        && day.child_id === child.id && day.work_date >= period.periodStart && day.work_date <= period.periodEnd);
+      const outside = Number(child.external_usage?.[period.periodKey] || 0);
+      const used = days.length + outside;
+      items.push({
+        label: `Malattia bambino · ${child.name} · ${period.tier === "under_three" ? `${period.lifeYear}° anno di vita` : `anno solare ${year}`}`,
+        value: `${used} / ${period.limit}`,
+        entries: days.map((day) => shortDate(day.work_date)),
+        note: outside ? `${outside} giorn${outside === 1 ? "o" : "i"} registrat${outside === 1 ? "o" : "i"} fuori da Chrono Flow.` : "Plafond separato per figlio e periodo."
+      });
+    }
+    const linkedTypes = [
+      ["parental_leave", "Congedo parentale facoltativo"],
+      ["maternity_leave", "Maternità obbligatoria"],
+      ["paternity_mandatory", "Paternità obbligatoria"],
+      ["paternity_alternative", "Paternità alternativa"]
+    ];
+    for (const [type, label] of linkedTypes) {
+      const days = sorted.filter((day) => day.absence_type === type && day.child_id === child.id);
+      let value = String(days.length);
+      let note = "Evento separato e collegato al figlio selezionato.";
+      if (type === "paternity_mandatory") {
+        const entitlement = paternityMandatoryEntitlement(child, `${year}-12-31`, days.length);
+        value = `${days.length} / ${entitlement.totalDays}`;
+        note = `${entitlement.remainingDays} residui · termine ${entitlement.windowEnd} · ${entitlement.status === "expired" ? `${entitlement.expiredUnusedDays} non più fruibili` : entitlement.status}.`;
+      } else if (type === "maternity_leave") {
+        const entitlement = maternityMandatoryEntitlement(child, `${year}-12-31`, days.length);
+        value = `${days.length} giorni · ${entitlement.mode}`;
+        note = `Periodo ${entitlement.windowStart}–${entitlement.windowEnd} · ${entitlement.status}${entitlement.requiresCertification ? " · certificazione richiesta" : ""}.`;
+      }
+      items.push({ label: `${label} · ${child.name}`, value, entries: days.map((day) => shortDate(day.work_date)), note });
+    }
+  }
+
+  for (const [type, label] of [["child_sickness", "Malattia bambino"], ["parental_leave", "Congedo parentale facoltativo"], ["maternity_leave", "Maternità obbligatoria"], ["paternity_mandatory", "Paternità obbligatoria"], ["paternity_alternative", "Paternità alternativa"]]) {
+    const unlinked = sorted.filter((day) => day.absence_type === type && !day.child_id);
+    if (unlinked.length) items.push({
+      label: `${label} · non collegato`,
+      value: String(unlinked.length),
+      entries: unlinked.map((day) => shortDate(day.work_date)),
+      note: "Dati storici da collegare a un figlio/evento per applicare il plafond corretto."
+    });
+  }
+
+  items.push(
+    {
+      label: "Recupero maggiori prestazioni",
+      value: minutesToDuration(performanceMinutes),
+      entries: performanceDays.map((day) => `${shortDate(day.work_date)} · ${minutesToDuration(state.profile.target_minutes)}`),
+      note: "Conteggiato solo con causale esplicita; nessuna uscita anticipata viene convertita automaticamente."
+    },
+    {
+      label: "Straordinario lordo maturato",
+      value: minutesToDuration(grossMinutes),
+      entries: grossDays.map((day) => `${shortDate(day.work_date)} · ${minutesToDuration(day.overtime_minutes)}`)
+    },
+    {
+      label: "Straordinario netto/residuo",
+      value: minutesToDuration(Math.max(0, grossMinutes - performanceMinutes)),
+      entries: [...grossDays.map((day) => `${shortDate(day.work_date)} · lordo ${minutesToDuration(day.overtime_minutes)}`),
+        ...performanceDays.map((day) => `${shortDate(day.work_date)} · recupero −${minutesToDuration(state.profile.target_minutes)}`)],
+      note: "Lordo meno recuperi maggiori prestazioni, con minimo zero."
+    },
+    {
+      label: "Buoni pasto maturati nell’anno di attività",
+      value: String(ticketDays.length),
+      entries: ticketDays.map((day) => shortDate(day.work_date))
+    },
+    {
+      label: "Rettifiche buoni pasto",
+      value: String(ticketAdjustments.length),
+      entries: ticketAdjustments.map((day) => `${shortDate(day.work_date)} · ${ticketForDay(state.profile, day) ? "+1" : "−1"}`)
+    },
+    {
+      label: "Sabati lavorativi",
+      value: String(sorted.filter(isWorkingSaturday).length),
+      entries: sorted.filter(isWorkingSaturday).map((day) => shortDate(day.work_date)),
+      note: "Nessun buono automatico secondo la formula Excel."
+    }
+  );
+
+  $("#traceability-list").replaceChildren(...items.map(traceDetails));
+}
+
 function renderSummary() {
   if (!state.user) return;
   renderMonthSelector("summary", state.summaryMonth);
+  const selectedYear = state.summaryMonth.getFullYear();
+  const rows = summaryRowsForYear(selectedYear);
+  const selected = rows[state.summaryMonth.getMonth()];
   const { start, end } = monthBounds(state.summaryMonth);
-  const days = [...state.days.values()].filter((day) => day.work_date >= start && day.work_date <= end);
-  const totals = { worked: 0, overtime: 0, tickets: 0, office: 0, smart: 0, travel: 0, absence: 0, absenceTypes: {} };
+  const sourceDays = state.summaryYearLoaded === selectedYear ? state.summaryYearDays : [...state.days.values()];
+  const days = sourceDays.filter((day) => day.work_date >= start && day.work_date <= end);
+  const totals = { office: 0, smart: 0, travel: 0, absence: 0, saturday: 0, absenceTypes: {} };
   for (const day of days) {
-    const result = calculateTrackedDay(day, calculationNow(day));
-    totals.worked += result.workedMinutes;
-    totals.overtime += result.overtimeMinutes;
-    totals.tickets += ticketForDay(state.profile, day) ? 1 : 0;
     const effectiveType = day.actual_type || day.planned_type || "office";
+    const absenceType = day.absence_type || "leave";
+    if (effectiveType === "absence" && absenceType === "holiday"
+      && !isSuppressedHolidayDay(day, sundayHolidayContract().local_holiday)) continue;
     totals[effectiveType] = (totals[effectiveType] || 0) + 1;
+    if (isWorkingSaturday(day)) totals.saturday += 1;
     if (effectiveType === "absence") {
-      const absenceType = day.absence_type || "leave";
       totals.absenceTypes[absenceType] = (totals.absenceTypes[absenceType] || 0) + 1;
     }
   }
 
   const cards = [
-    ["Ore lavorate", minutesToDuration(totals.worked)],
-    ["Straordinario", minutesToDuration(totals.overtime)],
-    ["Buoni pasto", String(totals.tickets)],
-    ["Giornate registrate", String(days.length)],
-    ["Smart working", String(totals.smart)],
-    ["Assenze", String(totals.absence)]
+    ["Ore lavorate", minutesToDuration(selected.workedMinutes)],
+    ["Straordinario netto", minutesToDuration(selected.netOvertimeMinutes)],
+    ["Buoni pasto · −2 mesi", selected.mealVouchers === null ? "—" : String(selected.mealVouchers)],
+    ["Giorni effettivi", String(selected.effectiveWorkdays)],
+    ["Smart working", String(selected.smartDays)],
+    ["Sabati lavorativi", String(selected.workingSaturdays)]
   ];
   $("#summary-cards").replaceChildren(...cards.map(([label, value]) => {
     const card = document.createElement("article");
@@ -1262,11 +1683,15 @@ function renderSummary() {
     return card;
   }));
 
-  const maximum = Math.max(1, totals.office, totals.smart, totals.travel, totals.absence);
-  const rows = [
-    ["Ufficio", totals.office], ["Smart", totals.smart], ["Trasferta", totals.travel], ["Assenza", totals.absence]
+  renderExcelSummary(selected, rows);
+  renderFamilyLimits(selectedYear);
+
+  const maximum = Math.max(1, totals.office, totals.smart, totals.travel, totals.absence, totals.saturday);
+  const distributionRows = [
+    ["Ufficio", totals.office], ["Smart", totals.smart], ["Trasferta", totals.travel],
+    ["Assenza", totals.absence], ["Sabato lavorativo", totals.saturday]
   ];
-  $("#summary-types").replaceChildren(...rows.map(([label, count]) => {
+  $("#summary-types").replaceChildren(...distributionRows.map(([label, count]) => {
     const row = document.createElement("div");
     row.className = "bar-row";
     const name = document.createElement("span");
@@ -1287,7 +1712,6 @@ function renderSummary() {
   renderAbsenceBreakdown($("#summary-month-absences"), totals.absenceTypes);
   $("#summary-month-absence-count").textContent = `${totals.absence} giornat${totals.absence === 1 ? "a" : "e"}`;
 
-  const selectedYear = state.summaryMonth.getFullYear();
   const { start: yearStart, end: yearEnd } = yearBounds(selectedYear);
   const yearDays = state.summaryYearLoaded === selectedYear
     ? state.summaryYearDays
@@ -1301,6 +1725,7 @@ function renderSummary() {
   $("#summary-year-absence-description").textContent = `Dettaglio per tipologia dal 1 gennaio al 31 dicembre ${selectedYear}.`;
   renderAnnualLeaveBalance(selectedYear);
   renderRecoveryBalance("summary", state.summaryMonth.getFullYear());
+  renderTraceabilityLedger(yearDays, selectedYear);
 }
 
 function renderChildren() {
@@ -1356,7 +1781,44 @@ function renderChildren() {
     } else {
       policy.textContent = entitlementPreview.reason || "Nessun diritto automatico calcolabile per la data odierna.";
     }
-    info.append(name, date, policy);
+    const paternityUsed = childAbsenceCount(child.id, "paternity_mandatory");
+    const paternity = paternityMandatoryEntitlement(child, new Date(), paternityUsed);
+    const paternityPolicy = document.createElement("p");
+    paternityPolicy.className = "child-policy event-policy";
+    paternityPolicy.textContent = `Paternità obbligatoria: ${paternity.usedDays}/${paternity.totalDays}, residui ${paternity.remainingDays} · ${paternity.windowStart}–${paternity.windowEnd} · ${paternity.status === "expired" ? `scaduto (${paternity.expiredUnusedDays} non più fruibili)` : paternity.status === "upcoming" ? "non ancora attivo" : "attivo"}.`;
+    const maternityUsed = childAbsenceCount(child.id, "maternity_leave");
+    const maternity = maternityMandatoryEntitlement(child, new Date(), maternityUsed);
+    const maternityPolicy = document.createElement("p");
+    maternityPolicy.className = "child-policy event-policy";
+    maternityPolicy.textContent = `Maternità ${maternity.mode}: ${maternityUsed} giornate lavorative registrate · ${maternity.windowStart}–${maternity.windowEnd} · ${maternity.status === "expired" ? "concluso" : maternity.status === "upcoming" ? "non ancora iniziato" : "attivo"}${maternity.requiresCertification ? " · certificazione richiesta" : ""}.`;
+    const modeField = document.createElement("div");
+    modeField.className = "child-usage-field";
+    const modeLabel = document.createElement("label");
+    const modeId = `maternity-mode-${child.id}`;
+    modeLabel.htmlFor = modeId;
+    modeLabel.textContent = "Modalità maternità per questo evento";
+    const modeSelect = document.createElement("select");
+    modeSelect.id = modeId;
+    [["2+3", "2+3 · ordinaria"], ["1+4", "1+4 · flessibile (certificazione)"], ["0+5", "0+5 · dopo il parto (certificazione)"]]
+      .forEach(([value, label]) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        modeSelect.append(option);
+      });
+    modeSelect.value = maternity.mode;
+    modeSelect.addEventListener("change", () => {
+      const next = modeSelect.value;
+      if (maternityUsed > 0 && !window.confirm(`Sono già registrate ${maternityUsed} giornate di maternità per ${child.name}. Cambiando modalità verranno ricalcolati periodo e controlli, senza spostare o cancellare le giornate. Continuare?`)) {
+        modeSelect.value = maternity.mode;
+        return;
+      }
+      child.maternity_mode = next;
+      renderChildren();
+      announce("Modalità di maternità aggiornata. Verifica le giornate fuori dal nuovo periodo e salva le impostazioni.");
+    });
+    modeField.append(modeLabel, modeSelect);
+    info.append(name, date, policy, paternityPolicy, maternityPolicy, modeField);
     if (usageField) info.append(usageField);
     const remove = document.createElement("button");
     remove.type = "button";
@@ -1534,6 +1996,7 @@ function showScreen(name) {
     else button.removeAttribute("aria-current");
   });
   if (name === "calendar") renderCalendar();
+  syncHomeClock();
   if (name === "summary") {
     renderSummary();
     fetchSummaryYear(state.summaryMonth.getFullYear())
@@ -1687,12 +2150,14 @@ async function loadApplication(user) {
   $("#bulk-end").value ||= isoDateLocal();
   renderAccount();
   renderToday();
+  syncHomeClock();
   updateSyncStatus();
   flushQueue();
   offerLegacyMigration();
 }
 
 function showAuth() {
+  homeClock.stop();
   state.user = null;
   state.days.clear();
   state.sundayHolidayRecoveryDays = [];
@@ -1810,10 +2275,12 @@ async function initialize() {
   if (data?.session?.user) await loadApplication(data.session.user);
   else showAuth();
   registerServiceWorker();
-  window.setInterval(renderTodayTick, 1000);
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) renderTodayTick();
+    syncHomeClock();
   });
+  window.addEventListener("pageshow", syncHomeClock);
+  window.addEventListener("focus", syncHomeClock);
+  window.addEventListener("pagehide", () => homeClock.stop());
 }
 
 function bindEvents() {
@@ -1896,6 +2363,12 @@ function bindEvents() {
     const absenceError = sundayHolidayRecoveryError(day.absence_type, day.work_date);
     if (absenceError) return showToast(absenceError);
     day.child_id = CHILD_LINKED_ABSENCE_TYPES.has(day.absence_type) ? $("#today-child-id").value || null : null;
+    if (CHILD_LINKED_ABSENCE_TYPES.has(day.absence_type) && !day.child_id) {
+      $("#today-child-id").focus();
+      return showToast("Seleziona il figlio: i plafond sono separati e non possono essere condivisi.");
+    }
+    const childEventError = childEventAbsenceError(day.absence_type, day.child_id, day.work_date);
+    if (childEventError) return showToast(childEventError);
     day.ticket_override = day.actual_type === "absence" || $("#today-ticket").value === "auto" ? null : $("#today-ticket").value === "yes";
     day.notes = $("#today-notes").value.trim();
     await saveDay(day, { silent: true });
@@ -1983,6 +2456,12 @@ function bindEvents() {
     const absenceError = sundayHolidayRecoveryError(day.absence_type, day.work_date);
     if (absenceError) return showToast(absenceError);
     day.child_id = CHILD_LINKED_ABSENCE_TYPES.has(day.absence_type) ? $("#day-child-id").value || null : null;
+    if (CHILD_LINKED_ABSENCE_TYPES.has(day.absence_type) && !day.child_id) {
+      $("#day-child-id").focus();
+      return showToast("Seleziona il figlio: i plafond sono separati e non possono essere condivisi.");
+    }
+    const childEventError = childEventAbsenceError(day.absence_type, day.child_id, day.work_date);
+    if (childEventError) return showToast(childEventError);
     day.ticket_override = effectiveType === "absence" || $("#day-ticket").value === "auto" ? null : $("#day-ticket").value === "yes";
     day.notes = $("#day-notes").value.trim();
     if (effectiveType !== "absence") {
@@ -2031,10 +2510,25 @@ function bindEvents() {
     }
     state.profile.family_settings = {
       ...state.profile.family_settings,
-      children: [...familyChildren(), { id: crypto.randomUUID(), name, birth_date: birthDate, external_usage: {} }]
+      children: [...familyChildren(), {
+        id: crypto.randomUUID(),
+        name,
+        birth_date: birthDate,
+        paternity_event_date: birthDate,
+        maternity_event_date: birthDate,
+        expected_birth_date: $("#child-expected-date").value || birthDate,
+        paternity_event_type: $("#child-event-type").value,
+        multiple_birth: $("#child-multiple-birth").checked,
+        maternity_mode: $("#child-maternity-mode").value,
+        external_usage: {}
+      }]
     };
     $("#child-name").value = "";
     $("#child-birth-date").value = "";
+    $("#child-expected-date").value = "";
+    $("#child-event-type").value = "birth";
+    $("#child-multiple-birth").checked = false;
+    $("#child-maternity-mode").value = "2+3";
     renderChildren();
     announce(`${name} aggiunto. Salva le impostazioni per confermare.`);
   });

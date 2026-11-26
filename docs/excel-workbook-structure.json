@@ -1,0 +1,209 @@
+{
+  "formulaCount": 12906,
+  "sheets": [
+    {
+      "name": "Commesse_old",
+      "state": "hidden",
+      "dimension": "A1:AQ97",
+      "nonempty": 179,
+      "formulas": 78,
+      "dataValidations": 0,
+      "conditionalFormats": 0,
+      "tables": []
+    },
+    {
+      "name": "2021",
+      "state": "hidden",
+      "dimension": "A1:AN118",
+      "nonempty": 1106,
+      "formulas": 494,
+      "dataValidations": 2,
+      "conditionalFormats": 48,
+      "tables": []
+    },
+    {
+      "name": "2022",
+      "state": "hidden",
+      "dimension": "A1:AG363",
+      "nonempty": 3345,
+      "formulas": 1612,
+      "dataValidations": 2,
+      "conditionalFormats": 124,
+      "tables": []
+    },
+    {
+      "name": "2023",
+      "state": "hidden",
+      "dimension": "A1:AN363",
+      "nonempty": 3536,
+      "formulas": 1678,
+      "dataValidations": 2,
+      "conditionalFormats": 128,
+      "tables": []
+    },
+    {
+      "name": "2024",
+      "state": "hidden",
+      "dimension": "A1:AP370",
+      "nonempty": 3756,
+      "formulas": 2042,
+      "dataValidations": 2,
+      "conditionalFormats": 114,
+      "tables": []
+    },
+    {
+      "name": "2025",
+      "state": "hidden",
+      "dimension": "A1:AU370",
+      "nonempty": 4822,
+      "formulas": 2759,
+      "dataValidations": 2,
+      "conditionalFormats": 279,
+      "tables": []
+    },
+    {
+      "name": "2026_old",
+      "state": "hidden",
+      "dimension": "A1:AU377",
+      "nonempty": 4408,
+      "formulas": 3007,
+      "dataValidations": 0,
+      "conditionalFormats": 300,
+      "tables": []
+    },
+    {
+      "name": "Commesse",
+      "state": "visible",
+      "dimension": "A1:D27",
+      "nonempty": 62,
+      "formulas": 2,
+      "dataValidations": 0,
+      "conditionalFormats": 0,
+      "tables": []
+    },
+    {
+      "name": "2026",
+      "state": "visible",
+      "dimension": "A1:Y369",
+      "nonempty": 3174,
+      "formulas": 426,
+      "dataValidations": 3,
+      "conditionalFormats": 5,
+      "tables": []
+    },
+    {
+      "name": "Riepilogo_2026",
+      "state": "visible",
+      "dimension": "A1:O33",
+      "nonempty": 246,
+      "formulas": 197,
+      "dataValidations": 0,
+      "conditionalFormats": 2,
+      "tables": [
+        {
+          "name": "tblRiepilogo2026",
+          "displayName": "tblRiepilogo2026",
+          "ref": "A3:O16"
+        }
+      ]
+    },
+    {
+      "name": "2027",
+      "state": "visible",
+      "dimension": "A1:Y369",
+      "nonempty": 1483,
+      "formulas": 414,
+      "dataValidations": 3,
+      "conditionalFormats": 5,
+      "tables": []
+    },
+    {
+      "name": "Automazione",
+      "state": "hidden",
+      "dimension": "A1:D124",
+      "nonempty": 59,
+      "formulas": 0,
+      "dataValidations": 0,
+      "conditionalFormats": 0,
+      "tables": []
+    },
+    {
+      "name": "Riepilogo_2027",
+      "state": "visible",
+      "dimension": "A1:O33",
+      "nonempty": 245,
+      "formulas": 197,
+      "dataValidations": 0,
+      "conditionalFormats": 3,
+      "tables": [
+        {
+          "name": "tblRiepilogo2027",
+          "displayName": "tblRiepilogo2027",
+          "ref": "A3:O16"
+        }
+      ]
+    },
+    {
+      "name": "Dati",
+      "state": "visible",
+      "dimension": "A1:A14",
+      "nonempty": 14,
+      "formulas": 0,
+      "dataValidations": 0,
+      "conditionalFormats": 2,
+      "tables": []
+    }
+  ],
+  "crossSheetReferences": [
+    {
+      "from": "Commesse_old",
+      "to": "2025",
+      "count": 506
+    },
+    {
+      "from": "Commesse_old",
+      "to": "2024",
+      "count": 437
+    },
+    {
+      "from": "Commesse_old",
+      "to": "2022",
+      "count": 420
+    },
+    {
+      "from": "Commesse_old",
+      "to": "2023",
+      "count": 413
+    },
+    {
+      "from": "2026",
+      "to": "Commesse",
+      "count": 313
+    },
+    {
+      "from": "2027",
+      "to": "Commesse",
+      "count": 313
+    },
+    {
+      "from": "Commesse_old",
+      "to": "2021",
+      "count": 182
+    },
+    {
+      "from": "Commesse_old",
+      "to": "2026_old",
+      "count": 78
+    },
+    {
+      "from": "Riepilogo_2026",
+      "to": "2026",
+      "count": 48
+    },
+    {
+      "from": "Riepilogo_2027",
+      "to": "Riepilogo_2026",
+      "count": 3
+    }
+  ]
+}
