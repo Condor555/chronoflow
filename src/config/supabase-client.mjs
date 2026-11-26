@@ -10,30 +10,29 @@ import * as config from '../config.js';
  * dipendenze da export non previsti dalla configurazione baseline.
  */
 export function readSupabaseConfig(source = config) {
+  const rawUrl = source?.SUPABASE_URL;
+  const rawPublishableKey = source?.SUPABASE_PUBLISHABLE_KEY;
   return {
-    url: source.SUPABASE_URL,
-    publishableKey: source.SUPABASE_PUBLISHABLE_KEY
+    url: typeof rawUrl === 'string' ? rawUrl.trim().replace(/\/$/, '') : '',
+    publishableKey: typeof rawPublishableKey === 'string' ? rawPublishableKey.trim() : ''
   };
 }
 
+function isUsableConfig({ url, publishableKey }) {
+  // Le nuove chiavi Supabase `sb_publishable_…` sono opache: non sono JWT e
+  // non devono essere rifiutate in base a prefisso, lunghezza o contenuto.
+  return /^https:\/\/[^\s/]+\.supabase\.co$/i.test(url)
+    && publishableKey.length > 0;
+}
+
 export function hasSupabaseConfig(source = config) {
-  const { url, publishableKey } = readSupabaseConfig(source);
-  if (typeof url !== 'string' || typeof publishableKey !== 'string') return false;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'https:'
-      && Boolean(parsed.hostname)
-      && publishableKey.trim().length > 0
-      && !publishableKey.includes('YOUR_');
-  } catch {
-    return false;
-  }
+  return isUsableConfig(readSupabaseConfig(source));
 }
 
 export function createConfiguredSupabaseClient(source = config, factory = createClient) {
-  if (!hasSupabaseConfig(source)) return null;
-  const { url, publishableKey } = readSupabaseConfig(source);
-  return factory(url, publishableKey, {
+  const normalized = readSupabaseConfig(source);
+  if (!isUsableConfig(normalized)) return null;
+  return factory(normalized.url, normalized.publishableKey, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,

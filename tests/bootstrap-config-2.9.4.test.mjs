@@ -29,15 +29,58 @@ async function createBootstrapFixture() {
   return { root, source };
 }
 
-test('3.0.1 imports with the exact 2.9.4 config contract', async () => {
+test('3.0.2 imports with the exact 2.9.4 config contract', async () => {
   const fixture = await createBootstrapFixture();
   try {
     const moduleUrl = pathToFileURL(join(fixture.root, 'config', 'supabase-client.mjs')).href;
     const client = await import(`${moduleUrl}?bootstrap=${Date.now()}`);
     assert.equal(client.hasSupabaseConfig(), true);
-    assert.equal(client.supabase.url, 'https://chrono-flow-294.supabase.co');
-    assert.equal(client.supabase.key, 'sb_publishable_test_294');
+    assert.equal(client.supabase.url, 'https://xmrvfmtqcsyrtobztzdh.supabase.co');
+    assert.equal(client.supabase.key, 'sb_publishable_v5t7fJK_test_format_294');
     assert.equal(client.supabase.options.auth.persistSession, true);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('real published URL and sb_publishable format create a non-null client', async () => {
+  const fixture = await createBootstrapFixture();
+  try {
+    const moduleUrl = pathToFileURL(join(fixture.root, 'config', 'supabase-client.mjs')).href;
+    const client = await import(`${moduleUrl}?real-values=${Date.now()}`);
+    const realFormat = {
+      SUPABASE_URL: 'https://xmrvfmtqcsyrtobztzdh.supabase.co',
+      SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_example_value'
+    };
+    assert.equal(client.hasSupabaseConfig(realFormat), true);
+    let invocation;
+    const created = client.createConfiguredSupabaseClient(realFormat, (url, key, options) => {
+      invocation = { url, key, options };
+      return { connected: true };
+    });
+    assert.deepEqual(created, { connected: true });
+    assert.equal(invocation.url, realFormat.SUPABASE_URL);
+    assert.equal(invocation.key, realFormat.SUPABASE_PUBLISHABLE_KEY);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('normalization accepts surrounding whitespace and one trailing slash', async () => {
+  const fixture = await createBootstrapFixture();
+  try {
+    const moduleUrl = pathToFileURL(join(fixture.root, 'config', 'supabase-client.mjs')).href;
+    const client = await import(`${moduleUrl}?normalization=${Date.now()}`);
+    const source = {
+      SUPABASE_URL: '  https://xmrvfmtqcsyrtobztzdh.supabase.co/  ',
+      SUPABASE_PUBLISHABLE_KEY: '  sb_publishable_example_value  '
+    };
+    assert.equal(client.hasSupabaseConfig(source), true);
+    const created = client.createConfiguredSupabaseClient(source, (url, key) => ({ url, key }));
+    assert.deepEqual(created, {
+      url: 'https://xmrvfmtqcsyrtobztzdh.supabase.co',
+      key: 'sb_publishable_example_value'
+    });
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }
@@ -48,7 +91,7 @@ test('bootstrap never requests SUPABASE_ANON_KEY', async () => {
   try {
     assert.doesNotMatch(fixture.source, /import\s*\{[^}]*SUPABASE_ANON_KEY/s);
     assert.doesNotMatch(fixture.source, /(?:config|source)\.SUPABASE_ANON_KEY/);
-    assert.match(fixture.source, /source\.SUPABASE_PUBLISHABLE_KEY/);
+    assert.match(fixture.source, /source\?\.SUPABASE_PUBLISHABLE_KEY/);
     assert.match(fixture.source, /import\s+\*\s+as\s+config\s+from\s+['"]\.\.\/config\.js['"]/);
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
