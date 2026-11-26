@@ -1,16 +1,26 @@
-# Sicurezza
+# Sicurezza e privacy
+
+## Confini di accesso
+
+- Nessuna API di condivisione è eseguibile dal ruolo `anon`.
+- Tutte le funzioni usano `auth.uid()` e un `search_path` fissato.
+- I viewer non hanno accesso diretto alla proiezione privata.
+- Il destinatario di un invito deve autenticarsi con la stessa email indicata nell'invito.
+- Disattivazione globale e revoca hanno effetto al successivo accesso; non cancellano lo storico del proprietario.
+- Le funzioni limitano la lettura e la sincronizzazione a 400 giorni per richiesta.
+
+## Dati sensibili
+
+I dati su assenze dettagliate, note e figli sono disattivati per default. Attivarli può rivelare informazioni sanitarie o familiari. Chrono Flow mostra queste opzioni come sensibili e non le abilita automaticamente.
+
+## Chiavi
+
+Nel browser usare esclusivamente la Publishable/Anon Key. Non inserire mai Service Role Key, password del database o token amministrativi in `src/config.js`.
+
+## Revoca
+
+La revoca imposta la membership a `revoked`. La disattivazione dello spazio sospende contemporaneamente tutti i viewer. In entrambi i casi `cf_get_shared_calendar` interrompe la lettura.
 
 ## Segnalazioni
 
-Non pubblicare nei ticket dati personali, backup, password, token o chiavi di servizio. Descrivi il problema usando account e dati di test.
-
-## Regole operative
-
-- Nel frontend è ammessa soltanto la chiave Supabase `anon`/pubblicabile.
-- Non inserire mai la chiave `service_role` nella repository.
-- Non disattivare le Row Level Security di `profiles` e `work_days`.
-- Dopo modifiche allo schema, eseguire `supabase/verify.sql`.
-- Prima di un rilascio, provare la separazione con due account distinti.
-- Aggiornare periodicamente la dipendenza Supabase indicata in `index.html` e rieseguire i test.
-
-La cache offline è salvata nel browser e separata per ID utente, ma un dispositivo condiviso o compromesso può esporre dati locali. Uscire dall’account e adottare le misure del dispositivo appropriate al contesto d’uso.
+Non inserire dati personali reali in issue pubbliche. Per una segnalazione allegare solo passi di riproduzione e dati fittizi.

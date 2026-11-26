@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><title>Chrono Flow · computed style theme test</title><link rel="stylesheet" href="../styles.css"></head>
+<body>
+  <main id="fixture">
+    <span class="mode-pill" data-role="mode-pill"></span>
+    <article class="timer-card" data-role="timer-card"><span data-role="timer-mode-label"></span></article>
+    <button data-home-mode="office">Ufficio</button><button data-home-mode="smart">Casa</button><button data-home-mode="travel">Trasferta</button>
+    <pre id="results" aria-live="polite"></pre>
+  </main>
+  <script type="module">
+    import { applyHomeMode } from '../src/home-display.mjs';
+    const root = document.querySelector('#fixture');
+    const pill = root.querySelector('[data-role="mode-pill"]');
+    const card = root.querySelector('[data-role="timer-card"]');
+    const output = document.querySelector('#results');
+    const rows = [];
+
+    function rgb(value) { return (value.match(/[\d.]+/g) || []).slice(0,3).map(Number); }
+    function luminance(value) {
+      const channels = rgb(value).map((channel) => { const x = channel / 255; return x <= .04045 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; });
+      return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
+    }
+    function contrastRatio(a, b) { const [hi, lo] = [luminance(a), luminance(b)].sort((x,y) => y-x); return (hi + .05) / (lo + .05); }
+    function expectedToken(mode) {
+      const probe = document.createElement('i');
+      probe.style.backgroundColor = `var(--${mode}-card-to)`;
+      root.append(probe);
+      const result = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return result;
+    }
+
+    let failed = false;
+    for (const mode of ['office','smart','travel']) {
+      applyHomeMode(root, mode);
+      const pillStyle = getComputedStyle(pill);
+      const cardStyle = getComputedStyle(card);
+      const expected = expectedToken(mode);
+      const assertions = [
+        ['pill background comes from card palette', pillStyle.backgroundColor === expected],
+        ['pill contrast is WCAG AA', contrastRatio(pillStyle.backgroundColor, pillStyle.color) >= 4.5],
+        ['card keeps its gradient/decorative visual', cardStyle.backgroundImage !== 'none'],
+        ['DOM mode is synchronized', pill.dataset.mode === mode && card.dataset.mode === mode]
+      ];
+      for (const [label, passed] of assertions) { rows.push(`${passed ? 'PASS' : 'FAIL'} · ${mode} · ${label}`); failed ||= !passed; }
+    }
+    output.textContent = rows.join('\n');
+    document.documentElement.dataset.result = failed ? 'failed' : 'passed';
+    if (failed) throw new Error('Home theme computed-style regression');
+  </script>
+</body></html>
