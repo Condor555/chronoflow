@@ -86,7 +86,7 @@ test("home e recuperi hanno aggiornamento immediato", () => {
   assert.match(app, /result\.ordinaryWorkedSeconds/);
 });
 
-test("card timer distingue Ufficio, Casa e Trasferta con testo e contrasto AA", () => {
+test("card timer usa esattamente i colori delle pill per Ufficio, Casa e Trasferta", () => {
   assert.match(html, /id="work-mode-label"/);
   assert.match(html, /id="work-timer-card"[^>]*class="hero-card mode-office"[^>]*data-mode="office"/);
   assert.match(app, /function updateHeroMode/);
@@ -100,10 +100,14 @@ test("card timer distingue Ufficio, Casa e Trasferta con testo e contrasto AA", 
     "home-travel-background", "home-travel-foreground", "home-travel-accent"
   ]) assert.match(css, new RegExp(`--${token}:`));
   for (const mode of ["office", "smart", "travel"]) {
-    assert.match(css, new RegExp(`--home-${mode}-background:\\s*linear-gradient\\([^;]*var\\(--${mode}\\)`));
+    assert.match(css, new RegExp(`--home-${mode}-background:\\s*var\\(--${mode}\\);`));
     assert.match(css, new RegExp(`--home-${mode}-foreground:\\s*var\\(--${mode}-ink\\)`));
     assert.match(css, new RegExp(`--home-${mode}-accent:\\s*var\\(--${mode}-ink\\)`));
   }
+  assert.match(css, /\.type-badge\s*\{[^}]*background:\s*var\(--office\)/);
+  assert.match(css, /\.type-badge\.smart\s*\{[^}]*background:\s*var\(--smart\)/);
+  assert.match(css, /\.type-badge\.travel\s*\{[^}]*background:\s*var\(--travel\)/);
+  assert.match(css, /\.hero-card::after\s*\{\s*content:\s*none;/);
   assert.match(css, /\.hero-card\.mode-office/);
   assert.match(css, /\.hero-card\.mode-smart/);
   assert.match(css, /\.hero-card\.mode-travel/);
@@ -118,17 +122,15 @@ test("card timer distingue Ufficio, Casa e Trasferta con testo e contrasto AA", 
       .map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
     return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
   };
-  for (const [foreground, backgrounds] of [
-    ["#124d7b", ["#d6ecff", "#c4e0f7"]],
-    ["#12624e", ["#d8f4e8", "#c4eadc"]],
-    ["#56389a", ["#ebe2ff", "#ded2fa"]]
+  for (const [foreground, background] of [
+    ["#124d7b", "#d6ecff"],
+    ["#12624e", "#d8f4e8"],
+    ["#56389a", "#ebe2ff"]
   ]) {
-    for (const background of backgrounds) {
-      const lighter = Math.max(luminance(foreground), luminance(background));
-      const darker = Math.min(luminance(foreground), luminance(background));
-      const ratio = (lighter + 0.05) / (darker + 0.05);
-      assert.ok(ratio >= 4.5, `${foreground} su ${background} deve mantenere contrasto AA`);
-    }
+    const lighter = Math.max(luminance(foreground), luminance(background));
+    const darker = Math.min(luminance(foreground), luminance(background));
+    const ratio = (lighter + 0.05) / (darker + 0.05);
+    assert.ok(ratio >= 4.5, `${foreground} su ${background} deve mantenere contrasto AA`);
   }
   assert.match(css, /\.action-stack \.primary[^}]*color:\s*var\(--home-mode-foreground\)[^}]*border-color:\s*var\(--home-mode-foreground\)/);
   assert.match(css, /\.action-stack \.secondary[^}]*color:\s*var\(--home-mode-foreground\)[^}]*border-color:\s*var\(--home-mode-foreground\)/);

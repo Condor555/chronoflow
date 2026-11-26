@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.9.4 — corrispondenza esatta tra pill e card Home
+
+- la grande card del timer usa ora esattamente lo stesso colore pieno della pill superiore: `--office`, `--smart` o `--travel`, senza gradienti, tonalità scure o colori derivati;
+- testo, indicazioni, bordo e controlli continuano a usare il rispettivo colore `*-ink`, con contrasto WCAG AA verificato per tutte e tre le modalità;
+- i test di regressione richiedono ora il collegamento diretto fra token della pill e sfondo della card, impedendo la reintroduzione di gradienti o varianti;
+- nessuna logica di timer, straordinari, giornate, salvataggio o database è stata modificata;
+- cache PWA aggiornata a `chrono-flow-v2.9.4`.
+
 ## 2.9.3 — palette Home coerente con le modalità
 
 - la grande card del timer usa ora la stessa famiglia cromatica della pill superiore: azzurro per Ufficio, verde per Casa/Smart Working e viola per Trasferta;
