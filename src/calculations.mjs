@@ -29,6 +29,26 @@ export const CHILD_LINKED_ABSENCE_TYPES = new Set([
   "paternity_alternative"
 ]);
 
+export const SUNDAY_HOLIDAY_RULES = Object.freeze({
+  ACCRUE_DAY: "accrue_day",
+  ECONOMIC_ONLY: "economic_only",
+  NONE: "none",
+  MANUAL: "manual"
+});
+
+const FIXED_ITALIAN_HOLIDAYS = Object.freeze([
+  [1, 1, "Capodanno"],
+  [1, 6, "Epifania"],
+  [4, 25, "Festa della Liberazione"],
+  [5, 1, "Festa dei lavoratori"],
+  [6, 2, "Festa della Repubblica"],
+  [8, 15, "Ferragosto"],
+  [11, 1, "Ognissanti"],
+  [12, 8, "Immacolata Concezione"],
+  [12, 25, "Natale"],
+  [12, 26, "Santo Stefano"]
+]);
+
 export function clampInt(value, min, max, fallback = min) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed)) return fallback;
@@ -126,6 +146,106 @@ export function isoDateLocal(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function holidayIso(year, month, day) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export function easterSunday(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day, 12);
+}
+
+export function recognizedItalianHolidays(year, localHoliday = null) {
+  const holidays = FIXED_ITALIAN_HOLIDAYS.map(([month, day, name]) => ({
+    date: holidayIso(year, month, day),
+    name,
+    scope: "national"
+  }));
+  const easterMonday = easterSunday(year);
+  easterMonday.setDate(easterMonday.getDate() + 1);
+  holidays.push({ date: isoDateLocal(easterMonday), name: "Lunedì dell’Angelo", scope: "national" });
+
+  const month = Number(localHoliday?.month);
+  const day = Number(localHoliday?.day);
+  const name = String(localHoliday?.name || "").trim();
+  if (name && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+    const candidate = new Date(year, month - 1, day, 12);
+    if (candidate.getFullYear() === year && candidate.getMonth() === month - 1 && candidate.getDate() === day) {
+      holidays.push({ date: holidayIso(year, month, day), name, scope: "local" });
+    }
+  }
+
+  return holidays
+    .filter((holiday, index, all) => index === all.findIndex((item) => item.date === holiday.date))
+    .sort((first, second) => first.date.localeCompare(second.date));
+}
+
+export function sundayHolidays(year, localHoliday = null) {
+  return recognizedItalianHolidays(year, localHoliday).filter((holiday) => {
+    return new Date(`${holiday.date}T12:00:00`).getDay() === 0;
+  });
+}
+
+export function holidayRecoveryBalance({
+  year,
+  rule = SUNDAY_HOLIDAY_RULES.NONE,
+  usedDates = [],
+  adjustment = 0,
+  localHoliday = null,
+  asOf = new Date()
+}) {
+  const normalizedYear = Number(year);
+  const asOfDate = typeof asOf === "string" ? asOf.slice(0, 10) : isoDateLocal(asOf);
+  const recognized = sundayHolidays(normalizedYear, localHoliday);
+  const occurred = recognized.filter((holiday) => holiday.date <= asOfDate);
+  const uniqueUsedDates = [...new Set((usedDates || [])
+    .map((date) => String(date || "").slice(0, 10))
+    .filter((date) => date.startsWith(`${normalizedYear}-`)))].sort();
+  const supportsDayBalance = [SUNDAY_HOLIDAY_RULES.ACCRUE_DAY, SUNDAY_HOLIDAY_RULES.MANUAL].includes(rule);
+  const automaticAccrued = rule === SUNDAY_HOLIDAY_RULES.ACCRUE_DAY ? occurred.length : 0;
+  const correction = supportsDayBalance && Number.isFinite(Number(adjustment))
+    ? Math.trunc(Number(adjustment))
+    : 0;
+  return {
+    year: normalizedYear,
+    rule,
+    recognizedSundays: recognized,
+    occurredSundays: occurred,
+    automaticAccrued,
+    adjustment: correction,
+    accrued: automaticAccrued + correction,
+    used: uniqueUsedDates.length,
+    usedDates: uniqueUsedDates,
+    available: supportsDayBalance ? automaticAccrued + correction - uniqueUsedDates.length : 0
+  };
+}
+
+export function canUseSundayHolidayRecovery(balance, workDate, alreadyUsed = false) {
+  if (alreadyUsed || balance.usedDates.includes(String(workDate || "").slice(0, 10))) {
+    return { allowed: true, reason: "" };
+  }
+  if (![SUNDAY_HOLIDAY_RULES.ACCRUE_DAY, SUNDAY_HOLIDAY_RULES.MANUAL].includes(balance.rule)) {
+    return { allowed: false, reason: "La regola scelta non prevede giornate di recupero." };
+  }
+  if (balance.available <= 0) {
+    return { allowed: false, reason: "Non ci sono giorni di recupero disponibili." };
+  }
+  return { allowed: true, reason: "" };
 }
 
 export function breakForType(profile, type) {

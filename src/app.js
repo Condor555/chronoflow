@@ -5,13 +5,17 @@ import {
   breakForType,
   calculateDay,
   childSicknessEntitlement,
+  canUseSundayHolidayRecovery,
   clampInt,
   eventsFromLocalTimes,
   exitNotificationTime,
   forecastExit,
   formatTime,
+  holidayRecoveryBalance,
   isoDateLocal,
   minutesToDuration,
+  recognizedItalianHolidays,
+  SUNDAY_HOLIDAY_RULES,
   ticketForDay
 } from "./calculations.mjs";
 import { clearMigratedLegacyData, detectLegacyData } from "./migration.mjs";
@@ -41,7 +45,8 @@ const DEFAULT_PROFILE = {
     children: [],
     contract_settings: {
       sunday_holiday_rule: "none",
-      sunday_holiday_allowance: 0
+      sunday_holiday_adjustments: {},
+      local_holiday: null
     }
   }
 };
@@ -55,6 +60,7 @@ const state = {
   calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   summaryMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   childSicknessDays: [],
+  sundayHolidayRecoveryDays: [],
   legacyMigration: null,
   toastTimer: null,
   notificationTimer: null,
@@ -93,13 +99,29 @@ function normalizeDay(day) {
 
 function normalizeFamilySettings(value) {
   const input = value && typeof value === "object" ? value : {};
+  const contractInput = input.contract_settings && typeof input.contract_settings === "object"
+    ? input.contract_settings
+    : {};
+  const legacyRuleMap = { manual_recovery: "manual", custom: "manual" };
+  const normalizedRule = legacyRuleMap[contractInput.sunday_holiday_rule]
+    || contractInput.sunday_holiday_rule
+    || "none";
+  const adjustments = contractInput.sunday_holiday_adjustments && typeof contractInput.sunday_holiday_adjustments === "object"
+    ? { ...contractInput.sunday_holiday_adjustments }
+    : {};
+  const legacyAllowance = clampInt(contractInput.sunday_holiday_allowance, 0, 366, 0);
+  const currentYear = String(new Date().getFullYear());
+  if (legacyAllowance && !adjustments[currentYear]) {
+    adjustments[currentYear] = { days: legacyAllowance, reason: "Saldo riportato dalla versione precedente" };
+  }
   return {
     ...input,
     children: Array.isArray(input.children) ? input.children : [],
     contract_settings: {
-      sunday_holiday_rule: "none",
-      sunday_holiday_allowance: 0,
-      ...(input.contract_settings && typeof input.contract_settings === "object" ? input.contract_settings : {})
+      ...contractInput,
+      sunday_holiday_rule: normalizedRule,
+      sunday_holiday_adjustments: adjustments,
+      local_holiday: contractInput.local_holiday || null
     }
   };
 }
@@ -282,6 +304,48 @@ async function fetchChildSicknessUsage() {
   state.childSicknessDays = data || [];
 }
 
+async function fetchSundayHolidayRecoveryUsage() {
+  const { data, error } = await state.supabase
+    .from("work_days")
+    .select("work_date,absence_type,planned_type,actual_type")
+    .eq("absence_type", "sunday_holiday_recovery")
+    .order("work_date");
+  if (error) throw error;
+  state.sundayHolidayRecoveryDays = data || [];
+}
+
+function syncSundayHolidayRecoveryUsage(day) {
+  state.sundayHolidayRecoveryDays = state.sundayHolidayRecoveryDays.filter((item) => item.work_date !== day.work_date);
+  const effectiveType = day.actual_type || day.planned_type;
+  if (effectiveType === "absence" && day.absence_type === "sunday_holiday_recovery") {
+    state.sundayHolidayRecoveryDays.push({
+      work_date: day.work_date,
+      absence_type: day.absence_type,
+      planned_type: day.planned_type,
+      actual_type: day.actual_type
+    });
+  }
+}
+
+function sundayHolidayContract() {
+  return normalizeFamilySettings(state.profile.family_settings).contract_settings;
+}
+
+function sundayHolidayBalance(year) {
+  const contract = sundayHolidayContract();
+  const adjustment = contract.sunday_holiday_adjustments?.[String(year)]?.days || 0;
+  return holidayRecoveryBalance({
+    year,
+    rule: contract.sunday_holiday_rule,
+    usedDates: state.sundayHolidayRecoveryDays
+      .filter((day) => (day.actual_type || day.planned_type) === "absence")
+      .map((day) => day.work_date),
+    adjustment,
+    localHoliday: contract.local_holiday,
+    asOf: new Date()
+  });
+}
+
 async function fetchMonth(date) {
   const { start, end } = monthBounds(date);
   const { data, error } = await state.supabase
@@ -304,6 +368,7 @@ async function fetchMonth(date) {
 async function saveDay(day, { silent = false } = {}) {
   const normalized = normalizeDay(day);
   state.days.set(normalized.work_date, normalized);
+  syncSundayHolidayRecoveryUsage(normalized);
   persistLocalCache();
   renderCurrentViews();
   updateSyncStatus("Salvataggio…");
@@ -334,6 +399,7 @@ async function saveDay(day, { silent = false } = {}) {
 
 async function deleteDay(date, { silent = false } = {}) {
   state.days.delete(date);
+  state.sundayHolidayRecoveryDays = state.sundayHolidayRecoveryDays.filter((item) => item.work_date !== date);
   persistLocalCache();
   renderCurrentViews();
 
@@ -451,18 +517,25 @@ function toggleAbsenceFields(scope) {
   const times = $(`#${scope}-times-field`);
   if (times) times.hidden = actual === "absence";
   if (!childField.hidden) updateChildPolicyHint(scope);
+  const recoveryHint = $(`#${scope}-sunday-recovery-status`);
+  if (recoveryHint) {
+    const isRecovery = actual === "absence" && absenceType.value === "sunday_holiday_recovery";
+    recoveryHint.hidden = !isRecovery;
+    if (isRecovery) {
+      const workDate = scope === "today" ? isoDateLocal() : $("#day-date").value;
+      const balance = sundayHolidayBalance(Number(workDate.slice(0, 4)));
+      recoveryHint.textContent = `${balance.used} utilizzati · ${balance.available} disponibili nell’anno.`;
+    }
+  }
 }
 
-function sundayHolidayRecoveryError(absenceType) {
+function sundayHolidayRecoveryError(absenceType, workDate) {
   if (absenceType !== "sunday_holiday_recovery") return "";
-  const contract = normalizeFamilySettings(state.profile.family_settings).contract_settings;
-  if (!["manual_recovery", "custom"].includes(contract.sunday_holiday_rule)) {
-    return "La regola contrattuale attuale non prevede una giornata di recupero. Modificala nelle Impostazioni solo se autorizzata dal CCNL o da HR.";
-  }
-  if (clampInt(contract.sunday_holiday_allowance, 0, 30, 0) === 0) {
-    return "Imposta prima il numero di giornate di recupero autorizzate per l’anno.";
-  }
-  return "";
+  const date = workDate || isoDateLocal();
+  const balance = sundayHolidayBalance(Number(date.slice(0, 4)));
+  const existing = state.sundayHolidayRecoveryDays.some((day) => day.work_date === date
+    && (day.actual_type || day.planned_type) === "absence");
+  return canUseSundayHolidayRecovery(balance, date, existing).reason;
 }
 
 function calculationNow(day) {
@@ -618,13 +691,16 @@ function renderCalendar() {
     const day = state.days.get(key);
     const type = day?.actual_type || day?.planned_type;
     const info = DAY_TYPES[type] || null;
+    const holiday = recognizedItalianHolidays(date.getFullYear(), sundayHolidayContract().local_holiday)
+      .find((item) => item.date === key);
     const button = document.createElement("button");
     button.type = "button";
     button.className = "calendar-day";
     button.setAttribute("role", "gridcell");
     if (date.getMonth() !== month.getMonth()) button.classList.add("outside");
     if (key === isoDateLocal()) button.classList.add("today");
-    const label = `${formatLongDate(date)}${info ? `, ${info.label}` : ", nessuna pianificazione"}${day?.events?.length ? ", orari registrati" : ""}`;
+    if (holiday) button.classList.add("recognized-holiday");
+    const label = `${formatLongDate(date)}${holiday ? `, ${holiday.name}` : ""}${info ? `, ${info.label}` : ", nessuna pianificazione"}${day?.events?.length ? ", orari registrati" : ""}`;
     button.setAttribute("aria-label", label);
 
     const number = document.createElement("span");
@@ -643,6 +719,13 @@ function renderCalendar() {
       dot.className = "day-dot";
       dot.setAttribute("aria-hidden", "true");
       button.append(dot);
+    }
+    if (holiday) {
+      const mark = document.createElement("span");
+      mark.className = "holiday-mark";
+      mark.textContent = "Fest.";
+      mark.setAttribute("aria-hidden", "true");
+      button.append(mark);
     }
     button.addEventListener("click", () => openDayDialog(key));
     grid.append(button);
@@ -682,6 +765,55 @@ function openDayDialog(date) {
   $("#day-dialog").showModal();
 }
 
+function recoveryRuleCopy(rule) {
+  if (rule === SUNDAY_HOLIDAY_RULES.ACCRUE_DAY) {
+    return "Chrono Flow aggiunge automaticamente +1 giorno per ogni festività riconosciuta caduta di domenica e già trascorsa.";
+  }
+  if (rule === SUNDAY_HOLIDAY_RULES.ECONOMIC_ONLY) {
+    return "È prevista soltanto la compensazione economica: non vengono creati giorni di recupero.";
+  }
+  if (rule === SUNDAY_HOLIDAY_RULES.MANUAL) {
+    return "Il saldo dipende esclusivamente dalle correzioni manuali registrate nelle Impostazioni.";
+  }
+  return "La regola scelta non prevede giorni di recupero.";
+}
+
+function renderRecoveryBalance(prefix, year) {
+  const balance = sundayHolidayBalance(year);
+  const title = $(`#${prefix}-recovery-title`);
+  if (title) title.textContent = `Recuperi festività · ${year}`;
+  $(`#${prefix}-recovery-copy`).textContent = recoveryRuleCopy(balance.rule);
+  $(`#${prefix}-recovery-accrued`).textContent = String(balance.accrued);
+  $(`#${prefix}-recovery-used`).textContent = String(balance.used);
+  $(`#${prefix}-recovery-available`).textContent = String(balance.available);
+  const adjustment = $(`#${prefix}-recovery-adjustment`);
+  if (adjustment) {
+    adjustment.textContent = balance.adjustment
+      ? `Il totale include una correzione manuale di ${balance.adjustment > 0 ? "+" : ""}${balance.adjustment} giorni.`
+      : "Nessuna correzione manuale applicata.";
+  }
+  const list = $(`#${prefix}-recovery-holidays`);
+  if (list) {
+    list.replaceChildren();
+    if (!balance.recognizedSundays.length) {
+      const item = document.createElement("li");
+      item.textContent = "Nessuna festività riconosciuta cade di domenica in questo anno.";
+      list.append(item);
+    } else {
+      for (const holiday of balance.recognizedSundays) {
+        const item = document.createElement("li");
+        const name = document.createElement("span");
+        name.textContent = `${holiday.name} · ${new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long" }).format(new Date(`${holiday.date}T12:00:00`))}`;
+        const status = document.createElement("span");
+        status.className = "status-chip";
+        status.textContent = holiday.date <= isoDateLocal() ? "Rilevata" : "Futura";
+        item.append(name, status);
+        list.append(item);
+      }
+    }
+  }
+}
+
 function renderSummary() {
   if (!state.user) return;
   const { start, end } = monthBounds(state.summaryMonth);
@@ -706,8 +838,7 @@ function renderSummary() {
     ["Buoni pasto", String(totals.tickets)],
     ["Giornate registrate", String(days.length)],
     ["Smart working", String(totals.smart)],
-    ["Assenze", String(totals.absence)],
-    ["Recuperi festività domenicali", String(totals.absenceTypes.sunday_holiday_recovery || 0)]
+    ["Assenze", String(totals.absence)]
   ];
   $("#summary-cards").replaceChildren(...cards.map(([label, value]) => {
     const card = document.createElement("article");
@@ -761,6 +892,7 @@ function renderSummary() {
     row.append(name, track, value);
     return row;
   }));
+  renderRecoveryBalance("summary", state.summaryMonth.getFullYear());
 }
 
 function renderChildren() {
@@ -849,6 +981,13 @@ function renderNotificationPermissionStatus() {
   }
 }
 
+function fillSundayHolidayAdjustmentFields(year) {
+  const contract = sundayHolidayContract();
+  const adjustment = contract.sunday_holiday_adjustments?.[String(year)] || {};
+  $("#sunday-holiday-adjustment-days").value = String(clampInt(adjustment.days, -366, 366, 0));
+  $("#sunday-holiday-adjustment-reason").value = adjustment.reason || "";
+}
+
 function renderSettings() {
   const profile = state.profile;
   $("#settings-name").value = profile.display_name || "";
@@ -862,8 +1001,15 @@ function renderSettings() {
   $("#ticket-smart").checked = Boolean(profile.ticket_smart);
   $("#ticket-travel").checked = Boolean(profile.ticket_travel);
   const contract = normalizeFamilySettings(profile.family_settings).contract_settings;
-  $("#sunday-holiday-rule").value = contract.sunday_holiday_rule || "none";
-  $("#sunday-holiday-allowance").value = clampInt(contract.sunday_holiday_allowance, 0, 30, 0);
+  const selectedRule = $(`input[name="sunday-holiday-rule"][value="${contract.sunday_holiday_rule || "none"}"]`);
+  if (selectedRule) selectedRule.checked = true;
+  const currentYear = new Date().getFullYear();
+  $("#sunday-holiday-adjustment-year").value = String(currentYear);
+  fillSundayHolidayAdjustmentFields(currentYear);
+  $("#local-holiday-name").value = contract.local_holiday?.name || "";
+  $("#local-holiday-day").value = contract.local_holiday?.day || "";
+  $("#local-holiday-month").value = contract.local_holiday?.month || "";
+  renderRecoveryBalance("settings", currentYear);
   const notification = notificationPreferences();
   $("#exit-notification-enabled").checked = notification.enabled;
   $("#exit-notification-lead").value = String(notification.leadMinutes);
@@ -972,7 +1118,11 @@ async function importLegacyData() {
       state.profile = { ...DEFAULT_PROFILE, ...result.data, family_settings: normalizeFamilySettings(result.data.family_settings) };
     }
 
-    imported.forEach((day) => state.days.set(day.work_date, normalizeDay(day)));
+    imported.forEach((day) => {
+      const normalized = normalizeDay(day);
+      state.days.set(day.work_date, normalized);
+      syncSundayHolidayRecoveryUsage(normalized);
+    });
     persistLocalCache();
     clearMigratedLegacyData(localStorage, migration.sourceKeys);
     localStorage.setItem(migrationMarkerKey(), "completed");
@@ -1008,7 +1158,12 @@ async function loadApplication(user) {
   state.days.clear();
   loadLocalCache();
   try {
-    await Promise.all([fetchProfile(), fetchMonth(state.calendarMonth), fetchChildSicknessUsage()]);
+    await Promise.all([
+      fetchProfile(),
+      fetchMonth(state.calendarMonth),
+      fetchChildSicknessUsage(),
+      fetchSundayHolidayRecoveryUsage()
+    ]);
   } catch (error) {
     if (!state.days.size) {
       showToast(`Non riesco a caricare i dati: ${friendlyError(error)}`);
@@ -1031,6 +1186,7 @@ async function loadApplication(user) {
 function showAuth() {
   state.user = null;
   state.days.clear();
+  state.sundayHolidayRecoveryDays = [];
   state.profile = structuredClone(DEFAULT_PROFILE);
   state.legacyMigration = null;
   if ($("#migration-dialog").open) $("#migration-dialog").close();
@@ -1213,7 +1369,7 @@ function bindEvents() {
     day.planned_type = $("#today-planned-type").value;
     day.actual_type = $("#today-actual-type").value;
     day.absence_type = day.actual_type === "absence" ? $("#today-absence-type").value : null;
-    const absenceError = sundayHolidayRecoveryError(day.absence_type);
+    const absenceError = sundayHolidayRecoveryError(day.absence_type, day.work_date);
     if (absenceError) return showToast(absenceError);
     day.child_id = CHILD_LINKED_ABSENCE_TYPES.has(day.absence_type) ? $("#today-child-id").value || null : null;
     day.ticket_override = day.actual_type === "absence" || $("#today-ticket").value === "auto" ? null : $("#today-ticket").value === "yes";
@@ -1304,7 +1460,7 @@ function bindEvents() {
     day.actual_type = $("#day-actual-type").value || null;
     const effectiveType = day.actual_type || day.planned_type;
     day.absence_type = effectiveType === "absence" ? $("#day-absence-type").value : null;
-    const absenceError = sundayHolidayRecoveryError(day.absence_type);
+    const absenceError = sundayHolidayRecoveryError(day.absence_type, day.work_date);
     if (absenceError) return showToast(absenceError);
     day.child_id = CHILD_LINKED_ABSENCE_TYPES.has(day.absence_type) ? $("#day-child-id").value || null : null;
     day.ticket_override = effectiveType === "absence" || $("#day-ticket").value === "auto" ? null : $("#day-ticket").value === "yes";
@@ -1378,14 +1534,38 @@ function bindEvents() {
     }
   });
 
+  $("#sunday-holiday-adjustment-year").addEventListener("change", (event) => {
+    const year = clampInt(event.target.value, 2000, 2100, new Date().getFullYear());
+    fillSundayHolidayAdjustmentFields(year);
+  });
+
   $("#settings-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!event.currentTarget.reportValidity()) return;
     const familySettings = normalizeFamilySettings(state.profile.family_settings);
-    familySettings.contract_settings = {
-      sunday_holiday_rule: $("#sunday-holiday-rule").value,
-      sunday_holiday_allowance: clampInt($("#sunday-holiday-allowance").value, 0, 30, 0)
+    const adjustmentYear = clampInt($("#sunday-holiday-adjustment-year").value, 2000, 2100, new Date().getFullYear());
+    const adjustmentDays = clampInt($("#sunday-holiday-adjustment-days").value, -366, 366, 0);
+    const adjustmentReason = $("#sunday-holiday-adjustment-reason").value.trim();
+    const adjustments = { ...(familySettings.contract_settings.sunday_holiday_adjustments || {}) };
+    if (adjustmentDays || adjustmentReason) adjustments[String(adjustmentYear)] = { days: adjustmentDays, reason: adjustmentReason };
+    else delete adjustments[String(adjustmentYear)];
+    const localHoliday = {
+      name: $("#local-holiday-name").value.trim(),
+      day: clampInt($("#local-holiday-day").value, 1, 31, 0),
+      month: clampInt($("#local-holiday-month").value, 1, 12, 0)
     };
+    if ((localHoliday.name || localHoliday.day || localHoliday.month)
+      && !(localHoliday.name && localHoliday.day && localHoliday.month)) {
+      showToast("Per aggiungere la festività locale, compila nome, giorno e mese.");
+      return;
+    }
+    familySettings.contract_settings = {
+      ...familySettings.contract_settings,
+      sunday_holiday_rule: $("input[name='sunday-holiday-rule']:checked")?.value || "none",
+      sunday_holiday_adjustments: adjustments,
+      local_holiday: localHoliday.name ? localHoliday : null
+    };
+    delete familySettings.contract_settings.sunday_holiday_allowance;
     saveNotificationPreferences({
       enabled: $("#exit-notification-enabled").checked && "Notification" in window && Notification.permission === "granted",
       leadMinutes: clampInt($("#exit-notification-lead").value, 0, 120, 0)
@@ -1410,6 +1590,8 @@ function bindEvents() {
     state.profile = { ...DEFAULT_PROFILE, ...data, family_settings: normalizeFamilySettings(data.family_settings) };
     renderAccount();
     renderToday();
+    renderSettings();
+    if (!$("#summary-screen").hidden) renderSummary();
     renderNotificationPermissionStatus();
     updateSyncStatus();
     showToast("Impostazioni salvate.");
@@ -1455,6 +1637,7 @@ function bindEvents() {
         const { data, error } = await state.supabase.from("work_days").upsert(payload, { onConflict: "user_id,work_date" }).select();
         if (error) throw error;
         data.forEach((day) => state.days.set(day.work_date, normalizeDay(day)));
+        data.forEach((day) => syncSundayHolidayRecoveryUsage(normalizeDay(day)));
         persistLocalCache();
       }
       renderCurrentViews();

@@ -3,11 +3,17 @@ import assert from "node:assert/strict";
 import {
   calculateDay,
   childSicknessEntitlement,
+  canUseSundayHolidayRecovery,
+  easterSunday,
   eventsFromLocalTimes,
   exitNotificationTime,
   forecastExit,
   formatTime,
+  holidayRecoveryBalance,
   minutesToDuration,
+  recognizedItalianHolidays,
+  sundayHolidays,
+  SUNDAY_HOLIDAY_RULES,
   ticketForDay
 } from "../src/calculations.mjs";
 
@@ -90,4 +96,47 @@ test("ricostruisce gli orari modificati dal calendario", () => {
 test("calcola l'istante di notifica prima dell'uscita", () => {
   const notification = exitNotificationTime(new Date("2026-11-26T17:00:00+01:00"), 10);
   assert.equal(notification.toISOString(), "2026-11-26T15:50:00.000Z");
+});
+
+test("festività: calcola Pasqua e Lunedì dell’Angelo 2026", () => {
+  assert.equal(easterSunday(2026).toISOString().slice(0, 10), "2026-04-05");
+  assert.ok(recognizedItalianHolidays(2026).some((item) => item.date === "2026-04-06"));
+});
+
+test("festività: rileva Ognissanti come festività domenicale 2026", () => {
+  assert.deepEqual(sundayHolidays(2026).map((item) => item.date), ["2026-11-01"]);
+});
+
+test("festività: non duplica il credito se la festa locale coincide con quella nazionale", () => {
+  const holidays = recognizedItalianHolidays(2026, { name: "Festa locale", month: 11, day: 1 });
+  assert.equal(holidays.filter((item) => item.date === "2026-11-01").length, 1);
+});
+
+test("recuperi: matura soltanto quando la festività domenicale è trascorsa", () => {
+  const before = holidayRecoveryBalance({ year: 2026, rule: SUNDAY_HOLIDAY_RULES.ACCRUE_DAY, asOf: "2026-10-31" });
+  const after = holidayRecoveryBalance({ year: 2026, rule: SUNDAY_HOLIDAY_RULES.ACCRUE_DAY, asOf: "2026-11-01" });
+  assert.equal(before.automaticAccrued, 0);
+  assert.equal(after.automaticAccrued, 1);
+});
+
+test("recuperi: utilizzati e correzione aggiornano il disponibile", () => {
+  const balance = holidayRecoveryBalance({
+    year: 2027,
+    rule: SUNDAY_HOLIDAY_RULES.ACCRUE_DAY,
+    usedDates: ["2027-05-02", "2027-05-02"],
+    adjustment: 1,
+    asOf: "2027-12-31"
+  });
+  assert.equal(balance.automaticAccrued, 3);
+  assert.equal(balance.used, 1);
+  assert.equal(balance.available, 3);
+});
+
+test("recuperi: compensazione economica e nessun recupero non creano saldo", () => {
+  for (const rule of [SUNDAY_HOLIDAY_RULES.ECONOMIC_ONLY, SUNDAY_HOLIDAY_RULES.NONE]) {
+    const balance = holidayRecoveryBalance({ year: 2026, rule, adjustment: 8, asOf: "2026-12-31" });
+    assert.equal(balance.accrued, 0);
+    assert.equal(balance.available, 0);
+    assert.equal(canUseSundayHolidayRecovery(balance, "2026-11-10").allowed, false);
+  }
 });

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.4.0 — Recuperi automatici per festività di domenica
+
+- sostituita la precedente configurazione con quattro regole mutuamente esclusive;
+- eliminato il campo principale “Giornate di recupero disponibili nell’anno”;
+- aggiunto il calendario automatico delle festività nazionali italiane e l’eventuale festa locale;
+- aggiunta la maturazione di +1 giorno soltanto dopo ogni festività riconosciuta caduta di domenica;
+- aggiunto il riepilogo annuale **Maturati / Utilizzati / Disponibili** in Impostazioni e Riepilogo;
+- il salvataggio di una giornata come **Recupero festività** scala il saldo e la rimozione della causale lo ripristina;
+- bloccato un nuovo utilizzo quando la regola non prevede recuperi o il saldo è esaurito;
+- aggiunta una correzione annuale secondaria, con motivazione, per crediti precedenti o rettifiche;
+- mantenuta la compatibilità con il saldo manuale della 2.3.0 e con tutte le giornate importate;
+- calendario arricchito con indicatore testuale delle festività, senza affidarsi soltanto al colore;
+- cache PWA aggiornata a `chrono-flow-v2.4.0`;
+- aggiunti 6 test automatici per festività, maturazione e saldo.
+
 ## 2.3.0 — Orari modificabili, assenze contrattuali e notifiche
 
 - scelta rapida **Ufficio / Casa / Trasferta** ripristinata nella home;

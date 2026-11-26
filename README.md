@@ -18,7 +18,8 @@ La versione 2 aggiunge **account personali e salvataggio nel cloud**: ogni utent
 - orario giornaliero, pause, soglia straordinario e ticket configurabili;
 - elenco figli e associazione alle assenze che riguardano il minore;
 - calcolo della malattia bambino per anno di vita/anno solare con giorni esterni o dell’altro genitore;
-- regola contrattuale configurabile per le festività cadute di domenica;
+- una sola regola per le festività cadute di domenica: **matura 1 giorno**, **solo compensazione economica**, **nessun recupero** o **gestione manuale**;
+- rilevamento automatico delle festività riconosciute cadute di domenica, saldo annuale maturati/utilizzati/disponibili e scalo quando usi **Recupero festività**;
 - ticket sempre escluso dalle giornate di assenza;
 - accesso email/password obbligatorio: senza una sessione valida l’app non mostra giornate o impostazioni;
 - sessione persistente sul dispositivo, revocabile con **Esci da questo dispositivo**;
@@ -44,6 +45,16 @@ Browser / PWA
 ```
 
 La chiave `anon` è progettata per essere usata nel browser ed è quindi pubblica. La protezione dipende dalle policy RLS incluse in `supabase/schema.sql`. **Non inserire mai la chiave `service_role` nel sito o nella repository.**
+
+## Aggiornamento dalla 2.3.0 alla 2.4.0
+
+1. Non rieseguire l’importazione privata dell’Excel.
+2. Non serve una nuova query SQL: regola, correzioni annuali e festività locale restano nel campo JSON già protetto del profilo.
+3. Sostituisci nella repository GitHub i file con quelli di questo pacchetto, mantenendo `src/config.js` già configurato.
+4. Esegui il commit e attendi GitHub Pages.
+5. Riapri Chrono Flow e aggiorna la pagina. La cache PWA passa automaticamente a `chrono-flow-v2.4.0`.
+
+Il vecchio valore **Giornate di recupero disponibili nell’anno**, se presente, viene riportato come correzione dell’anno corrente; dopo il primo salvataggio delle impostazioni la vecchia proprietà viene rimossa. Le giornate e i dati importati non vengono modificati.
 
 ## Avvio rapido
 

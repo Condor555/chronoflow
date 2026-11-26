@@ -1,4 +1,4 @@
-const CACHE = "chrono-flow-v2.3.0";
+const CACHE = "chrono-flow-v2.4.0";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -37,6 +37,7 @@ self.addEventListener("fetch", (event) => {
     || url.pathname.endsWith("/index.html")
     || url.pathname.endsWith("/src/config.js")
     || url.pathname.endsWith("/src/app.js")
+    || url.pathname.endsWith("/src/calculations.mjs")
     || url.pathname.endsWith("/src/migration.mjs")
     || url.pathname.endsWith("/sw.js");
 
