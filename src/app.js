@@ -3,7 +3,7 @@ import {
   CHILD_LINKED_ABSENCE_TYPES,
   DAY_TYPES,
   breakForType,
-  calculateDay,
+  calculateDayWithOvertimePolicy,
   childSicknessEntitlement,
   canUseSundayHolidayRecovery,
   clampInt,
@@ -19,6 +19,12 @@ import {
   ticketForDay
 } from "./calculations.mjs";
 import { clearMigratedLegacyData, detectLegacyData } from "./migration.mjs";
+import {
+  installBannerKind,
+  isInstallDismissalActive,
+  isIosDevice,
+  isStandaloneMode
+} from "./pwa-install.mjs";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -43,6 +49,10 @@ const DEFAULT_PROFILE = {
   timezone: "Europe/Rome",
   family_settings: {
     children: [],
+    overtime_settings: {
+      smart: false,
+      travel: false
+    },
     contract_settings: {
       sunday_holiday_rule: "none",
       sunday_holiday_adjustments: {},
@@ -59,12 +69,16 @@ const state = {
   authMode: "login",
   calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   summaryMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  summaryYearDays: [],
+  summaryYearLoaded: null,
+  summaryYearLoading: false,
   childSicknessDays: [],
   sundayHolidayRecoveryDays: [],
   legacyMigration: null,
   toastTimer: null,
   notificationTimer: null,
   notificationTarget: null,
+  deferredInstallPrompt: null,
   undo: null,
   busy: false
 };
@@ -117,6 +131,10 @@ function normalizeFamilySettings(value) {
   return {
     ...input,
     children: Array.isArray(input.children) ? input.children : [],
+    overtime_settings: {
+      smart: input.overtime_settings?.smart === true,
+      travel: input.overtime_settings?.travel === true
+    },
     contract_settings: {
       ...contractInput,
       sunday_holiday_rule: normalizedRule,
@@ -153,6 +171,88 @@ function saveNotificationPreferences(patch) {
   const next = { ...notificationPreferences(), ...patch };
   localStorage.setItem(deviceNotificationKey(), JSON.stringify(next));
   return next;
+}
+
+function overtimeSettings() {
+  return normalizeFamilySettings(state.profile.family_settings).overtime_settings;
+}
+
+function calculateTrackedDay(day, now = new Date()) {
+  const effectiveType = day.actual_type || day.planned_type || "office";
+  return calculateDayWithOvertimePolicy(
+    day.events,
+    state.profile.target_minutes,
+    state.profile.overtime_threshold,
+    effectiveType,
+    overtimeSettings(),
+    now
+  );
+}
+
+const INSTALL_DISMISSAL_KEY = "chrono-flow:pwa-install-dismissed-at";
+
+function installContext() {
+  const displayModeStandalone = window.matchMedia?.("(display-mode: standalone)").matches === true;
+  return {
+    ios: isIosDevice(navigator),
+    standalone: isStandaloneMode({ navigatorLike: navigator, displayModeStandalone }),
+    promptAvailable: Boolean(state.deferredInstallPrompt)
+  };
+}
+
+function hideInstallBanner() {
+  $("#install-banner").hidden = true;
+}
+
+function showInstallBanner({ force = false } = {}) {
+  const context = installContext();
+  const kind = installBannerKind(context);
+  if (!kind) return hideInstallBanner();
+  if (!force && isInstallDismissalActive(localStorage.getItem(INSTALL_DISMISSAL_KEY))) return;
+  const ios = kind === "ios";
+  $("#install-banner-description").textContent = ios
+    ? "Aggiungila alla schermata Home per usarla come app e ricevere le notifiche su iPhone e iPad."
+    : "Installala sul dispositivo per aprirla come app e ricevere le notifiche più facilmente.";
+  $("#install-banner-instructions").hidden = !ios;
+  $("#install-app").textContent = ios ? "Ho capito" : "Installa";
+  $("#dismiss-install-banner").textContent = "Non ora";
+  $("#install-banner").hidden = false;
+}
+
+function dismissInstallBanner() {
+  localStorage.setItem(INSTALL_DISMISSAL_KEY, String(Date.now()));
+  hideInstallBanner();
+}
+
+async function handleInstallAction() {
+  const { ios, standalone } = installContext();
+  if (standalone) return hideInstallBanner();
+  if (ios) return dismissInstallBanner();
+  const prompt = state.deferredInstallPrompt;
+  if (!prompt) return hideInstallBanner();
+  prompt.prompt();
+  await prompt.userChoice.catch(() => null);
+  state.deferredInstallPrompt = null;
+  hideInstallBanner();
+}
+
+function setupInstallExperience() {
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    state.deferredInstallPrompt = event;
+    showInstallBanner();
+  });
+  window.addEventListener("appinstalled", () => {
+    state.deferredInstallPrompt = null;
+    localStorage.removeItem(INSTALL_DISMISSAL_KEY);
+    hideInstallBanner();
+    renderNotificationPermissionStatus();
+    showToast("Chrono Flow è stata installata sul dispositivo.");
+  });
+  window.matchMedia?.("(display-mode: standalone)").addEventListener?.("change", () => {
+    if (installContext().standalone) hideInstallBanner();
+  });
+  if (installContext().ios) showInstallBanner();
 }
 
 function cacheKey() {
@@ -266,6 +366,10 @@ function monthBounds(date) {
   return { start: isoDateLocal(first), end: isoDateLocal(last) };
 }
 
+function yearBounds(year) {
+  return { start: `${year}-01-01`, end: `${year}-12-31` };
+}
+
 function asCloudDay(day) {
   return {
     user_id: state.user.id,
@@ -365,9 +469,44 @@ async function fetchMonth(date) {
   persistLocalCache();
 }
 
+async function fetchSummaryYear(year, { force = false } = {}) {
+  if (!force && state.summaryYearLoaded === year) return;
+  state.summaryYearLoading = true;
+  renderSummary();
+  const { start, end } = yearBounds(year);
+  try {
+    const { data, error } = await state.supabase
+      .from("work_days")
+      .select("*")
+      .gte("work_date", start)
+      .lte("work_date", end)
+      .order("work_date");
+    if (error) throw error;
+    state.summaryYearDays = (data || []).map(normalizeDay);
+    state.summaryYearDays.forEach((day) => state.days.set(day.work_date, day));
+    state.summaryYearLoaded = year;
+    persistLocalCache();
+  } catch (error) {
+    const cached = [...state.days.values()].filter((day) => day.work_date >= start && day.work_date <= end);
+    if (!cached.length) throw error;
+    state.summaryYearDays = cached;
+    state.summaryYearLoaded = year;
+    updateSyncStatus("Offline · riepilogo dai dati salvati");
+  } finally {
+    state.summaryYearLoading = false;
+  }
+}
+
+function syncSummaryYearDay(day) {
+  if (state.summaryYearLoaded !== Number(day.work_date.slice(0, 4))) return;
+  state.summaryYearDays = state.summaryYearDays.filter((item) => item.work_date !== day.work_date);
+  state.summaryYearDays.push(normalizeDay(day));
+}
+
 async function saveDay(day, { silent = false } = {}) {
   const normalized = normalizeDay(day);
   state.days.set(normalized.work_date, normalized);
+  syncSummaryYearDay(normalized);
   syncSundayHolidayRecoveryUsage(normalized);
   persistLocalCache();
   renderCurrentViews();
@@ -392,6 +531,7 @@ async function saveDay(day, { silent = false } = {}) {
   }
 
   state.days.set(data.work_date, normalizeDay(data));
+  syncSummaryYearDay(data);
   persistLocalCache();
   updateSyncStatus();
   return data;
@@ -399,6 +539,9 @@ async function saveDay(day, { silent = false } = {}) {
 
 async function deleteDay(date, { silent = false } = {}) {
   state.days.delete(date);
+  if (state.summaryYearLoaded === Number(date.slice(0, 4))) {
+    state.summaryYearDays = state.summaryYearDays.filter((item) => item.work_date !== date);
+  }
   state.sundayHolidayRecoveryDays = state.sundayHolidayRecoveryDays.filter((item) => item.work_date !== date);
   persistLocalCache();
   renderCurrentViews();
@@ -595,7 +738,7 @@ function renderToday() {
   const date = isoDateLocal(now);
   const day = state.days.get(date) || defaultDay(date);
   const effectiveType = day.actual_type || day.planned_type || "office";
-  const result = calculateDay(day.events, state.profile.target_minutes, state.profile.overtime_threshold, now);
+  const result = calculateTrackedDay(day, now);
   const plannedBreak = breakForType(state.profile, effectiveType);
   const forecast = forecastExit(day.events, state.profile.target_minutes, plannedBreak, now);
   const dayType = DAY_TYPES[effectiveType] || DAY_TYPES.office;
@@ -814,13 +957,56 @@ function renderRecoveryBalance(prefix, year) {
   }
 }
 
+function absenceCountsForDays(days) {
+  const counts = {};
+  for (const day of days) {
+    if ((day.actual_type || day.planned_type) !== "absence") continue;
+    const absenceType = day.absence_type || "leave";
+    counts[absenceType] = (counts[absenceType] || 0) + 1;
+  }
+  return counts;
+}
+
+function renderAbsenceBreakdown(target, counts) {
+  const entries = Object.entries(ABSENCE_TYPES)
+    .map(([key, label]) => [key, label, counts[key] || 0])
+    .filter(([, , count]) => count > 0);
+  if (!entries.length) {
+    const empty = document.createElement("p");
+    empty.className = "field-hint empty-state";
+    empty.textContent = "Nessuna assenza registrata nel periodo.";
+    target.replaceChildren(empty);
+    return;
+  }
+  const maximum = Math.max(...entries.map(([, , count]) => count));
+  target.replaceChildren(...entries.map(([, label, count]) => {
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    const name = document.createElement("span");
+    name.textContent = label;
+    const track = document.createElement("div");
+    track.className = "bar-track";
+    track.setAttribute("role", "img");
+    track.setAttribute("aria-label", `${label}: ${count} giornat${count === 1 ? "a" : "e"}`);
+    const fill = document.createElement("div");
+    fill.className = "bar-fill";
+    fill.style.width = `${(count / maximum) * 100}%`;
+    fill.setAttribute("aria-hidden", "true");
+    track.append(fill);
+    const value = document.createElement("strong");
+    value.textContent = String(count);
+    row.append(name, track, value);
+    return row;
+  }));
+}
+
 function renderSummary() {
   if (!state.user) return;
   const { start, end } = monthBounds(state.summaryMonth);
   const days = [...state.days.values()].filter((day) => day.work_date >= start && day.work_date <= end);
   const totals = { worked: 0, overtime: 0, tickets: 0, office: 0, smart: 0, travel: 0, absence: 0, absenceTypes: {} };
   for (const day of days) {
-    const result = calculateDay(day.events, state.profile.target_minutes, state.profile.overtime_threshold, calculationNow(day));
+    const result = calculateTrackedDay(day, calculationNow(day));
     totals.worked += result.workedMinutes;
     totals.overtime += result.overtimeMinutes;
     totals.tickets += ticketForDay(state.profile, day) ? 1 : 0;
@@ -873,25 +1059,21 @@ function renderSummary() {
     return row;
   }));
 
-  const absenceMaximum = Math.max(1, ...Object.keys(ABSENCE_TYPES).map((key) => totals.absenceTypes[key] || 0));
-  $("#summary-absences").replaceChildren(...Object.entries(ABSENCE_TYPES).map(([key, label]) => {
-    const count = totals.absenceTypes[key] || 0;
-    const row = document.createElement("div");
-    row.className = "bar-row";
-    const name = document.createElement("span");
-    name.textContent = label;
-    const track = document.createElement("div");
-    track.className = "bar-track";
-    const fill = document.createElement("div");
-    fill.className = "bar-fill";
-    fill.style.width = `${(count / absenceMaximum) * 100}%`;
-    fill.setAttribute("aria-hidden", "true");
-    track.append(fill);
-    const value = document.createElement("strong");
-    value.textContent = String(count);
-    row.append(name, track, value);
-    return row;
-  }));
+  renderAbsenceBreakdown($("#summary-month-absences"), totals.absenceTypes);
+  $("#summary-month-absence-count").textContent = `${totals.absence} giornat${totals.absence === 1 ? "a" : "e"}`;
+
+  const selectedYear = state.summaryMonth.getFullYear();
+  const { start: yearStart, end: yearEnd } = yearBounds(selectedYear);
+  const yearDays = state.summaryYearLoaded === selectedYear
+    ? state.summaryYearDays
+    : [...state.days.values()].filter((day) => day.work_date >= yearStart && day.work_date <= yearEnd);
+  const yearAbsences = absenceCountsForDays(yearDays);
+  const yearAbsenceTotal = Object.values(yearAbsences).reduce((total, count) => total + count, 0);
+  renderAbsenceBreakdown($("#summary-year-absences"), yearAbsences);
+  $("#summary-year-absence-count").textContent = state.summaryYearLoading && state.summaryYearLoaded !== selectedYear
+    ? "Caricamento…"
+    : `${yearAbsenceTotal} giornat${yearAbsenceTotal === 1 ? "a" : "e"} nel ${selectedYear}`;
+  $("#summary-year-absence-description").textContent = `Dettaglio per tipologia dal 1 gennaio al 31 dicembre ${selectedYear}.`;
   renderRecoveryBalance("summary", state.summaryMonth.getFullYear());
 }
 
@@ -966,6 +1148,13 @@ function renderChildren() {
 function renderNotificationPermissionStatus() {
   const status = $("#notification-permission-status");
   const button = $("#request-notification-permission");
+  if (installContext().ios && !installContext().standalone) {
+    status.textContent = "Su iPhone e iPad le notifiche sono disponibili quando Chrono Flow viene aperta dalla schermata Home. Tocca Condividi, poi Aggiungi alla schermata Home.";
+    button.textContent = "Come installare Chrono Flow";
+    button.disabled = false;
+    return;
+  }
+  button.textContent = "Consenti notifiche su questo dispositivo";
   if (!("Notification" in window)) {
     status.textContent = "Questo browser non supporta le notifiche web.";
     button.disabled = true;
@@ -997,6 +1186,9 @@ function renderSettings() {
   $("#smart-break").value = profile.smart_break_minutes;
   $("#travel-break").value = profile.travel_break_minutes;
   $("#overtime-threshold").value = profile.overtime_threshold;
+  const overtime = overtimeSettings();
+  $("#overtime-smart").checked = overtime.smart;
+  $("#overtime-travel").checked = overtime.travel;
   $("#ticket-office").checked = Boolean(profile.ticket_office);
   $("#ticket-smart").checked = Boolean(profile.ticket_smart);
   $("#ticket-travel").checked = Boolean(profile.ticket_travel);
@@ -1039,7 +1231,12 @@ function showScreen(name) {
     else button.removeAttribute("aria-current");
   });
   if (name === "calendar") renderCalendar();
-  if (name === "summary") renderSummary();
+  if (name === "summary") {
+    renderSummary();
+    fetchSummaryYear(state.summaryMonth.getFullYear())
+      .then(renderSummary)
+      .catch((error) => showToast(`Riepilogo annuale non disponibile: ${friendlyError(error)}`));
+  }
   if (name === "settings") {
     renderSettings();
     fetchChildSicknessUsage().then(renderChildren).catch(() => {});
@@ -1156,6 +1353,9 @@ function ignoreLegacyMigration() {
 async function loadApplication(user) {
   state.user = user;
   state.days.clear();
+  state.summaryYearDays = [];
+  state.summaryYearLoaded = null;
+  state.summaryYearLoading = false;
   loadLocalCache();
   try {
     await Promise.all([
@@ -1187,6 +1387,9 @@ function showAuth() {
   state.user = null;
   state.days.clear();
   state.sundayHolidayRecoveryDays = [];
+  state.summaryYearDays = [];
+  state.summaryYearLoaded = null;
+  state.summaryYearLoading = false;
   state.profile = structuredClone(DEFAULT_PROFILE);
   state.legacyMigration = null;
   if ($("#migration-dialog").open) $("#migration-dialog").close();
@@ -1267,6 +1470,7 @@ function registerServiceWorker() {
 
 async function initialize() {
   bindEvents();
+  setupInstallExperience();
   if (!configured || !window.supabase?.createClient) {
     $("#loading-view").hidden = true;
     $("#configuration-view").hidden = false;
@@ -1302,6 +1506,9 @@ async function initialize() {
 }
 
 function bindEvents() {
+  $("#install-app").addEventListener("click", handleInstallAction);
+  $("#dismiss-install-banner").addEventListener("click", dismissInstallBanner);
+  $("#close-install-banner").addEventListener("click", dismissInstallBanner);
   $("#show-login").addEventListener("click", () => switchAuthMode("login"));
   $("#show-register").addEventListener("click", () => switchAuthMode("register"));
   $("#auth-form").addEventListener("submit", handleAuthSubmit);
@@ -1346,7 +1553,7 @@ function bindEvents() {
   }));
   $("#primary-action").addEventListener("click", () => {
     const day = state.days.get(isoDateLocal()) || defaultDay(isoDateLocal());
-    const result = calculateDay(day.events, state.profile.target_minutes, state.profile.overtime_threshold, new Date());
+    const result = calculateTrackedDay(day, new Date());
     if (result.state === "not_started") recordAction("entry");
     else if (result.state === "working") recordAction("pause");
     else if (result.state === "paused") recordAction("resume");
@@ -1407,6 +1614,7 @@ function bindEvents() {
       day.planned_type = type;
       changed.push(day);
       state.days.set(date, day);
+      syncSummaryYearDay(day);
     }
     if (!changed.length) {
       showToast("Nell’intervallo non ci sono giorni corrispondenti alla selezione.");
@@ -1498,7 +1706,10 @@ function bindEvents() {
   $("#summary-month").addEventListener("change", async (event) => {
     const [year, month] = event.target.value.split("-").map(Number);
     state.summaryMonth = new Date(year, month - 1, 1);
-    await fetchMonth(state.summaryMonth).catch((error) => showToast(friendlyError(error)));
+    await Promise.all([
+      fetchMonth(state.summaryMonth),
+      fetchSummaryYear(year)
+    ]).catch((error) => showToast(friendlyError(error)));
     renderSummary();
   });
 
@@ -1521,6 +1732,10 @@ function bindEvents() {
   });
 
   $("#request-notification-permission").addEventListener("click", async () => {
+    if (installContext().ios && !installContext().standalone) {
+      showInstallBanner({ force: true });
+      return;
+    }
     if (!("Notification" in window)) return renderNotificationPermissionStatus();
     const permission = await Notification.requestPermission();
     renderNotificationPermissionStatus();
@@ -1564,6 +1779,10 @@ function bindEvents() {
       sunday_holiday_rule: $("input[name='sunday-holiday-rule']:checked")?.value || "none",
       sunday_holiday_adjustments: adjustments,
       local_holiday: localHoliday.name ? localHoliday : null
+    };
+    familySettings.overtime_settings = {
+      smart: $("#overtime-smart").checked,
+      travel: $("#overtime-travel").checked
     };
     delete familySettings.contract_settings.sunday_holiday_allowance;
     saveNotificationPreferences({
@@ -1637,6 +1856,7 @@ function bindEvents() {
         const { data, error } = await state.supabase.from("work_days").upsert(payload, { onConflict: "user_id,work_date" }).select();
         if (error) throw error;
         data.forEach((day) => state.days.set(day.work_date, normalizeDay(day)));
+        data.forEach((day) => syncSummaryYearDay(day));
         data.forEach((day) => syncSundayHolidayRecoveryUsage(normalizeDay(day)));
         persistLocalCache();
       }

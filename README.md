@@ -9,12 +9,14 @@ La versione 2 aggiunge **account personali e salvataggio nel cloud**: ogni utent
 - registrazione rapida di Entrata, Inizia pausa, Termina pausa e Uscita;
 - scelta immediata dalla home tra **Ufficio, Casa e Trasferta**;
 - uscita prevista, ore lavorate e straordinario aggiornati durante la giornata;
+- straordinario in Smart Working e trasferta configurabile separatamente e disattivato di default;
 - notifica opzionale sul dispositivo all’orario di uscita previsto;
 - pianificato ed effettivo separati: Ufficio, Smart Working, Trasferta, Assenza;
 - modifica dal calendario degli orari di ingresso, pausa e uscita;
 - ferie, malattia, malattia bambino, congedo parentale facoltativo, maternità obbligatoria, paternità obbligatoria e alternativa, congedo matrimoniale, recuperi e festività;
 - calendario mensile con stato indicato da colore **e** sigla testuale;
 - riepilogo mensile di ore, straordinario, ticket, tipologia delle giornate e dettaglio di ogni assenza;
+- selettore del mese coerente con l’interfaccia e card espandibili separate per assenze del mese e dell’anno;
 - orario giornaliero, pause, soglia straordinario e ticket configurabili;
 - elenco figli e associazione alle assenze che riguardano il minore;
 - calcolo della malattia bambino per anno di vita/anno solare con giorni esterni o dell’altro genitore;
@@ -28,7 +30,7 @@ La versione 2 aggiunge **account personali e salvataggio nel cloud**: ogni utent
 - annullamento rapido dell’ultima timbratura e del ripristino di una giornata eliminata;
 - esportazione e importazione di backup JSON;
 - migrazione guidata dei dati anonimi creati con l’MVP o con le prime versioni multiutente;
-- PWA installabile su Android/iPhone dopo la pubblicazione HTTPS;
+- banner di installazione PWA con prompt nativo dove disponibile e istruzioni **Condividi → Aggiungi alla schermata Home** su iPhone/iPad;
 - interfaccia rivista per focus visibile, target touch, screen reader e microcopy esplicita.
 
 ## Architettura
@@ -46,15 +48,15 @@ Browser / PWA
 
 La chiave `anon` è progettata per essere usata nel browser ed è quindi pubblica. La protezione dipende dalle policy RLS incluse in `supabase/schema.sql`. **Non inserire mai la chiave `service_role` nel sito o nella repository.**
 
-## Aggiornamento dalla 2.3.0 alla 2.4.0
+## Aggiornamento dalla 2.4.0 alla 2.5.0
 
 1. Non rieseguire l’importazione privata dell’Excel.
-2. Non serve una nuova query SQL: regola, correzioni annuali e festività locale restano nel campo JSON già protetto del profilo.
+2. Non serve una nuova query SQL: le nuove preferenze per lo straordinario restano nel campo JSON già protetto del profilo.
 3. Sostituisci nella repository GitHub i file con quelli di questo pacchetto, mantenendo `src/config.js` già configurato.
 4. Esegui il commit e attendi GitHub Pages.
-5. Riapri Chrono Flow e aggiorna la pagina. La cache PWA passa automaticamente a `chrono-flow-v2.4.0`.
+5. Riapri Chrono Flow e aggiorna la pagina. La cache PWA passa automaticamente a `chrono-flow-v2.5.0`.
 
-Il vecchio valore **Giornate di recupero disponibili nell’anno**, se presente, viene riportato come correzione dell’anno corrente; dopo il primo salvataggio delle impostazioni la vecchia proprietà viene rimossa. Le giornate e i dati importati non vengono modificati.
+Le nuove opzioni **Calcola straordinario in Smart Working** e **Calcola straordinario in trasferta** partono disattivate anche per gli account esistenti. Le giornate, le timbrature e i dati importati non vengono modificati.
 
 ## Avvio rapido
 
@@ -130,7 +132,7 @@ Apri `http://localhost:4173/`, crea due account di prova e verifica che le giorn
 6. Salva e attendi l’indirizzo HTTPS.
 7. Riporta l’indirizzo esatto nelle impostazioni URL di Supabase, come descritto sopra.
 
-La versione 2.3 usa una cache PWA nuova e una strategia *network-first* per shell, configurazione e codice principale. Dopo il primo deploy della patch, apri il sito online e attendi il ricaricamento automatico; se una vecchia PWA era già aperta, chiudila e riaprila una volta.
+Dalla versione 2.3 Chrono Flow usa una strategia *network-first* per shell, configurazione e codice principale. Dopo il deploy apri il sito online e attendi l’eventuale ricaricamento automatico; se una vecchia PWA era già aperta, chiudila e riaprila una volta.
 
 ## Verifica multiutente consigliata
 
@@ -184,6 +186,17 @@ Limitazioni:
 La notifica è una preferenza del singolo dispositivo. Va attivata da **Impostazioni → Notifica dell’uscita** e richiede il consenso del browser. L’orario deriva dalla prima entrata, dalle ore giornaliere e dalla pausa del tipo di presenza scelto; una pausa effettiva più lunga aggiorna la previsione.
 
 Le PWA non dispongono di una pianificazione locale affidabile su ogni sistema operativo quando sono state forzatamente chiuse. Per la migliore affidabilità installa Chrono Flow, consenti le notifiche e lascia che il sistema la mantenga in background. Questa versione non usa un servizio push remoto.
+
+Su iPhone e iPad il browser non espone il normale prompt automatico di installazione. Chrono Flow mostra quindi un banner dedicato con il percorso **Condividi → Aggiungi alla schermata Home**. Il banner non compare quando l’app è già aperta in modalità standalone; se viene chiuso, resta nascosto per sette giorni. Nella sezione notifiche, l’app mostra le stesse istruzioni finché non viene aperta dalla schermata Home.
+
+## Straordinario per tipologia
+
+La soglia straordinario configurata nel profilo continua ad applicarsi sempre alle giornate in ufficio. In **Impostazioni → Profilo lavorativo** sono disponibili due opzioni indipendenti:
+
+- **Calcola straordinario in Smart Working**;
+- **Calcola straordinario in trasferta**.
+
+Entrambe sono disattivate di default. Quando una voce è disattivata, le ore lavorate restano nel totale della giornata ma l’eccedenza non confluisce nello straordinario di oggi né nel riepilogo mensile. Quando viene attivata, si applicano la normale durata giornaliera e la soglia straordinario già impostata.
 
 ## Regole assenze implementate
 

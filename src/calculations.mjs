@@ -123,6 +123,24 @@ export function calculateDay(events = [], targetMinutes = 456, overtimeThreshold
   };
 }
 
+export function overtimeEnabledForType(type = "office", settings = {}) {
+  if (type === "smart") return settings.smart === true;
+  if (type === "travel") return settings.travel === true;
+  return type === "office";
+}
+
+export function calculateDayWithOvertimePolicy(
+  events = [],
+  targetMinutes = 456,
+  overtimeThreshold = 10,
+  type = "office",
+  settings = {},
+  now = new Date()
+) {
+  const result = calculateDay(events, targetMinutes, overtimeThreshold, now);
+  return overtimeEnabledForType(type, settings) ? result : { ...result, overtimeMinutes: 0 };
+}
+
 export function forecastExit(events = [], targetMinutes = 456, plannedBreakMinutes = 30, now = new Date()) {
   const result = calculateDay(events, targetMinutes, 0, now);
   if (!result.firstEntry || result.state === "finished") return result.lastExit;

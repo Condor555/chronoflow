@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   calculateDay,
+  calculateDayWithOvertimePolicy,
   childSicknessEntitlement,
   canUseSundayHolidayRecovery,
   easterSunday,
@@ -11,6 +12,7 @@ import {
   formatTime,
   holidayRecoveryBalance,
   minutesToDuration,
+  overtimeEnabledForType,
   recognizedItalianHolidays,
   sundayHolidays,
   SUNDAY_HOLIDAY_RULES,
@@ -45,6 +47,30 @@ test("applica la soglia allo straordinario", () => {
   ];
   assert.equal(calculateDay(events, 456, 10, new Date(at("15:45"))).overtimeMinutes, 0);
   assert.equal(calculateDay(events, 456, 5, new Date(at("15:45"))).overtimeMinutes, 9);
+});
+
+test("straordinario Smart Working e trasferta disattivato di default", () => {
+  assert.equal(overtimeEnabledForType("office", {}), true);
+  assert.equal(overtimeEnabledForType("smart", {}), false);
+  assert.equal(overtimeEnabledForType("travel", {}), false);
+});
+
+test("straordinario Smart Working e trasferta può essere abilitato separatamente", () => {
+  assert.equal(overtimeEnabledForType("smart", { smart: true, travel: false }), true);
+  assert.equal(overtimeEnabledForType("travel", { smart: true, travel: false }), false);
+  assert.equal(overtimeEnabledForType("travel", { smart: false, travel: true }), true);
+});
+
+test("la policy azzera lo straordinario senza modificare le ore lavorate", () => {
+  const events = [
+    { type: "entry", at: at("08:00") },
+    { type: "exit", at: at("16:00") }
+  ];
+  const disabled = calculateDayWithOvertimePolicy(events, 456, 10, "smart", {}, new Date(at("16:00")));
+  const enabled = calculateDayWithOvertimePolicy(events, 456, 10, "smart", { smart: true }, new Date(at("16:00")));
+  assert.equal(disabled.workedMinutes, 480);
+  assert.equal(disabled.overtimeMinutes, 0);
+  assert.equal(enabled.overtimeMinutes, 24);
 });
 
 test("formatta durate superiori a 24 ore", () => {

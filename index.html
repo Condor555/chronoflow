@@ -16,6 +16,20 @@
 <body>
   <a class="skip-link" href="#main-content">Vai al contenuto</a>
 
+  <aside id="install-banner" class="install-banner" hidden aria-labelledby="install-banner-title" aria-describedby="install-banner-description" aria-live="polite">
+    <button id="close-install-banner" class="install-banner-close" type="button" aria-label="Chiudi il suggerimento di installazione">×</button>
+    <img src="icons/icon.svg" alt="" width="48" height="48">
+    <div class="install-banner-copy">
+      <strong id="install-banner-title">Installa Chrono Flow</strong>
+      <p id="install-banner-description">Aggiungila al dispositivo per usarla come app e ricevere le notifiche.</p>
+      <p id="install-banner-instructions" class="install-instructions" hidden><span aria-hidden="true">□↑</span> Tocca <strong>Condividi</strong>, poi <strong>Aggiungi alla schermata Home</strong>.</p>
+    </div>
+    <div class="install-banner-actions">
+      <button id="install-app" class="button primary" type="button">Installa</button>
+      <button id="dismiss-install-banner" class="button secondary" type="button">Non ora</button>
+    </div>
+  </aside>
+
   <section id="loading-view" class="centered-view" aria-live="polite" aria-label="Caricamento">
     <div class="loading-card">
       <img class="brand-icon" src="icons/icon.svg" alt="" width="72" height="72">
@@ -269,10 +283,10 @@
             <p class="eyebrow">Il tuo mese</p>
             <h1 id="summary-title">Riepilogo</h1>
           </div>
-          <div class="field compact-field">
-            <label for="summary-month">Mese</label>
-            <input id="summary-month" type="month">
-          </div>
+          <label class="month-selector" for="summary-month">
+            <span>Mese del riepilogo</span>
+            <span class="month-selector-control"><span aria-hidden="true">▦</span><input id="summary-month" type="month"></span>
+          </label>
         </div>
         <div id="summary-cards" class="summary-grid"></div>
         <article class="panel recovery-balance" aria-labelledby="summary-recovery-title">
@@ -290,11 +304,20 @@
           <h2>Distribuzione giornate</h2>
           <div id="summary-types" class="bar-list"></div>
         </article>
-        <article class="panel">
-          <h2>Tipi di assenza</h2>
-          <p class="supporting">Il totale è suddiviso per giustificativo, non raccolto in una sola voce.</p>
-          <div id="summary-absences" class="bar-list"></div>
-        </article>
+        <details class="details-card summary-disclosure">
+          <summary><span>Assenze del mese<small id="summary-month-absence-count">0 giornate</small></span></summary>
+          <div class="summary-disclosure-body">
+            <p class="supporting">Dettaglio per tipologia relativo al mese selezionato.</p>
+            <div id="summary-month-absences" class="bar-list"></div>
+          </div>
+        </details>
+        <details class="details-card summary-disclosure">
+          <summary><span>Assenze dell’anno<small id="summary-year-absence-count">0 giornate</small></span></summary>
+          <div class="summary-disclosure-body">
+            <p id="summary-year-absence-description" class="supporting">Dettaglio per tipologia relativo all’anno selezionato.</p>
+            <div id="summary-year-absences" class="bar-list"></div>
+          </div>
+        </details>
       </section>
 
       <section id="settings-screen" class="screen" data-screen="settings" aria-labelledby="settings-title" hidden>
@@ -339,6 +362,12 @@
                 <input id="overtime-threshold" type="number" min="0" max="240" required>
               </div>
             </div>
+             <fieldset class="settings-choice">
+               <legend>Straordinario per tipologia</legend>
+               <p class="field-hint">In ufficio lo straordinario segue sempre la soglia configurata. Per Smart Working e trasferta puoi abilitarlo separatamente.</p>
+               <label class="check-row"><input id="overtime-smart" type="checkbox"> <span>Calcola straordinario in Smart Working</span></label>
+               <label class="check-row"><input id="overtime-travel" type="checkbox"> <span>Calcola straordinario in trasferta</span></label>
+             </fieldset>
           </article>
 
           <article class="panel">

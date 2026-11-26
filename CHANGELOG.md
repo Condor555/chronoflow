@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.5.0 — Installazione guidata e straordinario per tipologia
+
+- aggiunto un banner di installazione PWA: usa il prompt nativo quando il browser lo rende disponibile;
+- aggiunte istruzioni specifiche per iPhone/iPad: **Condividi → Aggiungi alla schermata Home**;
+- il banner non compare in modalità standalone e, se chiuso, resta nascosto per sette giorni;
+- corretta la sezione notifiche su iPhone/iPad: prima dell’installazione spiega come aggiungere Chrono Flow alla schermata Home invece di dichiarare il browser non compatibile;
+- aggiunte le opzioni separate **Calcola straordinario in Smart Working** e **Calcola straordinario in trasferta**;
+- entrambe le opzioni sono disattivate di default e, quando attive, applicano la soglia straordinario esistente;
+- ridisegnato il selettore del mese nel Riepilogo per allinearlo agli altri controlli dell’interfaccia;
+- sostituita la card unica dei tipi di assenza con due card native espandibili: **Assenze del mese** e **Assenze dell’anno**;
+- il riepilogo annuale usa l’anno del mese selezionato e carica tutte le giornate protette dell’account per quel periodo;
+- le preferenze sono salvate nel JSON protetto del profilo, senza migrazioni SQL;
+- cache PWA aggiornata a `chrono-flow-v2.5.0`.
+
 ## 2.4.0 — Recuperi automatici per festività di domenica
 
 - sostituita la precedente configurazione con quattro regole mutuamente esclusive;
