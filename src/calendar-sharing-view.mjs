@@ -36,7 +36,7 @@ function modeBadge(entry) {
   return `<span class="day-badge ${esc(klass)}">${mode ? `<span aria-hidden="true">${mode.icon}</span> ` : ''}${esc(label)}</span>`;
 }
 
-function details(entry) {
+function details(entry = {}) {
   const rows = [];
   if (entry.clock_in || entry.clock_out) rows.push(`Orario ${entry.clock_in || '—'}–${entry.clock_out || '—'}`);
   if (entry.overtime_minutes !== null && entry.overtime_minutes !== undefined) rows.push(`Straordinario ${minutesToDuration(entry.overtime_minutes)}`);

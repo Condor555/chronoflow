@@ -128,7 +128,7 @@ test('bootstrap and cache manifest use only the immutable 3.0.3 client URL', asy
     readProjectFile('src/supabase-client.mjs')
   ]);
 
-  assert.match(indexSource, /src=["']src\/app\.mjs\?v=3\.0\.3["']/);
+  assert.match(indexSource, /src=["']src\/app\.mjs\?v=3\.0\.4["']/);
   assert.match(appSource, /from\s+['"]\.\/supabase-client\.v3\.0\.3\.mjs['"]/);
   assert.doesNotMatch(appSource, /from\s+['"]\.\/supabase-client\.mjs['"]/);
   assert.match(workerSource, /\.\/src\/supabase-client\.v3\.0\.3\.mjs/);

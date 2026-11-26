@@ -1,12 +1,13 @@
-const CACHE = 'chrono-flow-v3.0.3-supabase-module-url';
+const CACHE = 'chrono-flow-v3.0.4-safe-today-loading';
 const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
   './manifest.webmanifest',
-  './src/app.mjs?v=3.0.3',
+  './src/app.mjs?v=3.0.4',
   './src/config.js?v=3.0.3',
   './src/supabase-client.v3.0.3.mjs',
+  './src/today.mjs',
   './src/calendar-date.mjs',
   './src/calendar-privacy.mjs',
   './src/calendar-sharing.mjs',
@@ -23,7 +24,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
     await Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)));
-    if ('navigationPreload' in self.registration) await self.registration.navigationPreload.enable();
+    if ('navigationPreload' in self.registration) {
+      await self.registration.navigationPreload.disable();
+    }
     await self.clients.claim();
   })());
 });
