@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.9.3 — palette Home coerente con le modalità
+
+- la grande card del timer usa ora la stessa famiglia cromatica della pill superiore: azzurro per Ufficio, verde per Casa/Smart Working e viola per Trasferta;
+- colori di sfondo, testo e accento della card derivano direttamente dai token già usati dalle pill, evitando palette parallele incoerenti;
+- testo, indicazioni, bordo e azioni della card mantengono contrasto AA in tutte e tre le modalità;
+- nessuna logica di timer, straordinari, giornate o salvataggio è stata modificata;
+- aggiunti test di regressione sulla corrispondenza tra token pill/card e sul contrasto delle due estremità di ogni gradiente;
+- cache PWA aggiornata a `chrono-flow-v2.9.3`.
+
 ## 2.9.2 — regressione timer Smart e temi Home
 
 - il limite del timer ordinario Smart Working è ora parte del risultato della policy di calcolo, non una sola trasformazione grafica;

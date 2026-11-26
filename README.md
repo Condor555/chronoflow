@@ -63,13 +63,13 @@ Browser / PWA
 
 La chiave `anon` è progettata per essere usata nel browser ed è quindi pubblica. La protezione dipende dalle policy RLS incluse in `supabase/schema.sql`. **Non inserire mai la chiave `service_role` nel sito o nella repository.**
 
-## Aggiornamento dalla 2.9.1 alla 2.9.2
+## Aggiornamento dalla 2.9.2 alla 2.9.3
 
 1. Non rieseguire l’importazione iniziale dei dati.
-2. Non serve una nuova query SQL: questa release aggiorna interfaccia, calcoli e configurazione personale senza modificare lo schema Supabase.
+2. Non serve una nuova query SQL: questa release aggiorna soltanto la palette della card timer e i relativi test, senza modificare schema, calcoli o configurazione personale.
 3. Sostituisci nella repository GitHub i file con quelli di questo pacchetto, mantenendo `src/config.js` già configurato.
 4. Esegui il commit e attendi GitHub Pages.
-5. Chiudi completamente la PWA e riaprila. La cache passa a `chrono-flow-v2.9.2` e aggiorna anche foglio di stile e modulo dei temi Home con strategia network-first.
+5. Chiudi completamente la PWA e riaprila. La cache passa a `chrono-flow-v2.9.3` e aggiorna il foglio di stile con strategia network-first.
 
 Le giornate, le timbrature, i dati importati e le impostazioni già salvate non vengono modificati. Non serve alcuna query SQL: massimali e rettifiche del nuovo bilancio annuale vengono salvati nel JSON protetto del profilo già esistente.
 

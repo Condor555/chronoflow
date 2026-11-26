@@ -22,15 +22,15 @@
   --travel-ink: #56389a;
   --absence: #fff0c7;
   --absence-ink: #775500;
-  --home-office-background: linear-gradient(145deg, #263442 0%, #3b4a59 100%);
-  --home-office-foreground: #ffffff;
-  --home-office-accent: #9fb0c2;
-  --home-smart-background: linear-gradient(145deg, #102a43 0%, #164b59 64%, #0b7773 130%);
-  --home-smart-foreground: #ffffff;
-  --home-smart-accent: #53d6c7;
-  --home-travel-background: linear-gradient(145deg, #123c35 0%, #165548 64%, #0d6658 130%);
-  --home-travel-foreground: #ffffff;
-  --home-travel-accent: #75d5bd;
+  --home-office-background: linear-gradient(145deg, var(--office) 0%, #c4e0f7 100%);
+  --home-office-foreground: var(--office-ink);
+  --home-office-accent: var(--office-ink);
+  --home-smart-background: linear-gradient(145deg, var(--smart) 0%, #c4eadc 100%);
+  --home-smart-foreground: var(--smart-ink);
+  --home-smart-accent: var(--smart-ink);
+  --home-travel-background: linear-gradient(145deg, var(--travel) 0%, #ded2fa 100%);
+  --home-travel-foreground: var(--travel-ink);
+  --home-travel-accent: var(--travel-ink);
   --shadow: 0 14px 38px rgba(16, 42, 67, 0.11);
   --shadow-soft: 0 6px 20px rgba(16, 42, 67, 0.07);
   --radius: 20px;
@@ -158,8 +158,8 @@ main { width: min(100%, 880px); margin: 0 auto; padding: 24px 16px calc(98px + v
 .status-label { margin: 0; font-weight: 730; }
 .hero-time { margin: 8px 0 2px; font-size: clamp(2.6rem, 14vw, 4.8rem); line-height: 1; font-weight: 850; font-variant-numeric: tabular-nums; }
 .action-stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-width: 560px; margin: 24px auto 0; }
-.action-stack .primary { color: var(--primary); background: #fff; }
-.action-stack .secondary { color: #fff; background: transparent; border-color: #a6bed8; }
+.action-stack .primary { color: var(--home-mode-foreground); background: #fff; border-color: var(--home-mode-foreground); }
+.action-stack .secondary { color: var(--home-mode-foreground); background: transparent; border-color: var(--home-mode-foreground); }
 
 .metrics-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
 .metric-card { position: relative; min-width: 0; overflow: hidden; padding: 16px; background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-soft); }

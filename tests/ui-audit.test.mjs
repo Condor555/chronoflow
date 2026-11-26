@@ -99,6 +99,11 @@ test("card timer distingue Ufficio, Casa e Trasferta con testo e contrasto AA", 
     "home-smart-background", "home-smart-foreground", "home-smart-accent",
     "home-travel-background", "home-travel-foreground", "home-travel-accent"
   ]) assert.match(css, new RegExp(`--${token}:`));
+  for (const mode of ["office", "smart", "travel"]) {
+    assert.match(css, new RegExp(`--home-${mode}-background:\\s*linear-gradient\\([^;]*var\\(--${mode}\\)`));
+    assert.match(css, new RegExp(`--home-${mode}-foreground:\\s*var\\(--${mode}-ink\\)`));
+    assert.match(css, new RegExp(`--home-${mode}-accent:\\s*var\\(--${mode}-ink\\)`));
+  }
   assert.match(css, /\.hero-card\.mode-office/);
   assert.match(css, /\.hero-card\.mode-smart/);
   assert.match(css, /\.hero-card\.mode-travel/);
@@ -113,11 +118,20 @@ test("card timer distingue Ufficio, Casa e Trasferta con testo e contrasto AA", 
       .map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
     return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
   };
-  const white = luminance("#ffffff");
-  for (const background of ["#263442", "#3b4a59", "#102a43", "#164b59", "#0b7773", "#123c35", "#165548", "#0d6658"]) {
-    const ratio = (white + 0.05) / (luminance(background) + 0.05);
-    assert.ok(ratio >= 4.5, `${background} deve mantenere contrasto AA con il bianco`);
+  for (const [foreground, backgrounds] of [
+    ["#124d7b", ["#d6ecff", "#c4e0f7"]],
+    ["#12624e", ["#d8f4e8", "#c4eadc"]],
+    ["#56389a", ["#ebe2ff", "#ded2fa"]]
+  ]) {
+    for (const background of backgrounds) {
+      const lighter = Math.max(luminance(foreground), luminance(background));
+      const darker = Math.min(luminance(foreground), luminance(background));
+      const ratio = (lighter + 0.05) / (darker + 0.05);
+      assert.ok(ratio >= 4.5, `${foreground} su ${background} deve mantenere contrasto AA`);
+    }
   }
+  assert.match(css, /\.action-stack \.primary[^}]*color:\s*var\(--home-mode-foreground\)[^}]*border-color:\s*var\(--home-mode-foreground\)/);
+  assert.match(css, /\.action-stack \.secondary[^}]*color:\s*var\(--home-mode-foreground\)[^}]*border-color:\s*var\(--home-mode-foreground\)/);
 });
 
 test("assenze mostrano dati non mappati ed empty state esplicito", () => {
