@@ -135,9 +135,9 @@ function convertMvpDay(workDate, day = {}) {
   const notes = [
     typeof day.notes === "string" ? day.notes.trim() : "",
     day.tripDestination ? `Destinazione trasferta: ${String(day.tripDestination).trim()}` : "",
-    day.absenceType === "publicHoliday" ? "Causale Excel: FESTIVO" : "",
-    day.absenceType === "restRecovery" ? "Causale Excel: REC.RIPOSO" : "",
-    day.absenceType === "recovery" ? "Causale Excel: REC. MAGG. PRES." : ""
+    day.absenceType === "publicHoliday" ? "Causale importata: FESTIVO" : "",
+    day.absenceType === "restRecovery" ? "Causale importata: REC.RIPOSO" : "",
+    day.absenceType === "recovery" ? "Causale importata: REC. MAGG. PRES." : ""
   ].filter(Boolean).join("\n");
 
   return {

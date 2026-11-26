@@ -142,11 +142,11 @@
             <span>Uscita prevista</span>
             <strong id="forecast-value">—</strong>
           </article>
-          <article class="metric-card">
+          <article id="today-overtime-card" class="metric-card">
             <span>Straordinario</span>
             <strong id="overtime-value">0:00</strong>
           </article>
-          <article class="metric-card">
+          <article id="today-ticket-card" class="metric-card">
             <span>Buono pasto</span>
             <strong id="ticket-value">No</strong>
           </article>
@@ -308,8 +308,7 @@
         <nav class="summary-jump-nav" aria-label="Sezioni del riepilogo">
           <a href="#summary-month-section">Mese</a>
           <a href="#summary-balance-section">Saldi</a>
-          <a href="#summary-ledger-section">Causali</a>
-          <a href="#summary-analysis-section">Analisi</a>
+          <a href="#summary-ledger-section">Dettagli</a>
         </nav>
 
         <section id="summary-month-section" class="summary-section" aria-labelledby="summary-period-title">
@@ -321,7 +320,7 @@
             <p id="summary-period-caption" class="section-caption">Valori essenziali e distribuzione delle giornate.</p>
           </div>
           <div id="summary-cards" class="summary-grid"></div>
-          <article class="summary-subpanel" aria-labelledby="summary-distribution-title">
+          <article id="summary-distribution-panel" class="summary-subpanel" aria-labelledby="summary-distribution-title">
             <div class="subpanel-heading">
               <h3 id="summary-distribution-title">Come hai lavorato</h3>
               <span class="status-chip">Giornate del mese</span>
@@ -391,20 +390,68 @@
         <section id="summary-ledger-section" class="summary-section" aria-labelledby="summary-ledger-title">
           <div class="summary-section-heading">
             <div>
-              <p class="eyebrow">Verifica dei conteggi</p>
-              <h2 id="summary-ledger-title">Causali e plafond</h2>
+              <p class="eyebrow">Approfondisci</p>
+              <h2 id="summary-ledger-title">Dettagli e storico</h2>
             </div>
-            <p class="section-caption">Ogni voce resta separata e conserva le proprie date.</p>
+            <p class="section-caption">Apri solo ciò che vuoi verificare: i dati restano completi, ma non affollano la lettura principale.</p>
           </div>
-          <details class="details-card summary-disclosure featured-disclosure" data-disclosure>
-            <summary aria-expanded="false" aria-controls="traceability-panel"><span>Istituti, saldi e giornate<small>Ferie, assenze, congedi, straordinari e buoni pasto</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+
+          <details id="summary-overtime" class="details-card summary-disclosure featured-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="summary-overtime-panel"><span>Straordinario<small>Maturato, compensato e residuo</small></span><span class="summary-disclosure-value" id="summary-overtime-residual">0:00</span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+            <div id="summary-overtime-panel" class="summary-disclosure-body" aria-labelledby="summary-overtime-title">
+              <h3 id="summary-overtime-title" class="sr-only">Dettaglio straordinario</h3>
+              <dl class="reconciliation-metrics" aria-label="Saldo straordinario">
+                <div><dt>Maturato</dt><dd id="summary-overtime-gross">0:00</dd></div>
+                <div><dt>Recuperato / compensato</dt><dd id="summary-overtime-recovered">0:00</dd></div>
+                <div class="reconciliation-total"><dt>Residuo</dt><dd id="summary-overtime-net">0:00</dd></div>
+              </dl>
+              <div class="reconciliation-history">
+                <div><h4>Giornate con straordinario</h4><ul id="summary-overtime-gross-dates" class="history-list"></ul></div>
+                <div><h4>Giornate compensate</h4><ul id="summary-overtime-recovery-dates" class="history-list"></ul></div>
+              </div>
+            </div>
+          </details>
+
+          <details id="summary-meal-vouchers" class="details-card summary-disclosure featured-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="summary-meal-panel"><span>Buoni pasto<small>Competenza, accredito e verifiche storiche</small></span><span class="summary-disclosure-value" id="summary-meal-total">—</span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+            <div id="summary-meal-panel" class="summary-disclosure-body" aria-labelledby="summary-meal-title">
+              <h3 id="summary-meal-title" class="sr-only">Dettaglio buoni pasto</h3>
+              <dl class="reconciliation-metrics meal-reconciliation" aria-label="Dettaglio buoni pasto">
+                <div><dt>Periodo di competenza</dt><dd id="summary-meal-period">—</dd></div>
+                <div class="reconciliation-total"><dt>Buoni pasto</dt><dd id="summary-meal-credited">—</dd></div>
+                <div><dt>Rettifica complessiva</dt><dd id="summary-meal-adjustment">0</dd></div>
+              </dl>
+              <p id="meal-competence-note" class="policy-note"></p>
+              <details class="secondary-history" data-disclosure>
+                <summary aria-expanded="false" aria-controls="summary-meal-history"><span>Verifica tecnica e storico rettifiche</span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+                <div id="summary-meal-history">
+                  <p class="field-hint">Le rettifiche restano applicate ai totali. Le singole date sono mostrate qui soltanto per controllo.</p>
+                  <dl class="technical-metrics">
+                    <div><dt>Maturati nel mese di attività</dt><dd id="summary-meal-earned">0</dd></div>
+                    <div><dt>Rettifica interna sul maturato</dt><dd id="summary-meal-earned-adjustment">0</dd></div>
+                  </dl>
+                  <ul id="summary-meal-adjustment-dates" class="history-list"></ul>
+                </div>
+              </details>
+            </div>
+          </details>
+
+          <details class="details-card summary-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="traceability-panel"><span>Causali e saldi<small>Ferie, assenze e congedi con le relative date</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
             <div id="traceability-panel" class="summary-disclosure-body" aria-labelledby="traceability-title">
               <h3 id="traceability-title" class="sr-only">Tracciabilità annuale</h3>
               <p class="supporting">Apri una causale per vedere le date che compongono il conteggio.</p>
               <div id="traceability-list" class="traceability-list"></div>
             </div>
           </details>
-          <details class="details-card summary-disclosure" data-disclosure>
+          <details id="legacy-history-disclosure" class="details-card summary-disclosure" data-disclosure hidden>
+            <summary aria-expanded="false" aria-controls="legacy-history-panel"><span>Storico / dati da classificare<small>Solo voci importate o non ancora associate</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+            <div id="legacy-history-panel" class="summary-disclosure-body">
+              <p class="supporting">Questi dati restano conservati e non modificano le voci principali del Riepilogo.</p>
+              <div id="legacy-history-list" class="traceability-list"></div>
+            </div>
+          </details>
+          <details id="family-summary-disclosure" class="details-card summary-disclosure" data-disclosure>
             <summary aria-expanded="false" aria-controls="family-limits-panel"><span>Malattia bambino e congedi<small>Massimali, periodi e scadenze per figlio</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
             <div id="family-limits-panel" class="summary-disclosure-body" aria-labelledby="family-limits-title">
               <h3 id="family-limits-title" class="sr-only">Malattia bambino e congedi</h3>
@@ -419,33 +466,20 @@
               <div id="summary-year-absences" class="bar-list"></div>
             </div>
           </details>
-        </section>
-
-        <section id="summary-analysis-section" class="summary-section" aria-labelledby="summary-analysis-title">
-          <div class="summary-section-heading">
-            <div>
-              <p class="eyebrow">Analisi completa</p>
-              <h2 id="summary-analysis-title">Dettaglio Excel</h2>
-            </div>
-            <p class="section-caption">Tutti i valori della versione 2.8.0, disponibili quando servono.</p>
-          </div>
-          <details class="details-card summary-disclosure excel-disclosure" data-disclosure>
-            <summary aria-expanded="false" aria-controls="excel-summary-panel"><span>Dettaglio del mese<small>23 indicatori equivalenti al foglio Excel</small></span><span class="summary-disclosure-meta"><span class="status-chip">Baseline Excel</span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></span></summary>
-            <div id="excel-summary-panel" class="summary-disclosure-body excel-summary" aria-labelledby="excel-summary-title">
-              <h3 id="excel-summary-title" class="sr-only">Dettaglio del mese secondo la logica Excel</h3>
-              <dl id="excel-summary-metrics" class="excel-metric-grid"></dl>
-              <p id="meal-competence-note" class="policy-note"></p>
+          <details class="details-card summary-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="month-detail-panel"><span>Altri dati del mese<small>Indicatori di presenza e assenza</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+            <div id="month-detail-panel" class="summary-disclosure-body month-detail" aria-labelledby="month-detail-title">
+              <h3 id="month-detail-title" class="sr-only">Altri dati del mese</h3>
+              <dl id="month-detail-metrics" class="month-detail-grid"></dl>
             </div>
           </details>
-          <details class="details-card annual-table-disclosure" data-disclosure>
-            <summary aria-expanded="false" aria-controls="annual-monthly-table-panel"><span>Riepilogo mensile dell’anno<small>12 mesi · formule equivalenti al foglio Excel</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+          <details id="annual-history-disclosure" class="details-card annual-table-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="annual-monthly-table-panel"><span>Storico mensile dell’anno<small>12 mesi · valori consolidati</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
             <div id="annual-monthly-table-panel" class="summary-disclosure-body">
               <p class="table-swipe-hint">Scorri orizzontalmente per consultare tutte le colonne.</p>
               <div class="summary-table-scroll" tabindex="0" role="region" aria-label="Tabella riepilogo mensile scorrevole">
                 <table class="annual-monthly-table">
-                  <thead><tr>
-                    <th scope="col">Mese</th><th scope="col">Teorici</th><th scope="col">Ferie</th><th scope="col">Fest. sopp.</th><th scope="col">Rec. riposo</th><th scope="col">Malattia</th><th scope="col">Mal. bambino</th><th scope="col">Cong. parentale</th><th scope="col">Maternità</th><th scope="col">Pat. obbl.</th><th scope="col">Pat. alt.</th><th scope="col">Matrimoniale</th><th scope="col">Obbl. storico</th><th scope="col">Altro storico</th><th scope="col">Effettivi</th><th scope="col">Smart</th><th scope="col">Sabati</th><th scope="col">Buoni maturati</th><th scope="col">Rett. maturati</th><th scope="col">Buoni accredito</th><th scope="col">Rett. accredito</th><th scope="col">Straord.</th><th scope="col">Rec. prest.</th><th scope="col">Straord. netto</th>
-                  </tr></thead>
+                  <thead><tr id="annual-monthly-table-head"></tr></thead>
                   <tbody id="annual-monthly-table-body"></tbody>
                   <tfoot><tr id="annual-monthly-table-total"></tr></tfoot>
                 </table>
@@ -501,18 +535,35 @@
                 <input id="overtime-threshold" type="number" min="0" max="240" required>
               </div>
             </div>
-             <fieldset class="settings-choice">
-               <legend>Straordinario per tipologia</legend>
-               <p class="field-hint">In ufficio lo straordinario segue sempre la soglia configurata. Per Smart Working e trasferta puoi abilitarlo separatamente.</p>
-               <label class="check-row"><input id="overtime-smart" type="checkbox"> <span>Calcola straordinario in Smart Working</span></label>
-               <label class="check-row"><input id="overtime-travel" type="checkbox"> <span>Calcola straordinario in trasferta</span></label>
-             </fieldset>
+            </div>
+          </details>
+
+          <details id="work-mode-settings" class="details-card settings-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="work-mode-settings-panel">
+              <span class="settings-summary-copy"><strong>Modalità di lavoro</strong><small id="work-mode-settings-summary">Luoghi, sabato e straordinario</small></span>
+              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div id="work-mode-settings-panel" class="settings-disclosure-body">
+              <p class="supporting">Attiva solo le modalità che usi. Le scelte filtrano Home, Calendario e Riepilogo senza modificare lo storico.</p>
+              <fieldset class="settings-choice">
+                <legend>Modalità disponibili</legend>
+                <label class="check-row"><input id="mode-office" type="checkbox"> <span>Ufficio</span></label>
+                <label class="check-row"><input id="mode-smart" type="checkbox"> <span>Smart Working</span></label>
+                <label class="check-row"><input id="mode-travel" type="checkbox"> <span>Trasferta</span></label>
+                <label class="check-row"><input id="mode-saturday" type="checkbox"> <span>Sabato lavorativo</span></label>
+              </fieldset>
+              <fieldset class="settings-choice">
+                <legend>Straordinario</legend>
+                <p class="field-hint">In ufficio si applica la soglia del Profilo di lavoro. Smart Working e trasferta si attivano separatamente.</p>
+                <label class="check-row"><input id="overtime-smart" type="checkbox"> <span>Calcola in Smart Working</span></label>
+                <label class="check-row"><input id="overtime-travel" type="checkbox"> <span>Calcola in trasferta</span></label>
+              </fieldset>
             </div>
           </details>
 
           <details id="leave-settings" class="details-card settings-disclosure" data-disclosure>
             <summary aria-expanded="false" aria-controls="leave-settings-panel">
-              <span class="settings-summary-copy"><strong>Ferie e festività soppresse</strong><small id="leave-settings-summary">Spettanze annuali e riporto automatico</small></span>
+              <span class="settings-summary-copy"><strong>Ferie e recuperi</strong><small id="leave-settings-summary">Spettanze annuali e riporto automatico</small></span>
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
             </summary>
             <div id="leave-settings-panel" class="settings-disclosure-body">
@@ -554,11 +605,36 @@
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
             </summary>
             <div id="ticket-settings-panel" class="settings-disclosure-body">
-            <p class="supporting">La baseline Excel prevede il buono per Ufficio, Smart Working e Trasferta. Queste opzioni applicano una rettifica stabile per luogo; la singola giornata può essere corretta esplicitamente.</p>
-            <p class="policy-note"><strong>Esclusioni Excel:</strong> nessun buono automatico per assenze, FESTIVO, festività soppresse, recuperi o sabato lavorativo. Le forzature giornaliere restano visibili come rettifiche nel riepilogo.</p>
+            <p class="supporting">Scegli dove matura automaticamente il buono pasto. La singola giornata può essere corretta senza esporre dettagli tecnici nel Riepilogo principale.</p>
+            <p class="policy-note"><strong>Esclusioni automatiche:</strong> assenze, festività, recuperi e sabato lavorativo. Le correzioni restano conservate nel dettaglio storico dei Buoni pasto.</p>
             <label class="check-row"><input id="ticket-office" type="checkbox"> <span>Spetta in ufficio</span></label>
             <label class="check-row"><input id="ticket-smart" type="checkbox"> <span>Spetta in smart working</span></label>
             <label class="check-row"><input id="ticket-travel" type="checkbox"> <span>Spetta in trasferta</span></label>
+            </div>
+          </details>
+
+          <details id="absence-settings" class="details-card settings-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="absence-settings-panel">
+              <span class="settings-summary-copy"><strong>Altre assenze e congedi</strong><small id="absence-settings-summary">Mostra solo ciò che vuoi monitorare</small></span>
+              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div id="absence-settings-panel" class="settings-disclosure-body">
+              <p class="supporting">Le causali già usate restano sempre nello storico. Qui puoi attivare quelle che vuoi trovare subito in Calendario e nel Riepilogo.</p>
+              <label class="check-row"><input id="feature-sickness" type="checkbox"> <span>Malattia</span></label>
+              <label class="check-row"><input id="feature-marriage" type="checkbox"> <span>Congedo matrimoniale</span></label>
+              <label class="check-row"><input id="feature-performance-recovery" type="checkbox"> <span>Recupero maggiori prestazioni</span></label>
+            </div>
+          </details>
+
+          <details id="summary-preferences" class="details-card settings-disclosure" data-disclosure>
+            <summary aria-expanded="false" aria-controls="summary-preferences-panel">
+              <span class="settings-summary-copy"><strong>Preferenze Riepilogo</strong><small id="summary-preferences-summary">Dettagli e storico su richiesta</small></span>
+              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div id="summary-preferences-panel" class="settings-disclosure-body">
+              <p class="supporting">I dati non vengono cancellati: queste scelte regolano soltanto cosa mostrare.</p>
+              <label class="check-row"><input id="summary-show-distribution" type="checkbox"> <span>Mostra la distribuzione delle giornate</span></label>
+              <label class="check-row"><input id="summary-show-annual-table" type="checkbox"> <span>Mostra lo storico mensile dell’anno</span></label>
             </div>
           </details>
 
@@ -593,6 +669,17 @@
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
             </summary>
             <div id="family-settings-panel" class="settings-disclosure-body">
+            <div class="field parent-role-field">
+              <label for="parental-role">Congedi da mostrare</label>
+              <select id="parental-role">
+                <option value="unspecified">Da configurare</option>
+                <option value="father">Paternità · sono il padre</option>
+                <option value="mother">Maternità · sono la madre</option>
+                <option value="custom">Configurazione personalizzata</option>
+              </select>
+              <p class="field-hint">Serve solo a mostrare gli istituti pertinenti. Chrono Flow non salva il sesso dell’utente.</p>
+            </div>
+            <label id="alternative-paternity-field" class="check-row" hidden><input id="show-paternity-alternative" type="checkbox"> <span>Mostra la paternità alternativa quando applicabile</span></label>
             <p class="supporting">Per ciascun figlio Chrono Flow applica automaticamente la fascia corretta. Fino al 3° compleanno l’assenza segue la durata della malattia e i primi 30 giorni retribuiti si rinnovano per anno di vita, non per anno solare. Dai 3 ai 14 anni il limite è 10 giorni lavorativi per anno solare.</p>
             <p class="supporting">Il congedo parentale facoltativo è associato al figlio e può essere registrato fino ai 14 anni. Il contatore dell’app mostra le giornate inserite, ma i limiti legali in mesi (individuali e di coppia) dipendono anche dalle fruizioni dell’altro genitore e restano da verificare con INPS/Ufficio del Personale.</p>
             <div id="children-list" class="children-list"></div>
@@ -613,11 +700,19 @@
                 <label for="child-event-type">Tipo di evento</label>
                 <select id="child-event-type"><option value="birth">Nascita</option><option value="adoption">Adozione</option><option value="foster">Affidamento</option></select>
               </div>
-              <div class="field">
+              <div id="child-maternity-mode-field" class="field" hidden>
                 <label for="child-maternity-mode">Maternità obbligatoria</label>
                 <select id="child-maternity-mode"><option value="2+3">2+3 · ordinaria</option><option value="1+4">1+4 · flessibile, con certificazione</option><option value="0+5">0+5 · dopo il parto, con certificazione</option></select>
               </div>
-              <label class="check-row"><input id="child-multiple-birth" type="checkbox"> <span>Parto plurimo · paternità obbligatoria 20 giorni</span></label>
+              <label id="child-multiple-birth-field" class="check-row" hidden><input id="child-multiple-birth" type="checkbox"> <span>Parto plurimo · paternità obbligatoria 20 giorni</span></label>
+              <fieldset id="child-institutes-field" class="settings-choice child-institutes-choice">
+                <legend>Istituti da monitorare</legend>
+                <label class="check-row"><input id="child-enable-sickness" type="checkbox" checked> <span>Malattia bambino</span></label>
+                <label class="check-row"><input id="child-enable-parental" type="checkbox"> <span>Congedo parentale</span></label>
+                <label id="child-enable-maternity-field" class="check-row" hidden><input id="child-enable-maternity" type="checkbox"> <span>Maternità obbligatoria</span></label>
+                <label id="child-enable-paternity-field" class="check-row" hidden><input id="child-enable-paternity" type="checkbox"> <span>Paternità obbligatoria</span></label>
+                <label id="child-enable-paternity-alternative-field" class="check-row" hidden><input id="child-enable-paternity-alternative" type="checkbox"> <span>Paternità alternativa</span></label>
+              </fieldset>
               <button id="add-child" class="button secondary" type="button">Aggiungi figlio / evento</button>
             </div>
             </div>

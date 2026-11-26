@@ -49,7 +49,7 @@ const FIXED_ITALIAN_HOLIDAYS = Object.freeze([
   [12, 26, "Santo Stefano"]
 ]);
 
-const EXCEL_ABSENCE_GROUPS = Object.freeze({
+const SUMMARY_ABSENCE_GROUPS = Object.freeze({
   vacation: new Set(["vacation"]),
   suppressedHolidays: new Set(["holiday"]),
   holidayRecovery: new Set(["sunday_holiday_recovery"]),
@@ -457,7 +457,7 @@ export function ticketForDay(profile, day) {
   return profile.ticket_office !== false;
 }
 
-export function excelTicketForDay(day) {
+export function baselineTicketForDay(day) {
   const type = day.actual_type || day.planned_type;
   if (!type || type === "absence" || isWorkingSaturday(day)) return false;
   if (typeof day.ticket_override === "boolean") return day.ticket_override;
@@ -492,7 +492,7 @@ export function theoreticalWorkdays(year, monthIndex, localHoliday = null) {
 function countAbsence(days, set, localHoliday = null) {
   return days.filter((day) => {
     if ((day.actual_type || day.planned_type) !== "absence" || !set.has(day.absence_type)) return false;
-    if (set === EXCEL_ABSENCE_GROUPS.suppressedHolidays) return isSuppressedHolidayDay(day, localHoliday);
+    if (set === SUMMARY_ABSENCE_GROUPS.suppressedHolidays) return isSuppressedHolidayDay(day, localHoliday);
     return true;
   }).length;
 }
@@ -514,13 +514,13 @@ export function workbookMonthlySummary({
   const sourcePrefix = `${sourceDate.getFullYear()}-${String(sourceDate.getMonth() + 1).padStart(2, "0")}`;
   const sourceDays = competenceDays.filter((day) => String(day.work_date || "").startsWith(sourcePrefix));
   const theoretical = theoreticalWorkdays(selectedYear, selectedMonth, localHoliday);
-  const vacation = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.vacation);
-  const suppressedHolidays = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.suppressedHolidays, localHoliday);
-  const holidayRecovery = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.holidayRecovery);
-  const sickness = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.sickness);
-  const childSickness = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.childSickness);
-  const mandatoryLeave = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.mandatoryLeave);
-  const optionalLeave = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.optionalLeave);
+  const vacation = countAbsence(monthDays, SUMMARY_ABSENCE_GROUPS.vacation);
+  const suppressedHolidays = countAbsence(monthDays, SUMMARY_ABSENCE_GROUPS.suppressedHolidays, localHoliday);
+  const holidayRecovery = countAbsence(monthDays, SUMMARY_ABSENCE_GROUPS.holidayRecovery);
+  const sickness = countAbsence(monthDays, SUMMARY_ABSENCE_GROUPS.sickness);
+  const childSickness = countAbsence(monthDays, SUMMARY_ABSENCE_GROUPS.childSickness);
+  const mandatoryLeave = countAbsence(monthDays, SUMMARY_ABSENCE_GROUPS.mandatoryLeave);
+  const optionalLeave = countAbsence(monthDays, SUMMARY_ABSENCE_GROUPS.optionalLeave);
   const parentalLeave = countAbsence(monthDays, new Set(["parental_leave"]));
   const maternityLeave = countAbsence(monthDays, new Set(["maternity_leave"]));
   const paternityMandatory = countAbsence(monthDays, new Set(["paternity_mandatory"]));
@@ -528,25 +528,25 @@ export function workbookMonthlySummary({
   const marriageLeave = countAbsence(monthDays, new Set(["marriage_leave"]));
   const mandatoryHistorical = countAbsence(monthDays, new Set(["mandatory_leave"]));
   const leaveHistorical = countAbsence(monthDays, new Set(["leave"]));
-  const performanceRecoveryDays = countAbsence(monthDays, EXCEL_ABSENCE_GROUPS.performanceRecovery);
+  const performanceRecoveryDays = countAbsence(monthDays, SUMMARY_ABSENCE_GROUPS.performanceRecovery);
   const absencesForEffectiveDays = vacation + suppressedHolidays + holidayRecovery + sickness
     + childSickness + mandatoryLeave + optionalLeave + marriageLeave;
   const overtimeMinutes = monthDays.reduce((total, day) => total + Math.max(0, Number(day.overtime_minutes) || 0), 0);
   const performanceRecoveryMinutes = performanceRecoveryDays * Math.max(0, Number(targetMinutes) || 0);
-  const mealVouchersEarnedBase = monthDays.filter((day) => excelTicketForDay({ ...day, ticket_override: null })).length;
+  const mealVouchersEarnedBase = monthDays.filter((day) => baselineTicketForDay({ ...day, ticket_override: null })).length;
   const mealVouchersEarned = monthDays.filter((day) => ticketForDay(profile, day)).length;
   const sourceTheoretical = theoreticalWorkdays(sourceDate.getFullYear(), sourceDate.getMonth(), localHoliday);
-  const sourceExcluded = countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.vacation)
-    + countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.suppressedHolidays, localHoliday)
-    + countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.holidayRecovery)
-    + countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.sickness)
-    + countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.childSickness)
-    + countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.mandatoryLeave)
-    + countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.optionalLeave)
+  const sourceExcluded = countAbsence(sourceDays, SUMMARY_ABSENCE_GROUPS.vacation)
+    + countAbsence(sourceDays, SUMMARY_ABSENCE_GROUPS.suppressedHolidays, localHoliday)
+    + countAbsence(sourceDays, SUMMARY_ABSENCE_GROUPS.holidayRecovery)
+    + countAbsence(sourceDays, SUMMARY_ABSENCE_GROUPS.sickness)
+    + countAbsence(sourceDays, SUMMARY_ABSENCE_GROUPS.childSickness)
+    + countAbsence(sourceDays, SUMMARY_ABSENCE_GROUPS.mandatoryLeave)
+    + countAbsence(sourceDays, SUMMARY_ABSENCE_GROUPS.optionalLeave)
     + countAbsence(sourceDays, new Set(["marriage_leave"]))
-    + countAbsence(sourceDays, EXCEL_ABSENCE_GROUPS.performanceRecovery);
+    + countAbsence(sourceDays, SUMMARY_ABSENCE_GROUPS.performanceRecovery);
   const sourceNegativeAdjustments = sourceDays.filter((day) => {
-    const baseline = excelTicketForDay({ ...day, ticket_override: null });
+    const baseline = baselineTicketForDay({ ...day, ticket_override: null });
     return baseline && !ticketForDay(profile, day);
   }).length;
   const competenceAvailable = !(selectedYear === 2026 && selectedMonth <= 1);
@@ -682,6 +682,16 @@ export function childSicknessEntitlement(child, onDate = new Date(), usedInApp =
   }
 
   return { eligible: false, reason: "Il figlio ha più di 14 anni" };
+}
+
+export function reconcileChildSicknessDays(days = [], children = []) {
+  const validChildren = Array.isArray(children) ? children.filter((child) => child?.id) : [];
+  return (Array.isArray(days) ? days : []).map((day) => {
+    if (day?.absence_type !== "child_sickness" || day.child_id || !day.work_date) return day;
+    const candidates = validChildren.filter((child) => childSicknessEntitlement(child, day.work_date).eligible);
+    if (candidates.length !== 1) return day;
+    return { ...day, child_id: candidates[0].id, child_link_reconciled: true };
+  });
 }
 
 export function childSicknessPeriodsForYear(child, year) {

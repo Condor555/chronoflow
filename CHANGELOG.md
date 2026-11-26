@@ -1,17 +1,29 @@
 # Changelog
 
+## 2.9.0 — configurazione personale e Riepilogo essenziale
+
+- Impostazioni come sorgente unica di applicabilità per modalità di lavoro, buoni pasto, assenze, famiglia e preferenze del Riepilogo;
+- filtro automatico di Home, Calendario e Riepilogo senza cancellare storico o logiche di calcolo;
+- soli tre KPI principali: ore lavorate, straordinario residuo e buoni pasto di competenza;
+- straordinario accorpato in maturato, recuperato/compensato e residuo, con date su espansione;
+- rettifiche dei buoni pasto preservate nel dettaglio tecnico e rimosse dal livello principale;
+- profilo genitoriale Padre, Madre o Personalizzato e istituti attivabili per ciascun figlio/evento;
+- Malattia bambino limitata al periodo attivo, con periodi scaduti nello storico e riconciliazione non distruttiva dei dati importati non collegati;
+- voci storiche o non classificate visibili solo quando contengono dati reali;
+- interfaccia mobile-first con progressive disclosure, microcopy semplificata e controlli accessibili.
+
 ## 2.8.1 — Riepilogo più chiaro e mobile-first
 
 - nuova architettura del Riepilogo in quattro aree: **Mese**, **Saldi**, **Causali** e **Analisi**;
 - indicatori prioritari del mese messi in primo piano, con giornate e modalità rese più compatte;
 - bilancio ferie e festività mantenuto immediatamente visibile, con recuperi approfondibili su richiesta;
-- causali, plafond famiglia, assenze annuali, dettaglio Excel e tabella dei 12 mesi organizzati in sezioni progressive disclosure;
+- causali, plafond famiglia, assenze annuali, dettaglio completo e tabella dei 12 mesi organizzati in sezioni progressive disclosure;
 - navigazione rapida interna e titoli del periodo aggiornati al mese selezionato;
 - layout ottimizzato per 320–430 px, con metriche leggibili, minore densità visiva e tabella annuale scorrevole;
 - nessuna modifica a formule, saldi, dati Supabase o regole della versione 2.8.0;
 - cache PWA aggiornata a `chrono-flow-v2.8.1`.
 
-## 2.8.0 — Riepilogo Excel, timer affidabile e plafond per evento
+## 2.8.0 — Riepilogo avanzato, timer affidabile e plafond per evento
 
 - replica delle formule di `Riepilogo_2026`/`Riepilogo_2027` con tabella mensile/annuale completa e registro delle date per ogni causale;
 - separazione rigorosa fra `FESTIVO`, festività soppresse, recupero riposo festività e recupero maggiori prestazioni;
@@ -25,11 +37,11 @@
 - paternità obbligatoria per evento (10/20 giorni, finestra −2/+5 mesi) con residuo scaduto conservato;
 - maternità obbligatoria per evento con scelta 2+3, 1+4 o 0+5, periodo, stato e avviso certificazioni;
 - causali di maternità, paternità obbligatoria/alternativa, parentale e matrimoniale mantenute sempre distinte;
-- cache PWA aggiornata a `chrono-flow-v2.8.0` e documentazione formule in `docs/EXCEL_LOGIC.md`.
+- cache PWA aggiornata a `chrono-flow-v2.8.0` e documentazione formule in `docs/CALCULATION_RULES.md`.
 
 ## 2.7.0 — Bilancio annuale ferie e festività
 
-- nuovo bilancio annuale ispirato al foglio Excel con **Ferie anno precedente**, **Ferie anno corrente**, **Festività soppresse**, **Recupero riposo festività** e **Ferie residue**;
+- nuovo bilancio annuale ispirato al modello precedente con **Ferie anno precedente**, **Ferie anno corrente**, **Festività soppresse**, **Recupero riposo festività** e **Ferie residue**;
 - visualizzazione coerente `utilizzati / disponibili`, inclusa la sintesi complessiva delle ferie (per esempio `21 / 24`) e una barra di avanzamento accessibile;
 - riporto delle ferie calcolato automaticamente dal residuo dell’anno precedente, usando le giornate dell’account;
 - nuova card Impostazioni per i massimali annuali di ferie e festività soppresse;

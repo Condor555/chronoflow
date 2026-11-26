@@ -22,8 +22,8 @@ test("MonthSelector Chrono Flow sostituisce i controlli month nativi", () => {
 
 test("tutte le card Impostazioni usano progressive disclosure con riepilogo", () => {
   const expected = [
-    "profile-settings", "leave-settings", "ticket-settings", "notification-settings", "family-settings",
-    "holiday-settings", "security-settings", "data-settings"
+    "profile-settings", "work-mode-settings", "leave-settings", "ticket-settings", "absence-settings",
+    "summary-preferences", "notification-settings", "family-settings", "holiday-settings", "security-settings", "data-settings"
   ];
   for (const id of expected) {
     assert.match(html, new RegExp(`<details id=["']${id}["'][^>]*settings-disclosure`));
@@ -34,7 +34,7 @@ test("tutte le card Impostazioni usano progressive disclosure con riepilogo", ()
   assert.match(html, /id="holiday-settings-summary"/);
 });
 
-test("riepilogo annuale espone massimali, residuo e categorie del foglio Excel", () => {
+test("riepilogo annuale espone massimali, residuo e categorie consolidate", () => {
   for (const id of [
     "annual-vacation-usage", "annual-vacation-remaining", "annual-vacation-previous",
     "annual-vacation-current", "annual-suppressed-holidays", "annual-holiday-recovery"
@@ -46,7 +46,7 @@ test("riepilogo annuale espone massimali, residuo e categorie del foglio Excel",
   assert.match(html, /Recupero riposo festività/);
   assert.match(css, /\.annual-entitlement-list/);
   assert.match(app, /annualLeaveBalanceForYear/);
-  for (const id of ["excel-summary-metrics", "annual-monthly-table-body", "family-limit-metrics", "meal-competence-note"]) {
+  for (const id of ["month-detail-metrics", "annual-monthly-table-body", "family-limit-metrics", "meal-competence-note"]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
   assert.match(html, /Sabati lavorativi|Sabato lavorativo/);
@@ -100,22 +100,43 @@ test("riepilogo tracciabile e impostazioni evento mantengono causali e plafond s
 });
 
 test("riepilogo usa una gerarchia mobile-first e mantiene il dettaglio su richiesta", () => {
-  for (const id of [
-    "summary-month-section", "summary-balance-section", "summary-ledger-section", "summary-analysis-section"
-  ]) {
+  for (const id of ["summary-month-section", "summary-balance-section", "summary-ledger-section"]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
     assert.match(html, new RegExp(`href=["']#${id}["']`));
   }
   for (const panel of [
-    "summary-recovery-panel", "traceability-panel", "family-limits-panel", "excel-summary-panel", "annual-monthly-table-panel"
+    "summary-recovery-panel", "summary-overtime-panel", "summary-meal-panel", "traceability-panel",
+    "legacy-history-panel", "family-limits-panel", "month-detail-panel", "annual-monthly-table-panel"
   ]) {
     assert.match(html, new RegExp(`aria-controls=["']${panel}["']`));
     assert.match(html, new RegExp(`id=["']${panel}["']`));
   }
-  assert.match(html, /Tutti i valori della versione 2\.8\.0/);
+  assert.doesNotMatch(html, /Rett\. maturati|Rett\. accredito|Straordinario lordo maturato|Straordinario netto\/residuo/);
+  assert.match(html, /Maturato, compensato e residuo/);
+  assert.match(html, /Verifica tecnica e storico rettifiche/);
   assert.match(css, /\.summary-jump-nav/);
   assert.match(css, /\.summary-card-primary/);
-  assert.match(css, /\.summary-card-secondary/);
-  assert.match(app, /index < 3 \? "summary-card-primary" : "summary-card-secondary"/);
-  assert.match(app, /summary-period-title/);
+  assert.match(css, /\.reconciliation-metrics/);
+  assert.match(app, /\["Buoni pasto", selected\.mealVouchers/);
+  assert.match(app, /renderReconciliationDetails/);
+});
+
+test("malattia bambino mostra il solo periodo attivo e riconcilia lo storico in modo non distruttivo", () => {
+  assert.match(app, /const activeSickness = childSicknessEntitlement\(child, new Date\(\)\)/);
+  assert.match(app, /reconcileChildSicknessDays\(yearDays, familyChildren\(\)\)/);
+  assert.match(app, /Storico malattia bambino/);
+  assert.doesNotMatch(app, /for \(const period of childSicknessPeriodsForYear\(child, year\)\) \{\s*const days = sorted/);
+});
+
+
+test("Impostazioni governano applicabilità e preferenze senza eliminare lo storico", () => {
+  for (const id of [
+    "mode-office", "mode-smart", "mode-travel", "mode-saturday", "feature-sickness", "feature-marriage",
+    "feature-performance-recovery", "parental-role", "summary-show-distribution", "summary-show-annual-table"
+  ]) assert.match(html, new RegExp(`id=["']${id}["']`));
+  assert.match(app, /function applyApplicabilityToUi\(\)/);
+  assert.match(app, /function childInstitutes\(child\)/);
+  assert.match(app, /absence_features/);
+  assert.match(app, /summary_preferences/);
+  assert.match(app, /causeHasUsage\(type\)/);
 });

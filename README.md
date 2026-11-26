@@ -4,6 +4,12 @@
 
 La versione 2 aggiunge **account personali e salvataggio nel cloud**: ogni utente accede con la propria email e vede esclusivamente le proprie giornate. La separazione è applicata nel database tramite **Row Level Security (RLS)**, non soltanto nell’interfaccia.
 
+## Configurazione personale e Riepilogo
+
+Le Impostazioni determinano quali modalità, causali e istituti sono applicabili al singolo account. Disattivare una voce la rimuove dalle scelte ordinarie e dal Riepilogo, ma non cancella le giornate già salvate. Le voci con utilizzi reali o saldi ancora rilevanti restano consultabili.
+
+Il Riepilogo mostra in primo piano solo ore lavorate, straordinario residuo e buoni pasto. Maturato, compensazioni, rettifiche, date e dati da classificare restano disponibili nei dettagli espandibili. Per Malattia bambino viene mostrato un solo periodo attivo per figlio; i periodi conclusi rimangono nello storico.
+
 ## Funzioni incluse
 
 - registrazione rapida di Entrata, Inizia pausa, Termina pausa e Uscita;
@@ -16,7 +22,7 @@ La versione 2 aggiunge **account personali e salvataggio nel cloud**: ogni utent
 - modifica dal calendario degli orari di ingresso, pausa e uscita;
 - ferie, malattia, malattia bambino, congedo parentale facoltativo, maternità obbligatoria, paternità obbligatoria e alternativa, congedo matrimoniale, recuperi e festività;
 - calendario mensile con stato indicato da colore **e** sigla testuale;
-- riepilogo mensile e annuale equivalente ai fogli `Riepilogo_2026`/`Riepilogo_2027`, con teorici, assenze distinte, effettivi, Smart, sabati lavorativi, ticket maturati/accreditati, rettifiche, straordinario lordo, recuperi e netto;
+- riepilogo mensile e annuale con stato corrente in primo piano e calcoli completi disponibili nei dettagli espandibili;
 - tracciabilità per causale: ogni saldo apre l’elenco delle date che lo compongono, senza accorpare maternità, paternità, congedi o recuperi diversi;
 - bilancio annuale con ferie dell’anno precedente e corrente, festività soppresse, recuperi, residuo e rapporto `utilizzati / disponibili`;
 - MonthSelector Chrono Flow coerente tra Calendario e Riepilogo e card espandibili separate per assenze del mese e dell’anno;
@@ -27,7 +33,7 @@ La versione 2 aggiunge **account personali e salvataggio nel cloud**: ogni utent
 - maternità obbligatoria separata per figlio/evento con modalità configurabile 2+3, 1+4 o 0+5, periodo e certificazioni evidenziati;
 - una sola regola per le festività cadute di domenica: **matura 1 giorno**, **solo compensazione economica**, **nessun recupero** o **gestione manuale**;
 - rilevamento automatico delle festività riconosciute cadute di domenica, saldo annuale maturati/utilizzati/disponibili e scalo quando usi **Recupero festività**;
-- buoni pasto secondo la baseline Excel: Ufficio/Smart/Trasferta per default, esclusione automatica di assenze, recuperi e sabato lavorativo, rettifiche esplicite e competenza differita di due mesi;
+- buoni pasto secondo regole consolidate: Ufficio/Smart/Trasferta per default, esclusione automatica di assenze, recuperi e sabato lavorativo, rettifiche esplicite e competenza differita di due mesi;
 - accesso email/password obbligatorio: senza una sessione valida l’app non mostra giornate o impostazioni;
 - sessione persistente sul dispositivo, revocabile con **Esci da questo dispositivo**;
 - dati sincronizzati tra dispositivi;
@@ -54,21 +60,20 @@ Browser / PWA
 
 La chiave `anon` è progettata per essere usata nel browser ed è quindi pubblica. La protezione dipende dalle policy RLS incluse in `supabase/schema.sql`. **Non inserire mai la chiave `service_role` nel sito o nella repository.**
 
-## Aggiornamento dalla 2.8.0 alla 2.8.1
+## Aggiornamento dalla 2.8.1 alla 2.9.0
 
-1. Non rieseguire l’importazione privata dell’Excel.
-2. Non serve una nuova query SQL: questa release ripulisce esclusivamente l’interfaccia del Riepilogo senza modificare lo schema Supabase o le formule della 2.8.0.
+1. Non rieseguire l’importazione iniziale dei dati.
+2. Non serve una nuova query SQL: questa release aggiorna interfaccia e configurazione personale senza modificare lo schema Supabase o i totali consolidati.
 3. Sostituisci nella repository GitHub i file con quelli di questo pacchetto, mantenendo `src/config.js` già configurato.
 4. Esegui il commit e attendi GitHub Pages.
-5. Riapri Chrono Flow e aggiorna la pagina. La cache PWA passa automaticamente a `chrono-flow-v2.8.1`.
+5. Riapri Chrono Flow e aggiorna la pagina. La cache PWA passa automaticamente a `chrono-flow-v2.9.0`.
 
 Le giornate, le timbrature, i dati importati e le impostazioni già salvate non vengono modificati. Non serve alcuna query SQL: massimali e rettifiche del nuovo bilancio annuale vengono salvati nel JSON protetto del profilo già esistente.
 
-Le nuove informazioni per figlio/evento (data presunta, tipo evento, parto plurimo e modalità maternità) sono salvate nello stesso `family_settings` JSON già presente nel profilo. I record storici senza `child_id` restano visibili nella voce “non collegato” e non vengono attribuiti automaticamente a un figlio.
+Le nuove informazioni per figlio/evento (data presunta, tipo evento, parto plurimo e modalità maternità) sono salvate nello stesso `family_settings` JSON già presente nel profilo. I record storici senza `child_id` non vengono modificati: in lettura, Chrono Flow li riconcilia con un figlio soltanto quando data e fascia di età identificano un unico candidato; i casi ambigui restano nei dati da classificare.
 
-La mappa delle formule replicate è in `docs/EXCEL_LOGIC.md`; l’inventario completo delle 12.906 formule è in `docs/excel-formula-inventory.csv` e la struttura dei fogli/riferimenti è in `docs/excel-workbook-structure.json`.
 
-Al primo avvio i massimali predefiniti sono **20 giorni di ferie dell’anno corrente** e **4 festività soppresse**. In **Impostazioni → Ferie e festività soppresse** puoi configurarli per ogni anno. Il riporto è automatico; la rettifica opzionale serve soltanto quando il saldo iniziale comunicato dall’azienda differisce dal calcolo basato sulle giornate registrate.
+Al primo avvio i massimali predefiniti sono **20 giorni di ferie dell’anno corrente** e **4 festività soppresse**. In **Impostazioni → Ferie e recuperi** puoi configurarli per ogni anno. Il riporto è automatico; la rettifica opzionale serve soltanto quando il saldo iniziale comunicato dall’azienda differisce dal calcolo basato sulle giornate registrate.
 
 ## Avvio rapido
 

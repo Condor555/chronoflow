@@ -10,6 +10,7 @@ import {
   annualLeaveBalance,
   childSicknessEntitlement,
   childSicknessPeriodsForYear,
+  reconcileChildSicknessDays,
   canUseSundayHolidayRecovery,
   easterSunday,
   eventsFromLocalTimes,
@@ -259,7 +260,7 @@ test("recuperi: compensazione economica e nessun recupero non creano saldo", () 
 });
 
 
-test("pausa predefinita Excel: viene sottratta se non esiste una pausa manuale", () => {
+test("pausa predefinita consolidato: viene sottratta se non esiste una pausa manuale", () => {
   const office = calculateDayWithBreakPolicy(
     [{ type: "entry", at: at("08:35") }, { type: "exit", at: at("16:41") }],
     456, 10, 30, new Date(at("16:41"))
@@ -313,7 +314,7 @@ test("sabato lavorativo: nessun ticket automatico, ma la forzatura resta esplici
   assert.equal(isWorkingSaturday({ ...saturday, work_date: "2026-11-27" }), false);
 });
 
-test("ticket Excel: ufficio, smart, trasferta e giornata incompleta maturano per default", () => {
+test("ticket consolidato: ufficio, smart, trasferta e giornata incompleta maturano per default", () => {
   const profile = { ticket_office: true, ticket_smart: true, ticket_travel: true };
   for (const type of ["office", "smart", "travel"]) {
     assert.equal(ticketForDay(profile, { work_date: "2026-11-27", planned_type: type, events: [] }), true);
@@ -321,7 +322,7 @@ test("ticket Excel: ufficio, smart, trasferta e giornata incompleta maturano per
   assert.equal(ticketForDay(profile, { work_date: "2026-11-27", planned_type: "absence", absence_type: "vacation" }), false);
 });
 
-test("festività soppresse: FESTIVO nazionale non viene mescolato alla causale Excel", () => {
+test("festività soppresse: FESTIVO nazionale non viene mescolato alla causale consolidato", () => {
   assert.equal(isSuppressedHolidayDay({ work_date: "2026-01-01", actual_type: "absence", absence_type: "holiday" }), false);
   assert.equal(isSuppressedHolidayDay({ work_date: "2026-01-07", actual_type: "absence", absence_type: "holiday" }), true);
   const days = [
@@ -335,7 +336,7 @@ test("festività soppresse: FESTIVO nazionale non viene mescolato alla causale E
   assert.equal(annualLeaveBalance({ year: 2026, days }).suppressedHolidays.used, 4);
 });
 
-test("riepilogo Excel 2026: competenza -2 mesi, rettifiche e recupero maggiori prestazioni", () => {
+test("riepilogo consolidato 2026: competenza -2 mesi, rettifiche e recupero maggiori prestazioni", () => {
   const jan = [
     { work_date: "2026-01-07", actual_type: "absence", absence_type: "vacation" },
     ...["08", "09", "12", "13"].map((day) => ({ work_date: `2026-01-${day}`, actual_type: "absence", absence_type: "holiday" })),
@@ -470,4 +471,59 @@ test("maternità obbligatoria: la data reale aggiorna il termine senza creare un
   assert.equal(updated.windowEnd, "2027-04-10");
   assert.equal(updated.status, "active");
   assert.equal(updated.usedDays, 40);
+});
+
+
+test("malattia bambino mostra il solo periodo vigente ai confini dei primi tre compleanni", () => {
+  const child = { id: "elena", birth_date: "2025-11-30" };
+  const beforeFirst = childSicknessEntitlement(child, "2026-11-29");
+  const firstBirthday = childSicknessEntitlement(child, "2026-11-30");
+  const secondBirthday = childSicknessEntitlement(child, "2027-11-30");
+  const thirdBirthday = childSicknessEntitlement(child, "2028-11-30");
+  assert.equal(beforeFirst.lifeYear, 1);
+  assert.equal(beforeFirst.periodEnd, "2026-11-29");
+  assert.equal(firstBirthday.lifeYear, 2);
+  assert.equal(firstBirthday.periodStart, "2026-11-30");
+  assert.equal(secondBirthday.lifeYear, 3);
+  assert.equal(secondBirthday.periodStart, "2027-11-30");
+  assert.equal(thirdBirthday.tier, "three_to_fourteen");
+  assert.equal(thirdBirthday.periodStart, "2028-11-30");
+  assert.equal(thirdBirthday.totalDaysLimit, 10);
+});
+
+test("riconcilia lo storico malattia bambino non collegato solo con un figlio compatibile", () => {
+  const children = [{ id: "elena", birth_date: "2025-11-30" }];
+  const days = Array.from({ length: 7 }, (_, index) => ({
+    work_date: `2026-0${index < 4 ? 7 : 8}-${String((index % 4) + 1).padStart(2, "0")}`,
+    actual_type: "absence",
+    absence_type: "child_sickness",
+    child_id: null
+  }));
+  const reconciled = reconcileChildSicknessDays(days, children);
+  assert.equal(reconciled.filter((day) => day.child_id === "elena").length, 7);
+  assert.equal(reconciled.filter((day) => day.child_link_reconciled).length, 7);
+  const active = childSicknessEntitlement(children[0], "2026-11-26", reconciled.length);
+  assert.equal(active.lifeYear, 1);
+  assert.equal(active.usedDays, 7);
+  assert.equal(active.remainingPaidDays, 23);
+});
+
+test("non riconcilia automaticamente quando più figli sono compatibili", () => {
+  const days = [{ work_date: "2026-07-01", actual_type: "absence", absence_type: "child_sickness", child_id: null }];
+  const children = [
+    { id: "a", birth_date: "2025-11-30" },
+    { id: "b", birth_date: "2025-12-15" }
+  ];
+  const [day] = reconcileChildSicknessDays(days, children);
+  assert.equal(day.child_id, null);
+  assert.equal(day.child_link_reconciled, undefined);
+});
+
+test("più figli mantengono periodi attivi e saldi indipendenti", () => {
+  const elena = childSicknessEntitlement({ id: "elena", birth_date: "2025-11-30" }, "2026-11-26", 7);
+  const marco = childSicknessEntitlement({ id: "marco", birth_date: "2024-06-10" }, "2026-11-26", 2);
+  assert.equal(elena.lifeYear, 1);
+  assert.equal(elena.remainingPaidDays, 23);
+  assert.equal(marco.lifeYear, 3);
+  assert.equal(marco.remainingPaidDays, 28);
 });
