@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#123b66">
+  <meta name="description" content="Orari Mobile: presenze, smart working, assenze, straordinari e ticket.">
+  <title>Orari Mobile</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">OM</span>
+      <div><strong>Orari Mobile</strong><small id="headerProfile">Profilo 7:36</small></div>
+    </div>
+    <div class="header-actions">
+      <span id="networkBadge" class="network-badge"><i></i><span>Online</span></span>
+      <button id="installButton" class="icon-button" type="button" hidden aria-label="Installa l'app">↓</button>
+    </div>
+  </header>
+
+  <main id="appMain">
+    <section id="view-today" class="view active" aria-labelledby="todayTitle">
+      <div class="hero-card">
+        <div>
+          <p class="eyebrow">OGGI</p>
+          <h1 id="todayTitle">—</h1>
+          <p id="todayStatus" class="muted">Nessuna attività registrata</p>
+        </div>
+        <button id="editToday" class="secondary-button" type="button">Modifica</button>
+      </div>
+
+      <section class="card" aria-labelledby="modeTitle">
+        <div class="section-heading">
+          <div><p class="eyebrow">MODALITÀ EFFETTIVA</p><h2 id="modeTitle">Dove lavori?</h2></div>
+          <span id="plannedBadge" class="pill neutral">Non pianificato</span>
+        </div>
+        <div class="segmented three" role="group" aria-label="Modalità di lavoro">
+          <button type="button" class="mode-button" data-mode="office"><span>🏢</span>Ufficio</button>
+          <button type="button" class="mode-button" data-mode="smart"><span>⌂</span>Smart</button>
+          <button type="button" class="mode-button" data-mode="travel"><span>✈</span>Trasferta</button>
+        </div>
+      </section>
+
+      <div class="metric-grid">
+        <article class="metric-card accent"><span>Uscita prevista</span><strong id="expectedExit">—</strong><small id="expectedHint">Registra l’ingresso</small></article>
+        <article class="metric-card"><span>Ore lavorate</span><strong id="workedTime">0h 00m</strong><small id="workedHint">su 7h 36m</small></article>
+        <article class="metric-card"><span>Straordinario</span><strong id="overtimeTime">0h 00m</strong><small id="overtimeHint">soglia 10 min</small></article>
+        <article class="metric-card"><span>Buono pasto</span><strong id="ticketValue">—</strong><small id="ticketHint">alla chiusura</small></article>
+      </div>
+
+      <section class="card action-card" aria-labelledby="actionsTitle">
+        <div class="section-heading"><h2 id="actionsTitle">Azioni rapide</h2><span id="liveClock" class="mono">—</span></div>
+        <div class="primary-actions">
+          <button id="checkInButton" class="primary-button big" type="button">Registra ingresso</button>
+          <button id="breakButton" class="secondary-button big" type="button" disabled>Inizia pausa</button>
+          <button id="checkOutButton" class="danger-button big" type="button" disabled>Registra uscita</button>
+        </div>
+        <p class="privacy-note">I dati restano su questo dispositivo. Esporta periodicamente un backup dalle Impostazioni.</p>
+      </section>
+
+      <section class="card" aria-labelledby="timelineTitle">
+        <div class="section-heading"><h2 id="timelineTitle">Giornata</h2><button id="clearToday" type="button" class="text-button danger-text">Azzera</button></div>
+        <ol id="todayTimeline" class="timeline"><li class="empty">Nessun evento</li></ol>
+      </section>
+    </section>
+
+    <section id="view-calendar" class="view" aria-labelledby="calendarTitle">
+      <div class="page-title"><div><p class="eyebrow">PIANIFICAZIONE</p><h1 id="calendarTitle">Calendario</h1></div></div>
+      <section class="card calendar-card">
+        <div class="calendar-toolbar">
+          <button id="prevMonth" class="icon-button" type="button" aria-label="Mese precedente">‹</button>
+          <h2 id="calendarMonth">—</h2>
+          <button id="nextMonth" class="icon-button" type="button" aria-label="Mese successivo">›</button>
+        </div>
+        <div class="weekdays" aria-hidden="true"><span>L</span><span>M</span><span>M</span><span>G</span><span>V</span><span>S</span><span>D</span></div>
+        <div id="calendarGrid" class="calendar-grid" role="grid" aria-label="Calendario mensile"></div>
+        <div class="legend">
+          <span><i class="dot office"></i>Ufficio</span><span><i class="dot smart"></i>Smart</span><span><i class="dot travel"></i>Trasferta</span>
+          <span><i class="dot vacation"></i>Ferie/congedo</span><span><i class="dot sick"></i>Malattia</span><span><i class="dot child"></i>Malattia bambino</span>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="bulkTitle">
+        <div class="section-heading"><div><p class="eyebrow">PIANIFICA IN BLOCCO</p><h2 id="bulkTitle">Applica a più giorni</h2></div></div>
+        <form id="bulkPlanForm" class="form-grid">
+          <label>Dal<input id="bulkStart" type="date" required></label>
+          <label>Al<input id="bulkEnd" type="date" required></label>
+          <label class="full">Tipo<select id="bulkType">
+            <option value="office">Ufficio</option><option value="smart">Smart working</option><option value="travel">Trasferta</option>
+            <option value="vacation">Ferie</option><option value="sick">Malattia</option><option value="childSick">Malattia bambino</option>
+            <option value="mandatoryLeave">Congedo obbligatorio</option><option value="optionalLeave">Congedo facoltativo</option>
+            <option value="suppressedHoliday">Festività soppressa</option><option value="restRecovery">Recupero riposo</option><option value="publicHoliday">Festivo</option>
+          </select></label>
+          <fieldset class="weekday-picker full"><legend>Giorni da includere</legend>
+            <label><input type="checkbox" name="weekday" value="1" checked>Lun</label><label><input type="checkbox" name="weekday" value="2" checked>Mar</label>
+            <label><input type="checkbox" name="weekday" value="3" checked>Mer</label><label><input type="checkbox" name="weekday" value="4" checked>Gio</label>
+            <label><input type="checkbox" name="weekday" value="5" checked>Ven</label><label><input type="checkbox" name="weekday" value="6">Sab</label>
+            <label><input type="checkbox" name="weekday" value="0">Dom</label>
+          </fieldset>
+          <label id="bulkChildWrap" class="full" hidden>Figlio<select id="bulkChild"></select></label>
+          <button class="primary-button full" type="submit">Salva pianificazione</button>
+        </form>
+      </section>
+    </section>
+
+    <section id="view-summary" class="view" aria-labelledby="summaryTitle">
+      <div class="page-title"><div><p class="eyebrow">RIEPILOGO</p><h1 id="summaryTitle">Consuntivo</h1></div></div>
+      <section class="card filter-card">
+        <label>Anno<select id="summaryYear"></select></label>
+        <label>Periodo<select id="summaryMonth"><option value="0">Intero anno</option></select></label>
+        <button id="exportCsv" class="secondary-button" type="button">Esporta CSV</button>
+      </section>
+      <div id="summaryKpis" class="metric-grid summary-grid"></div>
+      <section class="card">
+        <div class="section-heading"><h2>Presenze e assenze</h2></div>
+        <div id="summaryBreakdown" class="breakdown"></div>
+      </section>
+      <section class="card">
+        <div class="section-heading"><h2>Saldo disponibilità</h2><span class="pill neutral">Configurabile</span></div>
+        <div id="allowanceSummary" class="allowance-grid"></div>
+      </section>
+      <section class="card">
+        <div class="section-heading"><h2>Malattia bambino</h2></div>
+        <div id="childSummary" class="stack-list"><p class="empty">Nessun figlio configurato.</p></div>
+      </section>
+    </section>
+
+    <section id="view-settings" class="view" aria-labelledby="settingsTitle">
+      <div class="page-title"><div><p class="eyebrow">CONFIGURAZIONE</p><h1 id="settingsTitle">Impostazioni</h1></div></div>
+      <form id="settingsForm">
+        <section class="card settings-section">
+          <div class="section-heading"><div><p class="eyebrow">PROFILO DI LAVORO</p><h2>Giornata tipo</h2></div></div>
+          <div class="form-grid">
+            <label class="full">Nome profilo<input id="profileName" type="text" maxlength="50"></label>
+            <label>Durata<input id="workDuration" type="time" step="60" required></label>
+            <label>Modalità predefinita<select id="defaultMode"><option value="office">Ufficio</option><option value="smart">Smart</option><option value="travel">Trasferta</option></select></label>
+            <label>Pausa ufficio (min)<input id="pauseOffice" type="number" min="0" max="240"></label>
+            <label>Pausa smart (min)<input id="pauseSmart" type="number" min="0" max="240"></label>
+            <label>Pausa trasferta (min)<input id="pauseTravel" type="number" min="0" max="240"></label>
+            <label>Ingresso smart suggerito<input id="smartDefaultStart" type="time"></label>
+          </div>
+        </section>
+
+        <section class="card settings-section">
+          <div class="section-heading"><div><p class="eyebrow">BUONI PASTO</p><h2>Regole ticket</h2></div></div>
+          <div class="toggle-list">
+            <label><span>Ticket in ufficio</span><input id="ticketOffice" type="checkbox" role="switch"></label>
+            <label><span>Ticket in smart working</span><input id="ticketSmart" type="checkbox" role="switch"></label>
+            <label><span>Ticket in trasferta</span><input id="ticketTravel" type="checkbox" role="switch"></label>
+          </div>
+          <div class="form-grid top-gap">
+            <label>Durata minima (min)<input id="ticketMinMinutes" type="number" min="0" max="1440"></label>
+            <label>Competenza differita (mesi)<input id="ticketDelayMonths" type="number" min="0" max="12"></label>
+          </div>
+        </section>
+
+        <section class="card settings-section">
+          <div class="section-heading"><div><p class="eyebrow">STRAORDINARIO</p><h2>Soglia e trattamento</h2></div></div>
+          <div class="toggle-list"><label><span>Calcolo attivo</span><input id="overtimeEnabled" type="checkbox" role="switch"></label></div>
+          <div class="form-grid top-gap">
+            <label>Soglia (min)<input id="overtimeThreshold" type="number" min="0" max="240"></label>
+            <label>Comportamento<select id="overtimeThresholdMode"><option value="activation">Superata: conta tutto</option><option value="franchise">Conta solo l’eccedenza</option></select></label>
+            <label>Arrotondamento<select id="overtimeRounding"><option value="0">Nessuno</option><option value="5">5 minuti</option><option value="10">10 minuti</option><option value="15">15 minuti</option><option value="30">30 minuti</option></select></label>
+            <label>Metodo<select id="overtimeRoundingMode"><option value="down">Per difetto</option><option value="nearest">Più vicino</option><option value="up">Per eccesso</option></select></label>
+            <label>Trattamento<select id="overtimeTreatment"><option value="paid">Pagato</option><option value="recovery">Banca ore / recupero</option><option value="info">Solo informativo</option><option value="none">Non conteggiato</option></select></label>
+            <label>Limite giornaliero (min, 0 = nessuno)<input id="overtimeDailyLimit" type="number" min="0" max="720"></label>
+          </div>
+        </section>
+
+        <section class="card settings-section">
+          <div class="section-heading"><div><p class="eyebrow">DISPONIBILITÀ</p><h2>Ferie e recuperi</h2></div></div>
+          <div class="form-grid">
+            <label>Ferie anno precedente<input id="vacationPrevious" type="number" min="0" step="0.5"></label>
+            <label>Ferie anno corrente<input id="vacationCurrent" type="number" min="0" step="0.5"></label>
+            <label>Festività soppresse<input id="suppressedHolidayAllowance" type="number" min="0" step="0.5"></label>
+            <label>Recuperi riposo<input id="restRecoveryAllowance" type="number" min="0" step="0.5"></label>
+          </div>
+        </section>
+        <button class="primary-button sticky-save" type="submit">Salva impostazioni</button>
+      </form>
+
+      <section class="card settings-section">
+        <div class="section-heading"><div><p class="eyebrow">FAMIGLIA</p><h2>Figli</h2></div><button id="addChild" type="button" class="secondary-button">Aggiungi</button></div>
+        <p class="help-text">Salva solo i dati necessari. Le regole non sono precompilate: configurale in base alla policy applicabile.</p>
+        <div id="childrenList" class="stack-list"><p class="empty">Nessun figlio configurato.</p></div>
+      </section>
+
+      <section class="card settings-section">
+        <div class="section-heading"><div><p class="eyebrow">POLICY CONFIGURABILI</p><h2>Malattia bambino</h2></div><button id="addPolicy" type="button" class="secondary-button">Aggiungi fascia</button></div>
+        <p class="help-text">Definisci fasce d’età e limiti annuali secondo normativa, contratto e accordi applicabili. L’app calcola il residuo, ma non sostituisce una verifica amministrativa.</p>
+        <div id="policiesList" class="stack-list"><p class="empty">Nessuna fascia configurata.</p></div>
+      </section>
+
+      <section class="card settings-section">
+        <div class="section-heading"><div><p class="eyebrow">DATI</p><h2>Backup e ripristino</h2></div></div>
+        <div class="data-actions">
+          <button id="exportBackup" class="secondary-button" type="button">Esporta backup JSON</button>
+          <label class="secondary-button file-button">Importa backup<input id="importBackup" type="file" accept="application/json,.json"></label>
+          <button id="clearAll" class="danger-button" type="button">Cancella tutti i dati</button>
+        </div>
+        <p class="privacy-note">La pubblicazione su GitHub Pages distribuisce solo l’app vuota. I tuoi dati non vengono caricati su GitHub.</p>
+      </section>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="Navigazione principale">
+    <button type="button" class="nav-button active" data-view="today"><span>◷</span>Oggi</button>
+    <button type="button" class="nav-button" data-view="calendar"><span>▦</span>Calendario</button>
+    <button type="button" class="nav-button" data-view="summary"><span>▤</span>Riepilogo</button>
+    <button type="button" class="nav-button" data-view="settings"><span>⚙</span>Impostazioni</button>
+  </nav>
+
+  <dialog id="dayDialog" class="dialog">
+    <form id="dayForm" method="dialog">
+      <div class="dialog-header"><div><p class="eyebrow">DETTAGLIO GIORNO</p><h2 id="dayDialogTitle">—</h2></div><button type="button" class="icon-button" data-close-dialog aria-label="Chiudi">×</button></div>
+      <input id="dayKey" type="hidden">
+      <div class="form-grid">
+        <label>Modalità pianificata<select id="dayPlannedMode"><option value="">Non pianificata</option><option value="office">Ufficio</option><option value="smart">Smart</option><option value="travel">Trasferta</option><option value="absence">Assenza</option></select></label>
+        <label>Modalità effettiva<select id="dayActualMode"><option value="">Non consuntivata</option><option value="office">Ufficio</option><option value="smart">Smart</option><option value="travel">Trasferta</option><option value="absence">Assenza</option></select></label>
+        <label class="full">Assenza<select id="dayAbsenceType"><option value="">Nessuna</option><option value="vacation">Ferie</option><option value="sick">Malattia</option><option value="childSick">Malattia bambino</option><option value="mandatoryLeave">Congedo obbligatorio</option><option value="optionalLeave">Congedo facoltativo</option><option value="suppressedHoliday">Festività soppressa</option><option value="restRecovery">Recupero riposo</option><option value="publicHoliday">Festivo</option><option value="other">Altra assenza</option></select></label>
+        <label id="dayChildWrap" class="full" hidden>Figlio<select id="dayChild"></select></label>
+        <label>Stato<select id="dayStatus"><option value="planned">Pianificato</option><option value="confirmed">Confermato</option></select></label>
+        <label>Ingresso<input id="dayStart" type="time"></label>
+        <label>Inizio pausa<input id="dayBreakStart" type="time"></label>
+        <label>Fine pausa<input id="dayBreakEnd" type="time"></label>
+        <label>Uscita effettiva<input id="dayEnd" type="time"></label>
+        <label>Ticket<select id="dayTicketOverride"><option value="">Automatico</option><option value="true">Forza sì</option><option value="false">Forza no</option></select></label>
+        <label>Trattamento straordinario<select id="dayOvertimeTreatment"><option value="">Predefinito</option><option value="paid">Pagato</option><option value="recovery">Recupero</option><option value="info">Informativo</option><option value="none">Non conteggiato</option></select></label>
+        <label id="tripDestinationWrap" class="full">Destinazione trasferta<input id="dayTripDestination" type="text" maxlength="100"></label>
+        <label class="full">Note<textarea id="dayNotes" rows="3" maxlength="500"></textarea></label>
+      </div>
+      <div id="dayPreview" class="preview-box"></div>
+      <div class="dialog-actions"><button id="deleteDay" type="button" class="danger-button">Elimina</button><span></span><button type="button" class="secondary-button" data-close-dialog>Annulla</button><button type="submit" class="primary-button">Salva</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="childDialog" class="dialog small-dialog">
+    <form id="childForm" method="dialog">
+      <div class="dialog-header"><h2>Figlio</h2><button type="button" class="icon-button" data-close-dialog aria-label="Chiudi">×</button></div>
+      <input id="childId" type="hidden">
+      <div class="form-grid">
+        <label class="full">Nome o soprannome<input id="childName" required maxlength="50"></label>
+        <label class="full">Data di nascita<input id="childBirthDate" type="date" required></label>
+        <label>Usati fuori app<input id="childUsedExternal" type="number" min="0" step="0.5" value="0"></label>
+        <label>Usati altro genitore<input id="childUsedOtherParent" type="number" min="0" step="0.5" value="0"></label>
+        <label class="full">Note amministrative<textarea id="childNotes" rows="3" maxlength="300"></textarea></label>
+      </div>
+      <div class="dialog-actions"><button type="button" class="secondary-button" data-close-dialog>Annulla</button><button type="submit" class="primary-button">Salva</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="policyDialog" class="dialog small-dialog">
+    <form id="policyForm" method="dialog">
+      <div class="dialog-header"><h2>Fascia policy</h2><button type="button" class="icon-button" data-close-dialog aria-label="Chiudi">×</button></div>
+      <input id="policyId" type="hidden">
+      <div class="form-grid">
+        <label class="full">Nome fascia<input id="policyLabel" required maxlength="60" placeholder="es. Da 3 a 8 anni"></label>
+        <label>Età minima<input id="policyMinAge" type="number" min="0" max="30" required></label>
+        <label>Età massima<input id="policyMaxAge" type="number" min="0" max="30" required></label>
+        <label class="full">Limite annuo (giorni)<input id="policyLimitDays" type="number" min="0" max="365" step="0.5" required></label>
+      </div>
+      <div class="dialog-actions"><button type="button" class="secondary-button" data-close-dialog>Annulla</button><button type="submit" class="primary-button">Salva</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
