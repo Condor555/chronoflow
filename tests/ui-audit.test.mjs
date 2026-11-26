@@ -3,11 +3,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const root = new URL("../", import.meta.url);
-const [html, css, app, liveClock] = await Promise.all([
+const [html, css, app, liveClock, sw, homeDisplay] = await Promise.all([
   readFile(new URL("index.html", root), "utf8"),
   readFile(new URL("styles.css", root), "utf8"),
   readFile(new URL("src/app.js", root), "utf8"),
-  readFile(new URL("src/live-clock.mjs", root), "utf8")
+  readFile(new URL("src/live-clock.mjs", root), "utf8"),
+  readFile(new URL("sw.js", root), "utf8"),
+  readFile(new URL("src/home-display.mjs", root), "utf8")
 ]);
 
 test("MonthSelector Chrono Flow sostituisce i controlli month nativi", () => {
@@ -68,6 +70,7 @@ test("layout contiene regole responsive per smartphone e desktop", () => {
   assert.match(css, /@media \(max-width:\s*340px\)/);
   assert.match(css, /width:\s*min\(100%,\s*880px\)/);
   assert.match(css, /\.month-selector-fields\s*\{[^}]*grid-template-columns/s);
+  assert.match(css, /select\[id\$="-year-select"\][^\{]*\{[^}]*min-width:\s*(?:88|96)px/s);
 });
 
 test("home e recuperi hanno aggiornamento immediato", () => {
@@ -78,6 +81,43 @@ test("home e recuperi hanno aggiornamento immediato", () => {
   assert.match(liveClock, /function start[\s\S]*stop\(\)/);
   assert.match(app, /previewSundayHolidaySettings/);
   assert.match(app, /\[name='sunday-holiday-rule'\]/);
+  assert.match(app, /Orario completato/);
+  assert.match(app, /secondsToDuration\(result\.overtimeSeconds\)/);
+  assert.match(app, /result\.ordinaryWorkedSeconds/);
+});
+
+test("card timer distingue Ufficio, Casa e Trasferta con testo e contrasto AA", () => {
+  assert.match(html, /id="work-mode-label"/);
+  assert.match(html, /id="work-timer-card"[^>]*class="hero-card mode-office"[^>]*data-mode="office"/);
+  assert.match(app, /function updateHeroMode/);
+  assert.match(app, /applyHomeModePresentation\(\$\("#work-timer-card"\), \$\("#work-mode-label"\), effectiveType, document\)/);
+  assert.match(homeDisplay, /card\.classList\.remove\(\.\.\.HOME_MODE_CLASSES\)/);
+  assert.match(homeDisplay, /card\.classList\.add\(presentation\.className\)/);
+  assert.match(app, /updateHeroMode\(button\.dataset\.location\)[\s\S]*updateLocationChoice\(button\.dataset\.location\)[\s\S]*await saveDay/);
+  for (const token of [
+    "home-office-background", "home-office-foreground", "home-office-accent",
+    "home-smart-background", "home-smart-foreground", "home-smart-accent",
+    "home-travel-background", "home-travel-foreground", "home-travel-accent"
+  ]) assert.match(css, new RegExp(`--${token}:`));
+  assert.match(css, /\.hero-card\.mode-office/);
+  assert.match(css, /\.hero-card\.mode-smart/);
+  assert.match(css, /\.hero-card\.mode-travel/);
+  assert.match(homeDisplay, /mode-office/);
+  assert.match(homeDisplay, /mode-smart/);
+  assert.match(homeDisplay, /mode-travel/);
+  assert.match(sw, /url\.pathname\.endsWith\("\/styles\.css"\)/);
+  assert.match(sw, /url\.pathname\.endsWith\("\/src\/home-display\.mjs"\)/);
+
+  const luminance = (hex) => {
+    const channels = hex.match(/[a-f\d]{2}/gi).map((value) => Number.parseInt(value, 16) / 255)
+      .map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  };
+  const white = luminance("#ffffff");
+  for (const background of ["#263442", "#3b4a59", "#102a43", "#164b59", "#0b7773", "#123c35", "#165548", "#0d6658"]) {
+    const ratio = (white + 0.05) / (luminance(background) + 0.05);
+    assert.ok(ratio >= 4.5, `${background} deve mantenere contrasto AA con il bianco`);
+  }
 });
 
 test("assenze mostrano dati non mappati ed empty state esplicito", () => {
@@ -124,8 +164,64 @@ test("riepilogo usa una gerarchia mobile-first e mantiene il dettaglio su richie
 test("malattia bambino mostra il solo periodo attivo e riconcilia lo storico in modo non distruttivo", () => {
   assert.match(app, /const activeSickness = childSicknessEntitlement\(child, new Date\(\)\)/);
   assert.match(app, /reconcileChildSicknessDays\(yearDays, familyChildren\(\)\)/);
-  assert.match(app, /Storico malattia bambino/);
+  assert.match(app, /periodo teorico/);
+  assert.match(html, /id="family-history-disclosure"/);
+  assert.match(html, /Storico periodi conclusi/);
   assert.doesNotMatch(app, /for \(const period of childSicknessPeriodsForYear\(child, year\)\) \{\s*const days = sorted/);
+});
+
+test("Dati da sistemare consente riclassificazione sicura, associazione e undo", () => {
+  for (const id of [
+    "legacy-history-disclosure", "legacy-history-count", "classification-dialog", "classification-days",
+    "classification-absence-type", "classification-child-id", "classification-confirm", "apply-classification"
+  ]) assert.match(html, new RegExp(`id=["']${id}["']`));
+  assert.match(html, /Dati da sistemare/);
+  assert.match(app, /function unresolvedHistoryGroups/);
+  assert.match(app, /function classificationCompatibilityErrors/);
+  assert.match(app, /renderHistoricalUnclassified\(yearDays\)/);
+  assert.match(app, /paternityMandatoryEntitlement\(child, day\.work_date/);
+  assert.match(app, /showToast\(`\$\{updates\.length\}/);
+  assert.match(app, /Riclassificazione annullata/);
+});
+
+test("quote parentali e periodi attivi restano separati per figlio", () => {
+  for (const id of [
+    "child-parental-settings", "child-parental-quota-months", "child-parental-single-parent",
+    "child-parental-father-three", "child-parental-other-months", "child-parental-limit-preview"
+  ]) assert.match(html, new RegExp(`id=["']${id}["']`));
+  assert.match(app, /parentalLeaveMonitoringQuota/);
+  assert.match(app, /Quota personale/);
+  assert.doesNotMatch(app, /Congedo parentale[^\n]*60/);
+});
+
+test("Riepilogo operativo non espone Excel, baseline o versioni", () => {
+  assert.doesNotMatch(html, /Excel|foglio Excel|Baseline Excel|versione\s+2\./i);
+  assert.match(html, /Riepilogo mensile dell’anno/);
+  assert.match(html, /Andamento mese per mese dell’anno selezionato/);
+  assert.doesNotMatch(app, /\["Teorici"/);
+  assert.match(app, /Giorni lavorativi teorici/);
+  assert.match(app, /Maternità obbligatoria/);
+  assert.match(app, /Paternità obbligatoria/);
+  assert.match(app, /Congedo facoltativo \/ parentale/);
+  const annualColumns = app.match(/const ANNUAL_TABLE_METRICS = \[([\s\S]*?)\n\];/)?.[1] || "";
+  for (const label of [
+    "Giorni lavorativi teorici", "Ferie", "Festività soppresse", "Recupero riposo festività",
+    "Malattia", "Malattia bambino", "Maternità obbligatoria", "Paternità obbligatoria",
+    "Congedo facoltativo / parentale", "Giorni lavorativi effettivi", "Giorni smart",
+    "Buoni pasto (competenza -2 mesi)", "Ore straordinario", "Recupero maggiori prestazioni",
+    "Ore straordinario nette"
+  ]) assert.match(annualColumns, new RegExp(label.replace(/[()]/g, "\\$&")));
+  assert.doesNotMatch(annualColumns, /Rettifiche|plafond|Paternità alternativa|Congedo matrimoniale|Sabati lavorativi/);
+  assert.match(app, /return used \|\| \(\(role === "mother"/);
+  assert.match(app, /return used \|\| \(\(role === "father"/);
+});
+
+test("rollover annuale aggiorna le Impostazioni alla riapertura senza perdere gli anni passati", () => {
+  assert.match(html, /riporto automatico/);
+  assert.match(html, /consultare e modificare gli anni passati/);
+  assert.match(app, /function syncAnnualSettingsYearAfterRollover/);
+  assert.match(app, /visibilitychange[\s\S]*syncAnnualSettingsYearAfterRollover/);
+  assert.match(app, /pageshow[\s\S]*syncAnnualSettingsYearAfterRollover/);
 });
 
 
@@ -139,44 +235,4 @@ test("Impostazioni governano applicabilità e preferenze senza eliminare lo stor
   assert.match(app, /absence_features/);
   assert.match(app, /summary_preferences/);
   assert.match(app, /causeHasUsage\(type\)/);
-});
-
-
-test("schermate operative prive di riferimenti al foglio di sviluppo e numeri di release", () => {
-  assert.doesNotMatch(html, /excel|foglio excel|baseline excel|versione\s+2\./i);
-  assert.doesNotMatch(app, /excel|foglio excel|baseline excel|versione\s+2\./i);
-  assert.match(html, /Storico mensile dell’anno/);
-  assert.match(html, /12 mesi · valori consolidati/);
-});
-
-test("tabella annuale usa solo colonne comprensibili e mantiene gli istituti distinti", () => {
-  for (const label of [
-    "Giorni lavorativi teorici", "Ferie", "Festività soppresse", "Recupero riposo festività",
-    "Malattia", "Malattia bambino", "Maternità obbligatoria", "Paternità obbligatoria",
-    "Congedo parentale", "Giorni lavorativi effettivi", "Giorni smart",
-    "Buoni pasto (competenza −2 mesi)", "Ore straordinario", "Recupero maggiori prestazioni",
-    "Ore straordinario nette"
-  ]) assert.match(app, new RegExp(label.replace(/[()]/g, "\\$&")));
-  assert.doesNotMatch(app, /\["Teorici"|Fest\. sopp\.|Rec\. riposo|Mal\. bambino|Cong\. parentale|Pat\. obbl\.|Straord\./);
-});
-
-test("genitorialità separa limite legale e quota personale configurata", () => {
-  for (const id of [
-    "parental-family-situation", "parental-custom-legal-role", "parental-father-three-months",
-    "parental-individual-limit", "parental-couple-limit", "child-parental-quota-months"
-  ]) assert.match(html, new RegExp(`id=["']${id}["']`));
-  assert.match(html, /Limite legale individuale|Limiti legali applicabili/);
-  assert.match(html, /Quota personale da monitorare/);
-  assert.match(app, /validateParentalLeaveQuota/);
-  assert.doesNotMatch(app, /parentalLeave[^\n]*60|Congedo parentale[^\n]*\/\s*60/);
-});
-
-test("ferie cambia automaticamente anno e conserva la navigazione storica", () => {
-  for (const id of ["leave-previous-year", "leave-next-year", "leave-go-current-year", "leave-current-year-status"]) {
-    assert.match(html, new RegExp(`id=["']${id}["']`));
-  }
-  assert.match(app, /function ensureCurrentLeaveSettingsYear\(\)/);
-  assert.match(app, /visibilitychange[\s\S]*ensureCurrentLeaveSettingsYear/);
-  assert.match(app, /selectLeaveSettingsYear/);
-  assert.match(html, /residuo dell’anno concluso diventa il riporto/);
 });

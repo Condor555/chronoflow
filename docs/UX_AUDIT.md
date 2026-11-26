@@ -96,12 +96,3 @@ I principali problemi rilevati erano: KPI duplicati, termini tecnici esposti com
 4. Verificare il passaggio di periodo al compleanno con date di test.
 5. Confrontare i totali di straordinario e buoni pasto prima/dopo l’aggiornamento.
 6. Controllare focus, lettura tramite screen reader e touch target sulle disclosure.
-
-
-## Addendum: genitorialità e gestione annuale
-
-- La configurazione del congedo parentale separa visivamente **limite legale** e **quota personale**; nessun totale viene inventato quando la quota non è configurata.
-- Malattia bambino mostra soltanto il periodo vigente e non supera visivamente 30 giorni nella fascia 0–3; eccedenze e periodi conclusi rimangono nello storico.
-- La tabella annuale usa intestazioni complete e comprensibili, senza abbreviazioni o indicatori intermedi.
-- La vista Ferie segue automaticamente l’anno corrente; gli anni passati sono una consultazione esplicita e la rettifica manuale resta secondaria.
-- Le schermate operative non mostrano riferimenti alla baseline di sviluppo né numeri di release.

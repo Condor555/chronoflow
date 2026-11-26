@@ -1,4 +1,4 @@
-const CACHE = "chrono-flow-v2.9.1";
+const CACHE = "chrono-flow-v2.9.2";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -13,6 +13,7 @@ const APP_ASSETS = [
   "./src/config.js",
   "./src/app.js",
   "./src/calculations.mjs",
+  "./src/home-display.mjs",
   "./src/live-clock.mjs",
   "./src/migration.mjs",
   "./src/pwa-install.mjs"
@@ -37,9 +38,11 @@ self.addEventListener("fetch", (event) => {
 
   const networkFirst = event.request.mode === "navigate"
     || url.pathname.endsWith("/index.html")
+    || url.pathname.endsWith("/styles.css")
     || url.pathname.endsWith("/src/config.js")
     || url.pathname.endsWith("/src/app.js")
     || url.pathname.endsWith("/src/calculations.mjs")
+    || url.pathname.endsWith("/src/home-display.mjs")
     || url.pathname.endsWith("/src/live-clock.mjs")
     || url.pathname.endsWith("/src/migration.mjs")
     || url.pathname.endsWith("/src/pwa-install.mjs")

@@ -123,8 +123,9 @@
           <button class="location-option" data-location="travel" type="button" aria-pressed="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 20 19 6M10 6h9v9M5 8v12h12"/></svg> Trasferta</button>
         </fieldset>
 
-        <article class="hero-card" aria-labelledby="work-state-label">
-          <p id="work-state-label" class="status-label">Giornata non iniziata</p>
+        <article id="work-timer-card" class="hero-card mode-office" data-mode="office" aria-labelledby="work-state-label">
+          <p id="work-mode-label" class="hero-mode-label"><span aria-hidden="true">🏢</span> Ufficio</p>
+          <p id="work-state-label" class="status-label" role="status" aria-live="polite">Giornata non iniziata</p>
           <p id="work-main-value" class="hero-time">—</p>
           <p id="work-main-caption" class="supporting">Registra l’entrata quando inizi.</p>
           <div class="action-stack">
@@ -444,10 +445,10 @@
               <div id="traceability-list" class="traceability-list"></div>
             </div>
           </details>
-          <details id="legacy-history-disclosure" class="details-card summary-disclosure" data-disclosure hidden>
-            <summary aria-expanded="false" aria-controls="legacy-history-panel"><span>Storico / dati da classificare<small>Solo voci importate o non ancora associate</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+          <details id="legacy-history-disclosure" class="details-card summary-disclosure attention-disclosure" data-disclosure hidden>
+            <summary aria-expanded="false" aria-controls="legacy-history-panel"><span>Dati da sistemare<small id="legacy-history-count">Record importati da associare o riclassificare</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
             <div id="legacy-history-panel" class="summary-disclosure-body">
-              <p class="supporting">Questi dati restano conservati e non modificano le voci principali del Riepilogo.</p>
+              <p class="supporting">Apri un gruppo, verifica le giornate e sistemale senza creare duplicati. Quando non restano record irrisolti, questa area scompare automaticamente.</p>
               <div id="legacy-history-list" class="traceability-list"></div>
             </div>
           </details>
@@ -457,6 +458,10 @@
               <h3 id="family-limits-title" class="sr-only">Malattia bambino e congedi</h3>
               <dl id="family-limit-metrics" class="family-limit-grid"></dl>
               <ul id="family-deadlines" class="deadline-list"></ul>
+              <details id="family-history-disclosure" class="secondary-history" data-disclosure hidden>
+                <summary aria-expanded="false" aria-controls="family-history-list"><span>Storico periodi conclusi</span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+                <ul id="family-history-list" class="history-list"></ul>
+              </details>
             </div>
           </details>
           <details class="details-card summary-disclosure" data-disclosure>
@@ -474,7 +479,7 @@
             </div>
           </details>
           <details id="annual-history-disclosure" class="details-card annual-table-disclosure" data-disclosure>
-            <summary aria-expanded="false" aria-controls="annual-monthly-table-panel"><span>Storico mensile dell’anno<small>12 mesi · valori consolidati</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+            <summary aria-expanded="false" aria-controls="annual-monthly-table-panel"><span>Riepilogo mensile dell’anno<small>Andamento mese per mese dell’anno selezionato</small></span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
             <div id="annual-monthly-table-panel" class="summary-disclosure-body">
               <p class="table-swipe-hint">Scorri orizzontalmente per consultare tutte le colonne.</p>
               <div class="summary-table-scroll" tabindex="0" role="region" aria-label="Tabella riepilogo mensile scorrevole">
@@ -563,20 +568,14 @@
 
           <details id="leave-settings" class="details-card settings-disclosure" data-disclosure>
             <summary aria-expanded="false" aria-controls="leave-settings-panel">
-              <span class="settings-summary-copy"><strong>Ferie e recuperi</strong><small id="leave-settings-summary">Spettanze annuali e riporto automatico</small></span>
+              <span class="settings-summary-copy"><strong>Ferie e festività soppresse</strong><small id="leave-settings-summary">Spettanze annuali e riporto automatico</small></span>
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
             </summary>
             <div id="leave-settings-panel" class="settings-disclosure-body">
-              <p class="supporting">L’anno corrente cambia automaticamente il 1° gennaio. Il residuo dell’anno concluso diventa il riporto del nuovo anno; massimali e storico restano separati per anno.</p>
-              <div class="leave-year-navigator" aria-label="Anno consultato">
-                <button id="leave-previous-year" class="icon-button ghost" type="button" aria-label="Anno precedente"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
-                <div class="field">
-                  <label for="leave-settings-year">Anno consultato</label>
-                  <input id="leave-settings-year" type="number" min="2000" max="2100" inputmode="numeric" readonly required>
-                  <span id="leave-current-year-status" class="status-chip">Anno corrente</span>
-                </div>
-                <button id="leave-next-year" class="icon-button ghost" type="button" aria-label="Anno successivo"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
-                <button id="leave-go-current-year" class="button secondary" type="button" hidden>Vai all’anno corrente</button>
+              <p class="supporting">Al nuovo anno Chrono Flow aggiorna automaticamente il periodo, riporta il residuo ferie e applica i valori specifici del nuovo anno oppure, se non presenti, gli ultimi valori configurati. Puoi comunque consultare e modificare gli anni passati.</p>
+              <div class="field">
+                <label for="leave-settings-year">Anno di riferimento</label>
+                <input id="leave-settings-year" type="number" min="2000" max="2100" inputmode="numeric" required>
               </div>
               <div class="field-grid">
                 <div class="field">
@@ -685,30 +684,9 @@
               </select>
               <p class="field-hint">Serve solo a mostrare gli istituti pertinenti. Chrono Flow non salva il sesso dell’utente.</p>
             </div>
-            <div class="parental-policy-grid" aria-labelledby="parental-policy-title">
-              <div class="parental-policy-heading">
-                <strong id="parental-policy-title">Limiti del congedo parentale</strong>
-                <span id="parental-legal-summary">Configura il profilo</span>
-              </div>
-              <div class="field">
-                <label for="parental-family-situation">Situazione familiare</label>
-                <select id="parental-family-situation"><option value="couple">Coppia di genitori</option><option value="single_parent">Genitore solo</option></select>
-              </div>
-              <div id="parental-custom-role-field" class="field" hidden>
-                <label for="parental-custom-legal-role">Limite individuale da applicare</label>
-                <select id="parental-custom-legal-role"><option value="mother">Madre</option><option value="father">Padre</option></select>
-              </div>
-              <label id="parental-father-extension-field" class="check-row"><input id="parental-father-three-months" type="checkbox"> <span>Il padre fruisce di almeno 3 mesi complessivi</span></label>
-              <dl class="legal-limit-grid" aria-label="Limiti legali applicabili">
-                <div><dt>Limite individuale</dt><dd id="parental-individual-limit">6 mesi</dd></div>
-                <div><dt>Limite della coppia</dt><dd id="parental-couple-limit">10 mesi</dd></div>
-                <div><dt>Fruizione</dt><dd>Entro 14 anni</dd></div>
-              </dl>
-              <p class="field-hint">Il limite legale è un controllo; la quota personale da monitorare si sceglie separatamente per ciascun figlio.</p>
-            </div>
             <label id="alternative-paternity-field" class="check-row" hidden><input id="show-paternity-alternative" type="checkbox"> <span>Mostra la paternità alternativa quando applicabile</span></label>
-            <p class="supporting"><strong>Malattia bambino:</strong> fino al terzo compleanno Chrono Flow mostra solo l’anno di vita in corso e monitora al massimo 30 giorni nel singolo periodo. Dai 3 ai 14 anni applica la fascia successiva già configurata. I periodi conclusi restano nello storico.</p>
-            <p class="supporting"><strong>Congedo parentale:</strong> scegli una quota personale in mesi per ciascun figlio. Chrono Flow la valida rispetto al limite individuale del profilo e mostra separatamente quota scelta, limite legale, utilizzi registrati e scadenza.</p>
+            <p class="supporting">Per ciascun figlio Chrono Flow applica automaticamente la fascia corretta. Fino al 3° compleanno l’assenza segue la durata della malattia e i primi 30 giorni retribuiti si rinnovano per anno di vita, non per anno solare. Dai 3 ai 14 anni il limite è 10 giorni lavorativi per anno solare.</p>
+            <p class="supporting">Il congedo parentale facoltativo è associato al figlio e può essere registrato fino ai 14 anni. Il contatore dell’app mostra le giornate inserite, ma i limiti legali in mesi (individuali e di coppia) dipendono anche dalle fruizioni dell’altro genitore e restano da verificare con INPS/Ufficio del Personale.</p>
             <div id="children-list" class="children-list"></div>
             <div class="field-grid align-end">
               <div class="field">
@@ -736,15 +714,24 @@
                 <legend>Istituti da monitorare</legend>
                 <label class="check-row"><input id="child-enable-sickness" type="checkbox" checked> <span>Malattia bambino</span></label>
                 <label class="check-row"><input id="child-enable-parental" type="checkbox"> <span>Congedo parentale</span></label>
-                <div id="child-parental-quota-field" class="field quota-choice" hidden>
-                  <label for="child-parental-quota-months">Quota personale da monitorare</label>
-                  <div class="input-with-suffix"><input id="child-parental-quota-months" type="number" min="0" max="6" step="0.5" inputmode="decimal"><span>mesi</span></div>
-                  <p id="child-parental-quota-help" class="field-hint">Scegli una quota entro il limite individuale.</p>
-                </div>
                 <label id="child-enable-maternity-field" class="check-row" hidden><input id="child-enable-maternity" type="checkbox"> <span>Maternità obbligatoria</span></label>
                 <label id="child-enable-paternity-field" class="check-row" hidden><input id="child-enable-paternity" type="checkbox"> <span>Paternità obbligatoria</span></label>
                 <label id="child-enable-paternity-alternative-field" class="check-row" hidden><input id="child-enable-paternity-alternative" type="checkbox"> <span>Paternità alternativa</span></label>
               </fieldset>
+              <div id="child-parental-settings" class="parental-quota-settings" hidden>
+                <div class="field">
+                  <label for="child-parental-quota-months">Congedo parentale che voglio monitorare/usare</label>
+                  <input id="child-parental-quota-months" type="number" min="0.5" max="11" step="0.5" inputmode="decimal" aria-describedby="child-parental-quota-help">
+                  <p id="child-parental-quota-help" class="field-hint">Quota personale in mesi. Chrono Flow converte 1 mese in 30 giorni; la scelta non aumenta il diritto legale.</p>
+                </div>
+                <label class="check-row"><input id="child-parental-single-parent" type="checkbox"> <span>Genitore solo per questo figlio/evento</span></label>
+                <label class="check-row"><input id="child-parental-father-three" type="checkbox"> <span>Il padre fruisce di almeno 3 mesi</span></label>
+                <div class="field">
+                  <label for="child-parental-other-months">Mesi già fruiti dall’altro genitore</label>
+                  <input id="child-parental-other-months" type="number" min="0" max="11" step="0.5" value="0" inputmode="decimal">
+                </div>
+                <p id="child-parental-limit-preview" class="policy-note" role="status"></p>
+              </div>
               <button id="add-child" class="button secondary" type="button">Aggiungi figlio / evento</button>
             </div>
             </div>
@@ -862,7 +849,7 @@
             <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
           </summary>
           <div id="data-settings-panel" class="settings-disclosure-body">
-          <p>Puoi scaricare una copia leggibile delle tue giornate o importare un backup creato da questa versione.</p>
+          <p>Puoi scaricare una copia leggibile delle tue giornate o importare un backup creato da Chrono Flow.</p>
           <div class="button-row">
             <button id="export-data" class="button secondary" type="button">Scarica backup JSON</button>
             <label class="button secondary file-button">Importa backup JSON<input id="import-data" type="file" accept="application/json,.json"></label>
@@ -975,6 +962,40 @@
       <div class="dialog-actions">
         <button id="delete-day" class="button danger" type="button">Elimina questa giornata</button>
         <button class="button primary" value="save" type="submit">Salva la giornata</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="classification-dialog" class="classification-dialog" aria-labelledby="classification-title" aria-describedby="classification-description">
+    <form id="classification-form">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">Correzione sicura dello storico</p>
+          <h2 id="classification-title">Sistema i dati importati</h2>
+        </div>
+        <button id="close-classification-dialog" class="icon-button ghost" type="button" aria-label="Chiudi senza modificare"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      </div>
+      <p id="classification-description" class="supporting">Seleziona le giornate da riclassificare. I record esistenti verranno aggiornati, mai duplicati.</p>
+      <fieldset class="classification-days-fieldset">
+        <legend>Giornate coinvolte</legend>
+        <div id="classification-days" class="classification-days"></div>
+      </fieldset>
+      <div class="field">
+        <label for="classification-absence-type">Causale corretta</label>
+        <select id="classification-absence-type"></select>
+      </div>
+      <div id="classification-child-field" class="field" hidden>
+        <label for="classification-child-id">Figlio / evento corretto</label>
+        <select id="classification-child-id"></select>
+      </div>
+      <div id="classification-errors" class="form-error" role="alert" hidden></div>
+      <div class="classification-confirmation">
+        <strong id="classification-selection-count">0 giornate verranno modificate</strong>
+        <label class="check-row"><input id="classification-confirm" type="checkbox" required> <span>Ho verificato causale, giornate e figlio/evento</span></label>
+      </div>
+      <div class="dialog-actions">
+        <button id="cancel-classification" class="button secondary" type="button">Annulla</button>
+        <button id="apply-classification" class="button primary" type="submit">Conferma modifica</button>
       </div>
     </form>
   </dialog>

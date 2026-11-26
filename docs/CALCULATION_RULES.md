@@ -74,18 +74,3 @@ Per ciascun mese sono calcolati separatamente:
 - Maternità obbligatoria: evento separato e non annuale, modalità 2+3, 1+4 o 0+5; 1+4 e 0+5 richiedono le certificazioni previste.
 
 Gli aggiornamenti normativi sono modellati in funzioni separate e non modificano retroattivamente formule o classificazioni storiche del file.
-
-
-## Congedo parentale — profilo e quota personale
-
-Per i lavoratori dipendenti dal 2026 la fruizione è monitorata entro 14 anni. Chrono Flow distingue:
-
-- limite individuale legale: madre 6 mesi; padre 6 mesi, elevabili a 7 se fruisce di almeno 3 mesi; genitore solo 11 mesi;
-- limite complessivo: coppia 10 mesi, elevabili a 11 nelle condizioni previste; genitore solo 11 mesi;
-- quota personale scelta: valore facoltativo configurato per singolo figlio, espresso in mesi e validato sul limite individuale.
-
-Le giornate registrate non vengono convertite automaticamente in mesi: il Riepilogo le mostra come utilizzi reali, accanto alla quota personale e al limite legale. Se la quota non è configurata, non viene creato alcun denominatore convenzionale.
-
-## Malattia bambino — periodo corrente
-
-Nella fascia 0–3 viene mostrato un solo anno di vita alla volta, con quota massima visualizzata di 30 giorni. Gli utilizzi oltre quota e i periodi conclusi restano nello storico. Dal terzo compleanno viene applicata la fascia successiva già prevista dal motore.

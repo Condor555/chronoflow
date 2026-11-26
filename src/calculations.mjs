@@ -68,7 +68,18 @@ export function clampInt(value, min, max, fallback = min) {
 
 function annualAllowance(settings, year, key, defaultKey, fallback) {
   const yearly = settings?.years?.[String(year)] || {};
-  return clampInt(yearly[key], 0, 366, clampInt(settings?.[defaultKey], 0, 366, fallback));
+  if (yearly[key] !== null && yearly[key] !== undefined && yearly[key] !== "") {
+    return clampInt(yearly[key], 0, 366, fallback);
+  }
+  const inheritedYear = Object.keys(settings?.years || {})
+    .map(Number)
+    .filter((candidate) => Number.isInteger(candidate) && candidate < year
+      && settings.years[String(candidate)]?.[key] !== null
+      && settings.years[String(candidate)]?.[key] !== undefined
+      && settings.years[String(candidate)]?.[key] !== "")
+    .sort((left, right) => right - left)[0];
+  if (inheritedYear) return clampInt(settings.years[String(inheritedYear)][key], 0, 366, fallback);
+  return clampInt(settings?.[defaultKey], 0, 366, fallback);
 }
 
 function optionalCarryoverOverride(settings, year) {
@@ -93,11 +104,11 @@ export function isSuppressedHolidayDay(day, localHoliday = null) {
     && !isRecognizedPublicHolidayDay(day, localHoliday);
 }
 
-function countedAnnualAbsences(days, year, absenceType) {
+function countedAnnualAbsences(days, year, absenceType, localHoliday = null) {
   return (days || []).filter((day) => {
     const effectiveType = day?.actual_type || day?.planned_type;
     const matchesType = absenceType === "holiday"
-      ? isSuppressedHolidayDay(day)
+      ? isSuppressedHolidayDay(day, localHoliday)
       : day?.absence_type === absenceType;
     return effectiveType === "absence"
       && matchesType
@@ -105,7 +116,7 @@ function countedAnnualAbsences(days, year, absenceType) {
   }).length;
 }
 
-export function annualLeaveBalance({ year, days = [], settings = {} } = {}) {
+export function annualLeaveBalance({ year, days = [], settings = {}, localHoliday = null } = {}) {
   const selectedYear = clampInt(year, 2000, 2100, new Date().getFullYear());
   const previousYear = selectedYear - 1;
   const previousVacationAllowance = annualAllowance(settings, previousYear, "vacation_days", "default_vacation_days", 20);
@@ -121,7 +132,7 @@ export function annualLeaveBalance({ year, days = [], settings = {} } = {}) {
   const vacationTotal = previousAvailable + currentAvailable;
   const vacationRemaining = Math.max(0, vacationTotal - vacationUsed);
   const suppressedAvailable = annualAllowance(settings, selectedYear, "suppressed_holiday_days", "default_suppressed_holiday_days", 4);
-  const suppressedUsed = countedAnnualAbsences(days, selectedYear, "holiday");
+  const suppressedUsed = countedAnnualAbsences(days, selectedYear, "holiday", localHoliday);
 
   return {
     year: selectedYear,
@@ -204,6 +215,8 @@ export function calculateDay(events = [], targetMinutes = 456, overtimeThreshold
   const pausedMinutes = Math.floor(pausedSeconds / 60);
   const rawOvertime = Math.max(0, workedMinutes - targetMinutes);
   const overtimeMinutes = rawOvertime >= overtimeThreshold ? rawOvertime : 0;
+  const rawOvertimeSeconds = Math.max(0, workedSeconds - targetMinutes * 60);
+  const overtimeSeconds = rawOvertimeSeconds >= overtimeThreshold * 60 ? rawOvertimeSeconds : 0;
   const remainingMinutes = Math.max(0, targetMinutes - workedMinutes);
   const remainingSeconds = Math.max(0, targetMinutes * 60 - workedSeconds);
 
@@ -221,6 +234,7 @@ export function calculateDay(events = [], targetMinutes = 456, overtimeThreshold
     workedMinutes,
     pausedMinutes,
     overtimeMinutes,
+    overtimeSeconds,
     remainingMinutes,
     remainingSeconds
   };
@@ -241,7 +255,22 @@ export function calculateDayWithOvertimePolicy(
   now = new Date()
 ) {
   const result = calculateDay(events, targetMinutes, overtimeThreshold, now);
-  return overtimeEnabledForType(type, settings) ? result : { ...result, overtimeMinutes: 0 };
+  const policyResult = overtimeEnabledForType(type, settings)
+    ? result
+    : { ...result, overtimeMinutes: 0, overtimeSeconds: 0 };
+  const ordinaryWorkedSeconds = workedSecondsForPrimaryCounter(type, result.workedSeconds, targetMinutes);
+  return {
+    ...policyResult,
+    ordinaryWorkedSeconds,
+    ordinaryWorkedMinutes: Math.floor(ordinaryWorkedSeconds / 60)
+  };
+}
+
+export function workedSecondsForPrimaryCounter(type = "office", workedSeconds = 0, targetMinutes = 456) {
+  const safeWorkedSeconds = Math.max(0, Math.floor(Number(workedSeconds) || 0));
+  if (type !== "smart") return safeWorkedSeconds;
+  const targetSeconds = Math.max(0, Math.floor(Number(targetMinutes) || 0) * 60);
+  return Math.min(safeWorkedSeconds, targetSeconds);
 }
 
 function manualPauseWasRecorded(events = []) {
@@ -278,6 +307,8 @@ export function calculateDayWithBreakPolicy(
   const pausedMinutes = Math.floor(pausedSeconds / 60);
   const rawOvertime = Math.max(0, workedMinutes - targetMinutes);
   const overtimeMinutes = rawOvertime >= overtimeThreshold ? rawOvertime : 0;
+  const rawOvertimeSeconds = Math.max(0, workedSeconds - targetMinutes * 60);
+  const overtimeSeconds = rawOvertimeSeconds >= overtimeThreshold * 60 ? rawOvertimeSeconds : 0;
   return {
     ...raw,
     workedSeconds,
@@ -285,6 +316,7 @@ export function calculateDayWithBreakPolicy(
     workedMinutes,
     pausedMinutes,
     overtimeMinutes,
+    overtimeSeconds,
     remainingMinutes: Math.max(0, targetMinutes - workedMinutes),
     remainingSeconds: Math.max(0, targetMinutes * 60 - workedSeconds),
     breakSource: manualPauseWasRecorded(events) ? "manual" : "default",
@@ -308,7 +340,15 @@ export function calculateDayWithPolicies(
     defaultBreakMinutes,
     now
   );
-  return overtimeEnabledForType(type, settings) ? result : { ...result, overtimeMinutes: 0 };
+  const policyResult = overtimeEnabledForType(type, settings)
+    ? result
+    : { ...result, overtimeMinutes: 0, overtimeSeconds: 0 };
+  const ordinaryWorkedSeconds = workedSecondsForPrimaryCounter(type, result.workedSeconds, targetMinutes);
+  return {
+    ...policyResult,
+    ordinaryWorkedSeconds,
+    ordinaryWorkedMinutes: Math.floor(ordinaryWorkedSeconds / 60)
+  };
 }
 
 export function forecastExit(events = [], targetMinutes = 456, plannedBreakMinutes = 30, now = new Date()) {
@@ -336,6 +376,11 @@ export function isoDateLocal(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+export function referenceYearForDate(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? new Date().getFullYear() : date.getFullYear();
 }
 
 function holidayIso(year, month, day) {
@@ -620,28 +665,45 @@ function previousDay(date) {
   return result;
 }
 
-export function parentalLeaveLimits({ role = "mother", familySituation = "couple", fatherAtLeastThreeMonths = false } = {}) {
-  const normalizedRole = role === "father" ? "father" : "mother";
-  const singleParent = familySituation === "single_parent";
-  const individualMonths = singleParent ? 11 : normalizedRole === "father" && fatherAtLeastThreeMonths ? 7 : 6;
-  const coupleMonths = singleParent ? 11 : fatherAtLeastThreeMonths ? 11 : 10;
+export const PARENTAL_LEAVE_DAYS_PER_MONTH = 30;
+
+export function parentalLeaveMonitoringQuota({
+  role = "unspecified",
+  requestedMonths = 0,
+  singleParent = false,
+  fatherAtLeastThreeMonths = false,
+  otherParentAtLeastThreeMonths = false,
+  otherParentMonths = 0
+} = {}) {
+  const normalizedRole = ["mother", "father", "custom"].includes(role) ? role : "unspecified";
+  const safeOtherParentMonths = Math.max(0, Number(otherParentMonths) || 0);
+  const individualMaximum = singleParent
+    ? 11
+    : normalizedRole === "father" && fatherAtLeastThreeMonths ? 7 : 6;
+  const coupleMaximum = singleParent
+    ? 11
+    : fatherAtLeastThreeMonths || otherParentAtLeastThreeMonths ? 11 : 10;
+  const maximumForPersonalQuota = Math.max(0, Math.min(individualMaximum, coupleMaximum - safeOtherParentMonths));
+  const months = Math.max(0, Number(requestedMonths) || 0);
+  const valid = months > 0 && months <= maximumForPersonalQuota;
+  let reason = "";
+  if (!months) reason = "Imposta la quota personale che vuoi monitorare.";
+  else if (months > maximumForPersonalQuota) {
+    reason = `La quota personale non può superare ${maximumForPersonalQuota} mesi con le condizioni configurate.`;
+  }
   return {
     role: normalizedRole,
-    familySituation: singleParent ? "single_parent" : "couple",
-    fatherAtLeastThreeMonths: Boolean(fatherAtLeastThreeMonths),
-    individualMonths,
-    coupleMonths,
-    childAgeLimitYears: 14
+    requestedMonths: months,
+    requestedDays: Math.round(months * PARENTAL_LEAVE_DAYS_PER_MONTH),
+    singleParent: Boolean(singleParent),
+    individualMaximum,
+    coupleMaximum,
+    otherParentMonths: safeOtherParentMonths,
+    maximumForPersonalQuota,
+    valid,
+    reason,
+    conversionDaysPerMonth: PARENTAL_LEAVE_DAYS_PER_MONTH
   };
-}
-
-export function validateParentalLeaveQuota(months, limits) {
-  if (months === null || months === undefined || months === "") return { valid: true, value: null, reason: "" };
-  const value = Number(months);
-  const maximum = Math.max(0, Number(limits?.individualMonths) || 0);
-  if (!Number.isFinite(value) || value < 0) return { valid: false, value: null, reason: "Inserisci una quota valida in mesi." };
-  if (value > maximum) return { valid: false, value, reason: `La quota personale non può superare ${maximum} mesi per il profilo selezionato.` };
-  return { valid: true, value: Math.round(value * 10) / 10, reason: "" };
 }
 
 export function childSicknessEntitlement(child, onDate = new Date(), usedInApp = 0, usedOutsideApp = 0) {
@@ -681,8 +743,6 @@ export function childSicknessEntitlement(child, onDate = new Date(), usedInApp =
       totalDaysLimit: null,
       paidDaysLimit: 30,
       usedDays: used,
-      quotaUsedDays: Math.min(30, used),
-      excessDays: Math.max(0, used - 30),
       remainingPaidDays: Math.max(0, 30 - used),
       isPaidQuotaExceeded: used >= 30
     };
@@ -702,8 +762,6 @@ export function childSicknessEntitlement(child, onDate = new Date(), usedInApp =
       totalDaysLimit: 10,
       paidDaysLimit: 0,
       usedDays: used,
-      quotaUsedDays: Math.min(10, used),
-      excessDays: Math.max(0, used - 10),
       remainingDays: Math.max(0, 10 - used),
       isTotalQuotaExceeded: used >= 10
     };

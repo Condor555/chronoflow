@@ -1,14 +1,28 @@
 # Changelog
 
-## 2.9.1 — quote genitorialità e cambio anno automatico
+## 2.9.2 — regressione timer Smart e temi Home
 
-- congedo parentale configurabile con quota personale in mesi per figlio, separata dai limiti legali individuali e complessivi;
-- validazione dei profili madre, padre, padre con estensione, coppia e genitore solo;
-- scadenza del congedo parentale a 14 anni per lavoratori dipendenti dal 2026;
-- Malattia bambino limitata nel Riepilogo al solo periodo corrente e a 30 giorni per anno di vita nella fascia 0–3;
-- tabella annuale compatta con microcopy esplicita e maternità, paternità obbligatoria e congedo parentale separati;
-- cambio automatico dell’anno corrente nelle Impostazioni Ferie, riporto calcolato dal residuo e navigazione storica tramite controlli dedicati;
-- nessun riferimento al foglio di sviluppo o a numeri di release nelle schermate operative.
+- il limite del timer ordinario Smart Working è ora parte del risultato della policy di calcolo, non una sola trasformazione grafica;
+- con straordinario Smart disattivato, una giornata arrivata a 9:07:35 mostra comunque 7:36:00 come ore ordinarie e 0:00:00 di straordinario;
+- con straordinario Smart attivo, le ore ordinarie restano ferme a 7:36:00 e soltanto lo straordinario cresce al secondo dopo la soglia;
+- la grande card Home usa classi DOM esplicite e persistenti `mode-office`, `mode-smart` e `mode-travel`;
+- il cambio Ufficio/Casa/Trasferta aggiorna classe, token, icona e testo prima del salvataggio remoto;
+- `styles.css` e il nuovo modulo di presentazione Home vengono aggiornati con strategia network-first per evitare la permanenza di asset PWA precedenti;
+- aggiunti test temporali sul caso reale 9:07:35, test DOM sulle classi e test sui token distinti delle tre modalità;
+- cache PWA aggiornata a `chrono-flow-v2.9.2`.
+
+## 2.9.1 — correzioni realtime, storico classificabile e rollover annuale
+
+- anno del selettore Riepilogo leggibile per intero anche su schermi da 320 px;
+- conteggio delle festività soppresse coerente con festività nazionali e locale configurata;
+- contatore Smart Working limitato al monte ore previsto e straordinario live al secondo, nel rispetto di soglia e abilitazioni per Ufficio, Smart Working e Trasferta;
+- stato Home **Orario completato** al raggiungimento del monte ore e temi accessibili distinti per Ufficio, Casa/Smart Working e Trasferta, sempre accompagnati da icona e testo;
+- nuova area temporanea **Dati da sistemare** per associare o riclassificare record importati, con verifica delle finestre, conferma esplicita e annullamento;
+- Malattia bambino mostrata per il solo periodo attivo e per singolo figlio, senza sommare anni di vita o periodi futuri;
+- quota personale di congedo parentale configurabile in mesi per figlio/evento, distinta dai limiti di legge e convertita in 30 giorni per mese;
+- Riepilogo operativo ripulito dai riferimenti di sviluppo e tabella annuale essenziale con maternità, paternità e congedo parentale distinti;
+- rollover automatico di ferie e festività soppresse al nuovo anno, con riporto del residuo e successione non distruttiva delle configurazioni annuali;
+- cache PWA aggiornata a `chrono-flow-v2.9.1`; nessuna migrazione SQL richiesta.
 
 ## 2.9.0 — configurazione personale e Riepilogo essenziale
 

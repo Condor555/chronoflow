@@ -10,19 +10,11 @@ Le Impostazioni determinano quali modalità, causali e istituti sono applicabili
 
 Il Riepilogo mostra in primo piano solo ore lavorate, straordinario residuo e buoni pasto. Maturato, compensazioni, rettifiche, date e dati da classificare restano disponibili nei dettagli espandibili. Per Malattia bambino viene mostrato un solo periodo attivo per figlio; i periodi conclusi rimangono nello storico.
 
-
-### Quote di congedo parentale
-
-In **Impostazioni → Famiglia e genitorialità** il limite legale è distinto dalla quota personale scelta per ogni figlio. La quota può restare vuota: in quel caso Chrono Flow mostra soltanto le giornate registrate e non costruisce un totale artificiale. I controlli applicano 6 mesi alla madre, 6 al padre elevabili a 7 nelle condizioni previste, 10 mesi complessivi elevabili a 11 e 11 mesi al genitore solo. Dal 2026 la scadenza per i lavoratori dipendenti è a 14 anni.
-
-### Cambio anno ferie
-
-La vista Ferie passa automaticamente al nuovo anno il 1° gennaio. Il residuo dell’anno concluso alimenta il riporto; i massimali del nuovo anno derivano dalla configurazione annuale o dai valori predefiniti. Gli anni passati restano consultabili con i controlli precedente/successivo e la rettifica manuale resta un’eccezione.
-
 ## Funzioni incluse
 
 - registrazione rapida di Entrata, Inizia pausa, Termina pausa e Uscita;
 - scelta immediata dalla home tra **Ufficio, Casa e Trasferta**;
+- card timer con tema accessibile specifico per modalità e indicazione testuale sempre visibile;
 - uscita prevista, ore lavorate e straordinario aggiornati realmente al secondo, con riavvio sicuro del clock dopo background/PWA e senza timer duplicati;
 - pausa configurata applicata automaticamente se non viene registrata; una pausa manuale sostituisce quella predefinita senza doppio conteggio;
 - straordinario in Smart Working e trasferta configurabile separatamente e disattivato di default;
@@ -38,6 +30,8 @@ La vista Ferie passa automaticamente al nuovo anno il 1° gennaio. Il residuo de
 - orario giornaliero, pause, soglia straordinario e ticket configurabili;
 - elenco figli e associazione alle assenze che riguardano il minore;
 - malattia bambino separata per figlio: 30 giorni per anno di vita fino al 3° compleanno, poi 10 giorni per anno solare fino a 14 anni, con storico dei periodi;
+- congedo parentale con quota personale configurabile in mesi per figlio/evento, distinta dai limiti legali individuali e di coppia;
+- area temporanea **Dati da sistemare** per riclassificare o associare lo storico importato, con conferma e annullamento;
 - paternità obbligatoria separata per figlio/evento: 10 giorni (20 per parto plurimo), finestra −2/+5 mesi, scadenza e residuo storico;
 - maternità obbligatoria separata per figlio/evento con modalità configurabile 2+3, 1+4 o 0+5, periodo e certificazioni evidenziati;
 - una sola regola per le festività cadute di domenica: **matura 1 giorno**, **solo compensazione economica**, **nessun recupero** o **gestione manuale**;
@@ -69,20 +63,20 @@ Browser / PWA
 
 La chiave `anon` è progettata per essere usata nel browser ed è quindi pubblica. La protezione dipende dalle policy RLS incluse in `supabase/schema.sql`. **Non inserire mai la chiave `service_role` nel sito o nella repository.**
 
-## Aggiornamento dalla 2.8.1 alla 2.9.1
+## Aggiornamento dalla 2.9.1 alla 2.9.2
 
 1. Non rieseguire l’importazione iniziale dei dati.
-2. Non serve una nuova query SQL: questa release aggiorna interfaccia e configurazione personale senza modificare lo schema Supabase o i totali consolidati.
+2. Non serve una nuova query SQL: questa release aggiorna interfaccia, calcoli e configurazione personale senza modificare lo schema Supabase.
 3. Sostituisci nella repository GitHub i file con quelli di questo pacchetto, mantenendo `src/config.js` già configurato.
 4. Esegui il commit e attendi GitHub Pages.
-5. Riapri Chrono Flow e aggiorna la pagina. La cache PWA passa automaticamente a `chrono-flow-v2.9.1`.
+5. Chiudi completamente la PWA e riaprila. La cache passa a `chrono-flow-v2.9.2` e aggiorna anche foglio di stile e modulo dei temi Home con strategia network-first.
 
 Le giornate, le timbrature, i dati importati e le impostazioni già salvate non vengono modificati. Non serve alcuna query SQL: massimali e rettifiche del nuovo bilancio annuale vengono salvati nel JSON protetto del profilo già esistente.
 
-Le nuove informazioni per figlio/evento (data presunta, tipo evento, parto plurimo e modalità maternità) sono salvate nello stesso `family_settings` JSON già presente nel profilo. I record storici senza `child_id` non vengono modificati: in lettura, Chrono Flow li riconcilia con un figlio soltanto quando data e fascia di età identificano un unico candidato; i casi ambigui restano nei dati da classificare.
+Le nuove informazioni per figlio/evento, inclusa la quota personale di congedo parentale, sono salvate nello stesso `family_settings` JSON già presente nel profilo. I record storici senza `child_id` non vengono duplicati: **Dati da sistemare** permette di aggiornarli in sicurezza e di annullare l’ultima riclassificazione.
 
 
-Al primo avvio i massimali predefiniti sono **20 giorni di ferie dell’anno corrente** e **4 festività soppresse**. In **Impostazioni → Ferie e recuperi** puoi configurarli per ogni anno. Il riporto è automatico; la rettifica opzionale serve soltanto quando il saldo iniziale comunicato dall’azienda differisce dal calcolo basato sulle giornate registrate.
+Al primo avvio i massimali predefiniti sono **20 giorni di ferie dell’anno corrente** e **4 festività soppresse**. In **Impostazioni → Ferie e festività soppresse** puoi configurarli per ogni anno. Al cambio anno il residuo e gli ultimi valori configurati vengono riportati automaticamente; la rettifica opzionale resta un’eccezione per allineare un saldo iniziale diverso.
 
 ## Avvio rapido
 

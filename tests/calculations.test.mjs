@@ -23,15 +23,16 @@ import {
   minutesToDuration,
   maternityMandatoryEntitlement,
   overtimeEnabledForType,
-  parentalLeaveLimits,
+  parentalLeaveMonitoringQuota,
   paternityMandatoryEntitlement,
+  referenceYearForDate,
   recognizedItalianHolidays,
   secondsToDuration,
   sundayHolidays,
   SUNDAY_HOLIDAY_RULES,
   theoreticalWorkdays,
   ticketForDay,
-  validateParentalLeaveQuota,
+  workedSecondsForPrimaryCounter,
   workbookMonthlySummary
 } from "../src/calculations.mjs";
 
@@ -77,6 +78,16 @@ test("applica la soglia allo straordinario", () => {
   assert.equal(calculateDay(events, 456, 5, new Date(at("15:45"))).overtimeMinutes, 9);
 });
 
+test("espone lo straordinario live al secondo solo dopo la soglia", () => {
+  const events = [{ type: "entry", at: at("08:00") }];
+  const beforeThreshold = calculateDay(events, 456, 10, new Date("2026-11-26T15:45:59+01:00"));
+  const afterThreshold = calculateDay(events, 456, 10, new Date("2026-11-26T15:46:05+01:00"));
+  assert.equal(beforeThreshold.remainingSeconds, 0);
+  assert.equal(beforeThreshold.overtimeSeconds, 0);
+  assert.equal(afterThreshold.overtimeSeconds, 605);
+  assert.equal(secondsToDuration(afterThreshold.overtimeSeconds), "0:10:05");
+});
+
 test("straordinario Smart Working e trasferta disattivato di default", () => {
   assert.equal(overtimeEnabledForType("office", {}), true);
   assert.equal(overtimeEnabledForType("smart", {}), false);
@@ -98,7 +109,37 @@ test("la policy azzera lo straordinario senza modificare le ore lavorate", () =>
   const enabled = calculateDayWithOvertimePolicy(events, 456, 10, "smart", { smart: true }, new Date(at("16:00")));
   assert.equal(disabled.workedMinutes, 480);
   assert.equal(disabled.overtimeMinutes, 0);
+  assert.equal(disabled.overtimeSeconds, 0);
   assert.equal(enabled.overtimeMinutes, 24);
+  assert.equal(enabled.overtimeSeconds, 1440);
+});
+
+test("il contatore principale Smart Working si ferma al monte ore", () => {
+  assert.equal(workedSecondsForPrimaryCounter("smart", 480 * 60, 456), 456 * 60);
+  assert.equal(workedSecondsForPrimaryCounter("office", 480 * 60, 456), 480 * 60);
+});
+
+test("regressione screenshot: Smart a 9:07:35 mostra 7:36 con straordinario disattivato", () => {
+  const events = [{ type: "entry", at: "2026-11-26T08:00:00+01:00" }];
+  const now = new Date("2026-11-26T17:07:35+01:00");
+  const result = calculateDayWithPolicies(events, 456, 10, "smart", { smart: false }, 0, now);
+  assert.equal(result.workedSeconds, 9 * 3600 + 7 * 60 + 35);
+  assert.equal(result.ordinaryWorkedSeconds, 456 * 60);
+  assert.equal(result.ordinaryWorkedMinutes, 456);
+  assert.equal(result.remainingSeconds, 0);
+  assert.equal(result.overtimeSeconds, 0);
+  assert.equal(secondsToDuration(result.ordinaryWorkedSeconds), "7:36:00");
+});
+
+test("regressione screenshot: Smart con straordinario attivo separa timer ordinario ed eccedenza", () => {
+  const events = [{ type: "entry", at: "2026-11-26T08:00:00+01:00" }];
+  const now = new Date("2026-11-26T17:07:35+01:00");
+  const result = calculateDayWithPolicies(events, 456, 10, "smart", { smart: true }, 0, now);
+  assert.equal(result.ordinaryWorkedSeconds, 456 * 60);
+  assert.equal(result.remainingSeconds, 0);
+  assert.equal(result.overtimeSeconds, 1 * 3600 + 31 * 60 + 35);
+  assert.equal(secondsToDuration(result.ordinaryWorkedSeconds), "7:36:00");
+  assert.equal(secondsToDuration(result.overtimeSeconds), "1:31:35");
 });
 
 test("formatta durate superiori a 24 ore", () => {
@@ -131,6 +172,59 @@ test("riepilogo annuale separa ferie precedenti, correnti e residue", () => {
   assert.equal(result.vacation.total, 24);
   assert.equal(result.vacation.remaining, 3);
   assert.deepEqual(result.suppressedHolidays, { used: 4, total: 4, remaining: 0, exceeded: 0 });
+});
+
+test("festività soppresse esclude la festività locale dal saldo", () => {
+  const days = [5, 7, 8, 9, 10].map((day) => ({
+    work_date: `2026-01-${String(day).padStart(2, "0")}`,
+    actual_type: "absence",
+    absence_type: "holiday"
+  }));
+  const result = annualLeaveBalance({
+    year: 2026,
+    days,
+    localHoliday: { name: "Festa locale", day: 10, month: 1 }
+  });
+  assert.deepEqual(result.suppressedHolidays, { used: 4, total: 4, remaining: 0, exceeded: 0 });
+});
+
+test("rollover annuale eredita i massimali configurati e riporta il residuo", () => {
+  const result = annualLeaveBalance({
+    year: 2027,
+    days: Array.from({ length: 20 }, (_, index) => ({
+      work_date: `2026-10-${String(index + 1).padStart(2, "0")}`,
+      actual_type: "absence",
+      absence_type: "vacation"
+    })),
+    settings: {
+      default_vacation_days: 20,
+      default_suppressed_holiday_days: 4,
+      years: { "2026": { vacation_days: 24, suppressed_holiday_days: 5, carryover_override: null } }
+    }
+  });
+  assert.equal(result.vacation.previous.total, 4);
+  assert.equal(result.vacation.current.total, 24);
+  assert.equal(result.suppressedHolidays.total, 5);
+});
+
+test("anno di riferimento passa dal 31 dicembre al 1 gennaio anche alla riapertura PWA", () => {
+  assert.equal(referenceYearForDate("2026-12-31T23:59:59+01:00"), 2026);
+  assert.equal(referenceYearForDate("2027-01-01T00:00:01+01:00"), 2027);
+});
+
+test("quota personale congedo parentale rispetta limiti individuali e di coppia", () => {
+  const mother = parentalLeaveMonitoringQuota({ role: "mother", requestedMonths: 6 });
+  const fatherSeven = parentalLeaveMonitoringQuota({ role: "father", requestedMonths: 7, fatherAtLeastThreeMonths: true });
+  const coupleExceeded = parentalLeaveMonitoringQuota({ role: "mother", requestedMonths: 6, otherParentMonths: 5 });
+  const single = parentalLeaveMonitoringQuota({ role: "mother", requestedMonths: 11, singleParent: true });
+  assert.equal(mother.valid, true);
+  assert.equal(mother.requestedDays, 180);
+  assert.equal(fatherSeven.valid, true);
+  assert.equal(fatherSeven.maximumForPersonalQuota, 7);
+  assert.equal(coupleExceeded.valid, false);
+  assert.equal(coupleExceeded.maximumForPersonalQuota, 5);
+  assert.equal(single.valid, true);
+  assert.equal(single.requestedDays, 330);
 });
 
 test("il riporto può essere rettificato senza perdere il massimale annuale", () => {
@@ -528,44 +622,4 @@ test("più figli mantengono periodi attivi e saldi indipendenti", () => {
   assert.equal(elena.remainingPaidDays, 23);
   assert.equal(marco.lifeYear, 3);
   assert.equal(marco.remainingPaidDays, 28);
-});
-
-
-test("congedo parentale: limiti individuali, di coppia e genitore solo", () => {
-  assert.deepEqual(parentalLeaveLimits({ role: "mother", familySituation: "couple" }), {
-    role: "mother", familySituation: "couple", fatherAtLeastThreeMonths: false,
-    individualMonths: 6, coupleMonths: 10, childAgeLimitYears: 14
-  });
-  assert.equal(parentalLeaveLimits({ role: "father", familySituation: "couple" }).individualMonths, 6);
-  const extendedFather = parentalLeaveLimits({ role: "father", familySituation: "couple", fatherAtLeastThreeMonths: true });
-  assert.equal(extendedFather.individualMonths, 7);
-  assert.equal(extendedFather.coupleMonths, 11);
-  const motherWithExtendedCouple = parentalLeaveLimits({ role: "mother", familySituation: "couple", fatherAtLeastThreeMonths: true });
-  assert.equal(motherWithExtendedCouple.individualMonths, 6);
-  assert.equal(motherWithExtendedCouple.coupleMonths, 11);
-  const single = parentalLeaveLimits({ role: "mother", familySituation: "single_parent" });
-  assert.equal(single.individualMonths, 11);
-  assert.equal(single.coupleMonths, 11);
-});
-
-test("congedo parentale: la quota scelta è esplicita e validata sul limite individuale", () => {
-  const motherLimits = parentalLeaveLimits({ role: "mother", familySituation: "couple" });
-  assert.deepEqual(validateParentalLeaveQuota("", motherLimits), { valid: true, value: null, reason: "" });
-  assert.equal(validateParentalLeaveQuota(5.5, motherLimits).value, 5.5);
-  assert.equal(validateParentalLeaveQuota(6, motherLimits).valid, true);
-  assert.equal(validateParentalLeaveQuota(6.5, motherLimits).valid, false);
-  const singleLimits = parentalLeaveLimits({ role: "father", familySituation: "single_parent" });
-  assert.equal(validateParentalLeaveQuota(11, singleLimits).valid, true);
-});
-
-test("malattia bambino: il conteggio principale non supera la quota del periodo", () => {
-  const child = { id: "elena", birth_date: "2025-11-30" };
-  const underThree = childSicknessEntitlement(child, "2026-11-26", 34, 2);
-  assert.equal(underThree.usedDays, 36);
-  assert.equal(underThree.quotaUsedDays, 30);
-  assert.equal(underThree.excessDays, 6);
-  assert.equal(underThree.remainingPaidDays, 0);
-  const older = childSicknessEntitlement({ birth_date: "2020-01-01" }, "2026-11-26", 12, 0);
-  assert.equal(older.quotaUsedDays, 10);
-  assert.equal(older.excessDays, 2);
 });
