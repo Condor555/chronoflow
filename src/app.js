@@ -113,7 +113,9 @@ const state = {
   calendarScope: "mine",
   calendarSharingService: null,
   calendarSharingView: null,
-  calendarSharingLoading: null
+  calendarSharingLoading: null,
+  calendarSharingSettingsView: null,
+  calendarSharingSettingsLoading: null
 };
 
 const homeClock = createLiveClock({ tick: renderTodayTick, intervalMs: 1000 });
@@ -943,6 +945,7 @@ async function ensureCalendarSharingView(section = "shared") {
     const view = new CalendarSharingView(root, service, {
       includeMine: false,
       initialSection: section,
+      allowSettings: false,
       announce: (message, kind) => showToast(message, null, kind === "error")
     });
     state.calendarSharingView = view;
@@ -954,6 +957,34 @@ async function ensureCalendarSharingView(section = "shared") {
     throw error;
   }).finally(() => { state.calendarSharingLoading = null; });
   return state.calendarSharingLoading;
+}
+
+async function ensureCalendarSharingSettingsView() {
+  if (state.calendarSharingSettingsView) return state.calendarSharingSettingsView;
+  if (state.calendarSharingSettingsLoading) return state.calendarSharingSettingsLoading;
+  const root = $("#calendar-sharing-settings-root");
+  root.innerHTML = '<p class="calendar-status" role="status" aria-busy="true">Caricamento impostazioni di condivisione…</p>';
+  state.calendarSharingSettingsLoading = (async () => {
+    const [{ CalendarSharingView }, service] = await Promise.all([
+      import("./calendar-sharing-view.v3.0.5.mjs"),
+      calendarSharingService()
+    ]);
+    const view = new CalendarSharingView(root, service, {
+      includeMine: false,
+      initialSection: "settings",
+      allowSettings: true,
+      embeddedSettings: true,
+      announce: (message, kind) => showToast(message, null, kind === "error")
+    });
+    state.calendarSharingSettingsView = view;
+    await view.init();
+    return view;
+  })().catch((error) => {
+    console.error("[Chrono Flow] impostazioni condivisione", error);
+    root.innerHTML = '<div class="notice-card" role="alert"><strong>Condivisione non disponibile</strong><p>Le altre impostazioni restano utilizzabili. Riprova più tardi.</p></div>';
+    throw error;
+  }).finally(() => { state.calendarSharingSettingsLoading = null; });
+  return state.calendarSharingSettingsLoading;
 }
 
 async function setCalendarScope(scope, { section = "shared" } = {}) {
@@ -3087,6 +3118,8 @@ function showAuth() {
   homeClock.stop();
   state.calendarSharingView?.destroy();
   state.calendarSharingView = null;
+  state.calendarSharingSettingsView?.destroy();
+  state.calendarSharingSettingsView = null;
   state.calendarSharingService = null;
   state.user = null;
   state.days.clear();
@@ -3168,7 +3201,7 @@ function registerServiceWorker() {
     window.location.reload();
   });
   navigator.serviceWorker
-    .register("./sw.v3.1.0.js", { updateViaCache: "none" })
+    .register("./sw.v3.2.0.js", { updateViaCache: "none" })
     .then((registration) => registration.update())
     .catch(() => {});
 }
@@ -3279,12 +3312,9 @@ function bindEvents() {
     state.calendarSharingView = null;
     ensureCalendarSharingView("shared").catch(() => {});
   });
-  $("#open-calendar-sharing-settings").addEventListener("click", () => {
-    showScreen("calendar");
-    setCalendarScope("shared", { section: "settings" }).catch((error) => {
-      console.error("[Chrono Flow] impostazioni condivisione", error);
-      showToast("Impostazioni di condivisione non disponibili. Riprova più tardi.");
-    });
+  $("#calendar-sharing-settings").addEventListener("toggle", (event) => {
+    if (!event.currentTarget.open) return;
+    ensureCalendarSharingSettingsView().catch(() => {});
   });
   $$('[data-disclosure]').forEach((details) => {
     const summary = details.querySelector(":scope > summary");

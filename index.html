@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it">
+<html lang="it" data-chrono-flow-ui="2.9.4-restored" data-build="3.2.0">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=3.2.0">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Vai al contenuto</a>
@@ -660,7 +660,7 @@
             </summary>
             <div id="calendar-sharing-settings-panel" class="settings-disclosure-body">
               <p class="supporting">Gestisci chi può consultare il tuo calendario e quali informazioni condividere. Il calendario personale e le sue funzioni restano separati.</p>
-              <button id="open-calendar-sharing-settings" class="button secondary" type="button">Gestisci condivisione calendario</button>
+              <div id="calendar-sharing-settings-root" class="sharing-settings-native shared-calendar-pane"><p class="field-hint">Apri questa sezione per caricare inviti, accessi e preferenze privacy.</p></div>
             </div>
           </details>
 
@@ -1049,6 +1049,6 @@
   </div>
   <div id="live-region" class="sr-only" aria-live="polite"></div>
 
-  <script type="module" src="src/app.js?v=3.1.0"></script>
+  <script type="module" src="src/app.v3.2.0.mjs"></script>
 </body>
 </html>

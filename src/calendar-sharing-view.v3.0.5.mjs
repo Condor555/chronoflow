@@ -55,13 +55,17 @@ export class CalendarSharingView {
     announce = () => {},
     logger = console,
     includeMine = true,
-    initialSection = includeMine ? 'mine' : 'shared'
+    initialSection = includeMine ? 'mine' : 'shared',
+    allowSettings = true,
+    embeddedSettings = false
   } = {}) {
     this.root = root;
     this.service = service;
     this.announce = announce;
     this.logger = logger;
     this.includeMine = includeMine;
+    this.allowSettings = allowSettings;
+    this.embeddedSettings = embeddedSettings;
     const now = new Date();
     this.state = {
       section: initialSection, year: now.getFullYear(), month: now.getMonth(), week: toIsoDate(now),
@@ -86,9 +90,11 @@ export class CalendarSharingView {
   }
 
   async setSection(section) {
-    const allowed = this.includeMine
-      ? new Set(['mine', 'shared', 'compare', 'settings'])
-      : new Set(['shared', 'compare', 'settings']);
+    const allowed = new Set([
+      ...(this.includeMine ? ['mine'] : []),
+      'shared', 'compare',
+      ...(this.allowSettings ? ['settings'] : [])
+    ]);
     this.state.section = allowed.has(section) ? section : (this.includeMine ? 'mine' : 'shared');
     this.safeRender();
     await this.loadVisibleEntries();
@@ -164,6 +170,14 @@ export class CalendarSharingView {
 
   render() {
     const s = this.state;
+    if (this.embeddedSettings) {
+      this.root.innerHTML = `<div class="sharing-settings-embedded" aria-busy="${s.busy}">
+        ${s.busy ? '<p class="calendar-status" role="status">Aggiornamento condivisione…</p>' : ''}
+        ${s.error ? `<div class="notice-card" role="alert"><strong>Condivisione temporaneamente non disponibile</strong><p>${esc(s.error)}</p></div>` : ''}
+        ${this.renderSettings()}
+      </div>`;
+      return;
+    }
     const pendingCount = s.incoming.filter((item) => item.status === 'pending').length;
     this.root.innerHTML = `
       <section class="calendar-shell" aria-busy="${s.busy}">
@@ -172,7 +186,7 @@ export class CalendarSharingView {
           <button class="icon-button" data-action="refresh" aria-label="Aggiorna calendario">↻</button>
         </div>
         <div class="segmented" role="tablist" aria-label="Sezioni calendario">
-          ${this.includeMine ? this.tab('mine', 'Il mio') : ''}${this.tab('shared', `Condivisi${pendingCount ? ` · ${pendingCount}` : ''}`)}${this.tab('compare', 'Confronta')}
+          ${this.includeMine ? this.tab('mine', 'Il mio') : ''}${this.tab('shared', `${this.includeMine ? 'Condivisi' : 'Calendario'}${pendingCount ? ` · ${pendingCount}` : ''}`)}${this.tab('compare', 'Confronta')}
         </div>
         ${s.busy ? '<p class="calendar-status" role="status">Caricamento calendario…</p>' : ''}
         ${s.error ? `<div class="notice-card" role="alert"><strong>Calendario temporaneamente non disponibile</strong><p>${esc(s.error)}</p></div>` : ''}
@@ -182,7 +196,6 @@ export class CalendarSharingView {
           ${s.section === 'shared' ? this.renderShared() : ''}
           ${s.section === 'compare' ? this.renderCompare() : ''}
         </div>
-        ${s.section !== 'settings' ? `<button class="floating-settings" data-section="settings"><span aria-hidden="true">⚙</span> Condivisione</button>` : ''}
       </section>`;
   }
 
@@ -258,7 +271,7 @@ export class CalendarSharingView {
     const members = dashboard.members || [];
     const invitations = dashboard.invitations || [];
     return `
-      <div class="settings-header"><button class="back-button" data-section="mine">← Calendario</button><p class="eyebrow">PRIVACY</p><h1>Condivisione calendario</h1><p>Accesso in sola lettura. Le informazioni non abilitate non sono restituite dal database.</p></div>
+      <div class="settings-header">${this.embeddedSettings ? '' : '<button class="back-button" data-section="mine">← Calendario</button>'}<p class="eyebrow">PRIVACY</p><h2>Condivisione calendario</h2><p>Accesso in sola lettura. Le informazioni non abilitate non sono restituite dal database.</p></div>
       <section class="settings-card emphasis">
         <label class="switch-row"><span><strong>Condivisione attiva</strong><small>Disattivandola, tutti gli accessi vengono sospesi immediatamente.</small></span><input type="checkbox" id="sharing-enabled" ${dashboard.space?.is_enabled ? 'checked' : ''}></label>
       </section>

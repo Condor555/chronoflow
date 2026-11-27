@@ -556,7 +556,6 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
 .shared-calendar-pane .day-badge.smart { color: var(--smart-ink); background: var(--smart); }
 .shared-calendar-pane .day-badge.travel { color: var(--travel-ink); background: var(--travel); }
 .shared-calendar-pane .day-badge.absence { color: var(--absence-ink); background: var(--absence); }
-.shared-calendar-pane .floating-settings { position: sticky; float: right; right: 0; bottom: calc(84px + var(--safe-bottom)); z-index: 8; margin-top: 14px; box-shadow: var(--shadow-soft); }
 .shared-calendar-pane .notice-card,
 .shared-calendar-pane .settings-card,
 .shared-calendar-pane .empty-state,
@@ -602,3 +601,24 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
   .shared-calendar-pane .inline-form { grid-template-columns: 1fr; }
   .calendar-scope-tabs { position: sticky; z-index: 7; top: 70px; }
 }
+
+/* Native sizing for post-2.9.4 calendar-sharing components. */
+.shared-calendar-pane .section-heading h1 { margin: 0; color: var(--primary); font-size: clamp(1.4rem, 5vw, 1.8rem); line-height: 1.18; }
+.shared-calendar-pane .settings-header h2,
+.shared-calendar-pane .settings-card h2 { margin: 0 0 8px; color: var(--primary); font-size: 1.15rem; line-height: 1.25; }
+.shared-calendar-pane .settings-header p,
+.shared-calendar-pane .settings-card p { color: var(--muted); }
+.shared-calendar-pane .switch-row > span { display: grid; min-width: 0; gap: 4px; }
+.shared-calendar-pane .switch-row > span small { display: block; color: var(--muted); font-size: .82rem; font-weight: 500; }
+.sharing-settings-native .settings-card { border-radius: 14px; box-shadow: none; }
+.sharing-settings-native .settings-header { margin-top: 0; }
+
+@media (max-width: 520px) {
+  .shared-calendar-pane .section-heading h1 { font-size: 1.55rem; }
+  .shared-calendar-pane .section-heading .icon-button { flex: 0 0 44px; }
+  .shared-calendar-pane .switch-row { align-items: flex-start; }
+}
+
+.shared-calendar-pane button:not(.segment):not(.icon-button):not(.back-button) { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 9px 14px; color: #fff; background: var(--primary); border: 1px solid var(--primary); border-radius: 11px; font-weight: 780; }
+.shared-calendar-pane button.secondary { color: var(--primary) !important; background: #fff !important; border-color: #8fa2b8 !important; }
+.shared-calendar-pane button.danger { color: var(--danger) !important; background: var(--danger-bg) !important; border-color: #e0a8a4 !important; }

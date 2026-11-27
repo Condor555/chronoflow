@@ -120,18 +120,18 @@ test('normalization accepts surrounding whitespace and one trailing slash', asyn
   }
 });
 
-test('restored bootstrap uses the stable client and immutable 3.1 service worker', async () => {
+test('restored bootstrap uses the stable client and immutable 3.2 service worker', async () => {
   const [indexSource, appSource, workerSource, legacySource] = await Promise.all([
     readProjectFile('index.html'),
     readProjectFile('src/app.js'),
-    readProjectFile('sw.v3.1.0.js'),
+    readProjectFile('sw.v3.2.0.js'),
     readProjectFile('src/supabase-client.mjs')
   ]);
 
-  assert.match(indexSource, /src=["']src\/app\.js\?v=3\.1\.0["']/);
+  assert.match(indexSource, /src=["']src\/app\.v3\.2\.0\.mjs["']/);
   assert.match(appSource, /from\s+['"]\.\/supabase-client\.v3\.0\.3\.mjs['"]/);
   assert.doesNotMatch(appSource, /from\s+['"]\.\/supabase-client\.mjs['"]/);
-  assert.match(appSource, /register\(["']\.\/sw\.v3\.1\.0\.js["']/);
+  assert.match(appSource, /register\(["']\.\/sw\.v3\.2\.0\.js["']/);
   assert.match(workerSource, /\.\/src\/supabase-client\.v3\.0\.3\.mjs/);
   assert.doesNotMatch(workerSource, /['"]\.\/src\/(?:config\/)?supabase-client\.mjs['"]/);
   assert.match(legacySource, /from\s+['"]\.\/supabase-client\.v3\.0\.3\.mjs['"]/);

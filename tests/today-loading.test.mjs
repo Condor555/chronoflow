@@ -82,10 +82,11 @@ test('entry factory accepts the empty-state mode picker values', () => {
 
 test('UI guards daily and calendar clock fields before reading them', async () => {
   const [app, calendarView] = await Promise.all([
-    readFile(new URL('../src/app.v3.0.5.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../src/app.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/calendar-sharing-view.v3.0.5.mjs', import.meta.url), 'utf8')
   ]);
-  assert.match(app, /record\?\.clock_in\s*\?\?\s*null/);
-  assert.doesNotMatch(app, /record\.clock_in/);
+  assert.match(app, /state\.days\.get\(date\)\s*\|\|\s*defaultDay\(date\)/);
+  assert.match(app, /normalizeDay\(existing\s*\|\|\s*defaultDay\(date\)\)/);
+  assert.doesNotMatch(app, /state\.days\.get\(date\)\.clock_in/);
   assert.match(calendarView, /normalizeCalendarRecord\(value\)/);
 });

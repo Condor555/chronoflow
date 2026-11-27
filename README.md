@@ -1,15 +1,17 @@
-# Chrono Flow 3.1.0 — UI ripristinata e calendario condiviso
+# Chrono Flow 3.2.0 — UI 2.9.4 autorevole, motore corrente
 
-Questa release ripristina integralmente l’esperienza 2.9.4 e conserva condivisione calendario e correzioni di stabilità 3.0.5. La navigazione principale è **Oggi · Calendario · Riepilogo · Impostazioni**, con Profilo/account separato.
+La shell grafica, il DOM, i componenti e il design system derivano dalla baseline 2.9.4. Le funzioni successive restano attive e sono integrate come estensioni native: condivisione calendario, stabilità 3.x e uscita automatica Smart.
 
-La nuova regola Smart Working chiude automaticamente la giornata all’uscita calcolata quando lo straordinario Smart è disattivato. `src/config.js`, SQL, RLS e dati restano invariati.
+La regressione visiva era nel frontend/bootstrap: le pagine ancora collegate all’entry point 3.0.5 continuavano a montare la shell minimale. Non è stata attribuita alla migration Supabase. La 3.2.0 sostituisce gli entry point e worker precedenti con shim di recupero verso la shell completa.
 
-- Audit: `docs/RESTORATION_AUDIT_2.9.4_TO_3.0.5.md`
-- Installazione patch: `docs/INSTALLAZIONE_PATCH_3.1.0.md`
+- Matrice funzionale: `docs/FUNCTIONAL_MATRIX_2.9.4_CURRENT.md`
+- Audit finale: `docs/FINAL_UI_RESTORATION_3.2.0.md`
+- Installazione: `docs/INSTALLAZIONE_PATCH_3.2.0.md`
+- Evidenze render: `tests/render-output/`
 
 ---
 
-# Chrono Flow 3.0.0 — Condivisione calendario
+ Chrono Flow 3.0.0 — Condivisione calendario
 
 Questa release aggiunge la condivisione del calendario con utenti specifici, in sola lettura, senza esporre direttamente le tabelle personali.
 

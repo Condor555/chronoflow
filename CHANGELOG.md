@@ -1,3 +1,14 @@
+# Chrono Flow 3.2.0 — UI 2.9.4 autorevole
+
+- `index.html`, DOM e CSS 2.9.4 sono la shell grafica autorevole.
+- Entry point e service worker immutabili 3.2.0; le entry 3.0.x/3.1.0 diventano shim di recupero per eliminare definitivamente la shell minimale dalla cache.
+- Calendario condiviso integrato nativamente in Calendario → Il mio / Condivisi; nessun pulsante flottante.
+- Inviti, revoca e privacy integrati in Impostazioni tramite progressive disclosure.
+- Motore funzionale post-2.9.4 preservato integralmente.
+- Migration/RLS calendario verificata additiva e lasciata invariata.
+- `src/config.js` e dati invariati.
+- 155 test automatici e render test 390 px/desktop superati.
+
 # Chrono Flow 3.1.0 — Ripristino UI cumulativo
 
 - Ripristinata integralmente la UI/UX 2.9.4: Oggi, Calendario personale, Riepilogo, Impostazioni e Profilo/account.

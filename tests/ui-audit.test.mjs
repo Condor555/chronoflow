@@ -8,7 +8,7 @@ const [html, css, app, liveClock, sw, homeDisplay] = await Promise.all([
   readFile(new URL("styles.css", root), "utf8"),
   readFile(new URL("src/app.js", root), "utf8"),
   readFile(new URL("src/live-clock.mjs", root), "utf8"),
-  readFile(new URL("sw.v3.1.0.js", root), "utf8"),
+  readFile(new URL("sw.v3.2.0.js", root), "utf8"),
   readFile(new URL("src/home-display.mjs", root), "utf8")
 ]);
 

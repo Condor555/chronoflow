@@ -1,0 +1,186 @@
+{
+  "baseline_mobile": {
+    "width": 390,
+    "viewport": 390,
+    "overflow": false,
+    "nav": [
+      "Oggi",
+      "Calendario",
+      "Riepilogo",
+      "Impostazioni"
+    ],
+    "hero": true,
+    "profile": true,
+    "visibleScreen": "today"
+  },
+  "current_mobile": {
+    "width": 390,
+    "viewport": 390,
+    "overflow": false,
+    "nav": [
+      "Oggi",
+      "Calendario",
+      "Riepilogo",
+      "Impostazioni"
+    ],
+    "hero": true,
+    "profile": true,
+    "visibleScreen": "today"
+  },
+  "baseline_desktop": {
+    "width": 1440,
+    "viewport": 1440,
+    "overflow": false,
+    "nav": [
+      "Oggi",
+      "Calendario",
+      "Riepilogo",
+      "Impostazioni"
+    ],
+    "hero": true,
+    "profile": true,
+    "visibleScreen": "today"
+  },
+  "current_desktop": {
+    "width": 1440,
+    "viewport": 1440,
+    "overflow": false,
+    "nav": [
+      "Oggi",
+      "Calendario",
+      "Riepilogo",
+      "Impostazioni"
+    ],
+    "hero": true,
+    "profile": true,
+    "visibleScreen": "today"
+  },
+  "autoexit_mobile": {
+    "width": 390,
+    "viewport": 390,
+    "overflow": false,
+    "nav": [
+      "Oggi",
+      "Calendario",
+      "Riepilogo",
+      "Impostazioni"
+    ],
+    "hero": true,
+    "profile": true,
+    "visibleScreen": "today"
+  },
+  "autoexit_desktop": {
+    "width": 1440,
+    "viewport": 1440,
+    "overflow": false,
+    "nav": [
+      "Oggi",
+      "Calendario",
+      "Riepilogo",
+      "Impostazioni"
+    ],
+    "hero": true,
+    "profile": true,
+    "visibleScreen": "today"
+  },
+  "calendar_mobile": {
+    "width": 390,
+    "viewport": 390,
+    "overflow": false,
+    "nav": [
+      "Oggi",
+      "Calendario",
+      "Riepilogo",
+      "Impostazioni"
+    ],
+    "hero": true,
+    "profile": true,
+    "visibleScreen": "calendar"
+  },
+  "calendar_desktop": {
+    "width": 1440,
+    "viewport": 1440,
+    "overflow": false,
+    "nav": [
+      "Oggi",
+      "Calendario",
+      "Riepilogo",
+      "Impostazioni"
+    ],
+    "hero": true,
+    "profile": true,
+    "visibleScreen": "calendar"
+  },
+  "shared_mobile": {
+    "width": 390,
+    "viewport": 390,
+    "overflow": false,
+    "nav": [
+      "Oggi",
+      "Calendario",
+      "Riepilogo",
+      "Impostazioni"
+    ],
+    "hero": true,
+    "profile": true,
+    "visibleScreen": "calendar"
+  },
+  "shared_desktop": {
+    "width": 1440,
+    "viewport": 1440,
+    "overflow": false,
+    "nav": [
+      "Oggi",
+      "Calendario",
+      "Riepilogo",
+      "Impostazioni"
+    ],
+    "hero": true,
+    "profile": true,
+    "visibleScreen": "calendar"
+  },
+  "summary_mobile": {
+    "width": 390,
+    "viewport": 390,
+    "overflow": false,
+    "nav": [
+      "Oggi",
+      "Calendario",
+      "Riepilogo",
+      "Impostazioni"
+    ],
+    "hero": true,
+    "profile": true,
+    "visibleScreen": "summary"
+  },
+  "settings_desktop": {
+    "width": 1440,
+    "viewport": 1440,
+    "overflow": false,
+    "nav": [
+      "Oggi",
+      "Calendario",
+      "Riepilogo",
+      "Impostazioni"
+    ],
+    "hero": true,
+    "profile": true,
+    "visibleScreen": "settings"
+  },
+  "settings_sharing_mobile": {
+    "width": 390,
+    "viewport": 390,
+    "overflow": false,
+    "nav": [
+      "Oggi",
+      "Calendario",
+      "Riepilogo",
+      "Impostazioni"
+    ],
+    "hero": true,
+    "profile": true,
+    "visibleScreen": "settings"
+  },
+  "pixel_diff_mobile_today": 0.0,
+  "pixel_diff_desktop_today": 0.0
+}
