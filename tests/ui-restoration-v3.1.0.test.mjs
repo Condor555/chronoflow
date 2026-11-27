@@ -6,7 +6,7 @@ const [html, app, css, worker, sharingView] = await Promise.all([
   readFile(new URL('../index.html', import.meta.url), 'utf8'),
   readFile(new URL('../src/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../styles.css', import.meta.url), 'utf8'),
-  readFile(new URL('../sw.v3.3.5.js', import.meta.url), 'utf8'),
+  readFile(new URL('../sw.v3.3.6.js', import.meta.url), 'utf8'),
   readFile(new URL('../src/calendar-sharing-view.v3.0.5.mjs', import.meta.url), 'utf8')
 ]);
 
@@ -49,11 +49,11 @@ test('Riepilogo e Impostazioni conservano i blocchi funzionali della 2.9.4', () 
 });
 
 test('service worker 3.3 mantiene network-first, preload settled e cache completa', () => {
-  assert.match(app, /register\("\.\/sw\.v3\.3\.5\.js"/);
+  assert.match(app, /register\("\.\/sw\.v3\.3\.6\.js"/);
   assert.match(worker, /await event\.preloadResponse/);
   assert.match(worker, /navigationPreload\.disable/);
   assert.match(worker, /networkFirst/);
-  for (const path of ['src/app.v3.3.5.mjs','src/smart-auto-exit.mjs','src/calendar-sharing-view.v3.0.5.mjs']) {
+  for (const path of ['src/app.v3.3.6.mjs','src/smart-auto-exit.mjs','src/calendar-sharing-view.v3.0.5.mjs']) {
     assert.match(worker, new RegExp(path.replaceAll('.', '\\.').replace('?', '\\?')));
   }
 });

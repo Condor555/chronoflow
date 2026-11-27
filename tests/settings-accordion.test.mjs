@@ -93,4 +93,3 @@ test('Condivisione OFF cambia label e nasconde inviti e permessi senza cancellar
   assert.match(sharingView, /space\?\.is_enabled !== true/);
   assert.doesNotMatch(sharingView, /deleteInvitation|deleteMember|clearInvitations/);
 });
-
