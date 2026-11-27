@@ -37,6 +37,15 @@ export function minutesToHoursInput(minutes) {
   return numeric ? String(Math.round((numeric / MINUTES_PER_HOUR) * 100) / 100) : "";
 }
 
+export function searchProjects(projects = [], query = "") {
+  const normalizedQuery = String(query || "").trim().toLocaleLowerCase("it");
+  return [...projects].filter((project) => {
+    if (!project) return false;
+    const searchable = `${project.code || ""} ${project.description || ""}`.toLocaleLowerCase("it");
+    return !normalizedQuery || searchable.includes(normalizedQuery);
+  });
+}
+
 export function buildAllocationDurations({ mode, projectIds, workedMinutes, manualHours = {} }) {
   const uniqueProjectIds = [...new Set((projectIds || []).filter(Boolean))];
   if (!uniqueProjectIds.length) throw new Error("Seleziona almeno una commessa.");

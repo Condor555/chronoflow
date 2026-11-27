@@ -50,6 +50,7 @@ import {
   buildAllocationDurations,
   equalPercentages,
   minutesToHoursInput,
+  searchProjects,
   splitEvenMinutes
 } from "./project-allocation-policy.mjs";
 import {
@@ -1568,6 +1569,12 @@ function updateTodayLiveDisplay(day, effectiveType, result, forecast) {
     $("#work-main-value").textContent = "—";
     $("#work-main-caption").textContent = "Registra l’entrata quando inizi.";
     primary.textContent = "Registra entrata";
+  } else if (result.automaticBreakActive) {
+    $("#work-state-label").textContent = "Pausa automatica";
+    $("#work-main-value").textContent = secondsToDuration(result.defaultBreakAppliedSeconds);
+    $("#work-main-caption").textContent = `Il conteggio è fermo e riprende automaticamente alle ${formatTime(result.automaticBreakEnd)}. Lavorate ${secondsToDuration(displayedWorkedSeconds)}.`;
+    primary.textContent = "Pausa automatica in corso";
+    primary.disabled = true;
   } else if (result.state === "working") {
     $("#work-state-label").textContent = scheduleComplete
       ? "Orario completato"
@@ -1817,10 +1824,11 @@ function renderAllocationHoursEditor() {
 function renderAllocationProjectPicker() {
   const root = $("#allocation-project-options");
   if (!root) return;
-  const query = $("#allocation-project-search").value.trim().toLocaleLowerCase("it");
-  const projects = [...state.projects.values()]
-    .filter((project) => project.is_active || state.allocationSelectedProjects.has(project.id))
-    .filter((project) => !query || `${project.code} ${project.description}`.toLocaleLowerCase("it").includes(query))
+  const query = $("#allocation-project-search").value;
+  const projects = searchProjects(
+    [...state.projects.values()].filter((project) => project.is_active || state.allocationSelectedProjects.has(project.id)),
+    query
+  )
     .sort((left, right) => left.code.localeCompare(right.code, "it", { numeric: true }));
   $("#allocation-project-empty").hidden = projects.length > 0;
   root.replaceChildren(...projects.map((project) => {
@@ -1849,13 +1857,6 @@ function renderAllocationProjectPicker() {
 
 function openAllocationDialog(date, allocationId = null) {
   if (!projectsEnabled()) return;
-  const activeProjects = [...state.projects.values()].filter((project) => project.is_active);
-  if (!activeProjects.length && !allocationId) {
-    showToast("Aggiungi prima una commessa attiva nelle Impostazioni.");
-    showScreen("settings");
-    openSettingsSection($("#project-settings"), { focus: true, scroll: true });
-    return;
-  }
   const allocation = allocationId ? allAllocations().find((item) => item.id === allocationId) : null;
   const existing = allocationsForDate(date);
   state.editingAllocationId = allocation?.id || null;
@@ -1871,7 +1872,11 @@ function openAllocationDialog(date, allocationId = null) {
   const methodControl = $(`input[name="allocation-method"][value="${method}"]`);
   if (methodControl) methodControl.checked = true;
   $("#allocation-note").value = allocation?.note || "";
-  $("#allocation-error").hidden = true;
+  const hasSelectableProjects = [...state.projects.values()].some((project) => project.is_active || state.allocationSelectedProjects.has(project.id));
+  $("#allocation-error").hidden = hasSelectableProjects;
+  $("#allocation-error").textContent = hasSelectableProjects
+    ? ""
+    : "Nessuna commessa attiva. Puoi chiudere questa finestra e aggiungerne una in Impostazioni → Commesse.";
   $("#delete-allocation").hidden = !allocation;
   renderAllocationProjectPicker();
   $("#allocation-dialog").showModal();
@@ -4210,7 +4215,7 @@ function registerServiceWorker() {
     window.location.reload();
   });
   navigator.serviceWorker
-    .register("./sw.v3.3.2.js", { updateViaCache: "none" })
+    .register("./sw.v3.3.3.js", { updateViaCache: "none" })
     .then((registration) => registration.update())
     .catch(() => {});
 }

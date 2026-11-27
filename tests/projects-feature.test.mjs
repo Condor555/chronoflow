@@ -8,7 +8,7 @@ const [html, app, css, sql, methodSql, worker, pkg] = await Promise.all([
   readFile(new URL('../styles.css', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20261127_330_projects_allocations.sql', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20261127_331_allocation_method.sql', import.meta.url), 'utf8'),
-  readFile(new URL('../sw.v3.3.2.js', import.meta.url), 'utf8'),
+  readFile(new URL('../sw.v3.3.3.js', import.meta.url), 'utf8'),
   readFile(new URL('../package.json', import.meta.url), 'utf8')
 ]);
 
@@ -61,9 +61,9 @@ test('le allocazioni automatiche vengono ricalcolate dopo modifiche di orari o m
 test('backup, offline queue e cache-safe worker includono le nuove entità e policy', () => {
   assert.match(app, /projectQueueKey/);
   assert.match(app, /flushProjectQueue/);
-  assert.match(worker, /chrono-flow-v3\.3\.2-home-calendar-e2e/);
-  assert.match(worker, /app\.v3\.3\.2\.mjs/);
-  assert.equal(JSON.parse(pkg).version, '3.3.2');
+  assert.match(worker, /chrono-flow-v3\.3\.3-complete-flows/);
+  assert.match(worker, /app\.v3\.3\.3\.mjs/);
+  assert.equal(JSON.parse(pkg).version, '3.3.3');
 });
 
 test('stili mobile-first e focus/accessibilità sono presenti', () => {

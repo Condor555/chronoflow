@@ -18,7 +18,7 @@ test('una vecchia modalità effettiva senza attività non sovrascrive la pianifi
   assert.equal(dayHasRecordedActivity(day), false);
 });
 
-test('dopo l’ingresso la modalità effettiva torna prioritaria', () => {
+test('anche dopo l’ingresso la modalità pianificata resta la fonte primaria della Home', () => {
   const day = {
     work_date: TODAY,
     planned_type: 'smart',
@@ -26,7 +26,7 @@ test('dopo l’ingresso la modalità effettiva torna prioritaria', () => {
     events: [{ type: 'entry', at: `${TODAY}T08:00:00.000Z` }]
   };
   assert.equal(dayHasRecordedActivity(day), true);
-  assert.equal(homeModeForToday(day), 'office');
+  assert.equal(homeModeForToday(day), 'smart');
 });
 
 test('gli eventi storici superati non fanno risultare iniziata la giornata', () => {

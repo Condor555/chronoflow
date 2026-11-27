@@ -1,3 +1,13 @@
+# Chrono Flow 3.3.3 — Flussi Home, Calendario, Commesse e pausa automatica
+
+- Pausa automatica delle 13:00 calcolata dagli orari reali: il conteggio si ferma, la Home mostra `Pausa automatica` e riprende alla fine della durata configurata anche dopo chiusura o riapertura della PWA.
+- Modalità giornaliera resa deterministica: la pianificazione del Calendario ha priorità; la prima scelta Home viene salvata con upsert sulla stessa data e resta disponibile dopo refresh e sincronizzazione.
+- Calendario personale confermato editabile su tutta la cella giornaliera; modalità, orari, pausa, assenza e commesse restano nello stesso record. Calendario condiviso invariato e in sola lettura.
+- `Registra attività` apre sempre il dialogo quando la funzione Commesse è attiva, supporta ricerca per codice/descrizione, selezione multipla e ripartizione automatica o manuale.
+- Entry point e service worker immutabili 3.3.3 per evitare shell stale nella PWA.
+- 211 test automatici superati, inclusi quattro flussi completi di regressione.
+- Nessuna nuova migration Supabase e nessuna modifica a schema, RLS o dati.
+
 # Chrono Flow 3.2.1 — Home profonda e Impostazioni semplificate
 
 - Home aggiornata con la card ampia approvata: gradienti profondi per modalità, decorazione circolare soft e contrasto WCAG AA.
