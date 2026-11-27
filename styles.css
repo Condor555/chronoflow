@@ -828,6 +828,64 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
 .allocation-day-summary span { color: var(--muted); font-size: .9rem; }
 .allocation-dialog { width: min(94vw, 590px); }
 .allocation-dialog form { display: grid; gap: 2px; }
+.project-picker-fieldset,
+.allocation-method-fieldset {
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.project-picker-fieldset legend,
+.allocation-method-fieldset legend { padding: 0 6px; color: var(--primary); font-weight: 800; }
+.project-picker-options { display: grid; gap: 8px; max-height: 230px; overflow: auto; overscroll-behavior: contain; }
+.project-picker-option,
+.allocation-method-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 11px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  cursor: pointer;
+}
+.project-picker-option:has(input:checked),
+.allocation-method-option:has(input:checked) { background: var(--accent-soft); border-color: #78bdb2; }
+.project-picker-option input[type="checkbox"],
+.allocation-method-option input[type="radio"] {
+  flex: 0 0 auto;
+  width: 21px;
+  min-height: 21px;
+  height: 21px;
+  margin: 1px 0 0;
+  padding: 0;
+}
+.project-picker-option span,
+.project-picker-option strong,
+.project-picker-option small,
+.allocation-method-option span,
+.allocation-method-option strong,
+.allocation-method-option small { display: block; min-width: 0; }
+.project-picker-option small,
+.allocation-method-option small { margin-top: 2px; color: var(--muted); overflow-wrap: anywhere; }
+.allocation-method-fieldset { display: grid; gap: 8px; }
+.allocation-worked-summary { margin: 0 0 12px; color: var(--primary); font-weight: 750; }
+.allocation-hours-list { display: grid; gap: 8px; margin-bottom: 16px; }
+.allocation-hours-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(116px, auto);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #f6f9fa;
+  border-radius: 11px;
+}
+.allocation-hours-row label { margin: 0; color: var(--ink); font-weight: 750; overflow-wrap: anywhere; }
+.allocation-hours-row > strong { color: var(--primary); text-align: right; font-variant-numeric: tabular-nums; }
+.allocation-hours-input { display: grid; grid-template-columns: minmax(72px, 1fr) auto; align-items: center; gap: 7px; }
+.allocation-hours-input input { min-width: 0; }
+.allocation-hours-input span { color: var(--muted); font-weight: 700; }
 .recent-projects { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: -6px 0 18px; }
 .recent-projects-label { width: 100%; color: var(--muted); font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .project-chip {
@@ -900,6 +958,8 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
 .project-day-link strong { font-variant-numeric: tabular-nums; }
 
 @media (max-width: 620px) {
+  .allocation-hours-row { grid-template-columns: 1fr; }
+  .allocation-hours-row > strong { text-align: left; }
   .project-day-heading,
   .allocation-day-summary,
   .allocation-progress-copy { align-items: stretch; flex-direction: column; }

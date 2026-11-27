@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-chrono-flow-ui="2.9.4-restored" data-build="3.3.0">
+<html lang="it" data-chrono-flow-ui="2.9.4-restored" data-build="3.3.1">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css?v=3.3.0">
+  <link rel="stylesheet" href="styles.css?v=3.3.1">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Vai al contenuto</a>
@@ -969,7 +969,7 @@
   </div>
 
   <dialog id="day-dialog" aria-labelledby="day-dialog-title">
-    <form id="day-form" method="dialog">
+    <form id="day-form">
       <div class="dialog-heading">
         <div>
           <p class="eyebrow">Giornata</p>
@@ -1084,43 +1084,34 @@
         </div>
         <button id="close-allocation-dialog" class="icon-button ghost" type="button" aria-label="Chiudi senza salvare"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
       </div>
-      <p id="allocation-dialog-description" class="supporting">Associa un intervallo oppure una durata alla giornata selezionata.</p>
+      <p id="allocation-dialog-description" class="supporting">Seleziona una o più commesse. Senza ore manuali, l’orario lavorato viene diviso automaticamente in parti uguali.</p>
       <input id="allocation-id" type="hidden">
       <input id="allocation-date" type="hidden">
       <div class="field">
-        <label for="allocation-project">Commessa</label>
-        <select id="allocation-project" required></select>
+        <label for="allocation-project-search">Cerca commessa</label>
+        <input id="allocation-project-search" type="search" autocomplete="off" placeholder="Scrivi codice o descrizione" aria-controls="allocation-project-options">
+        <p class="field-hint">Puoi cercare scrivendo e selezionare più commesse nella stessa registrazione.</p>
       </div>
-      <div id="allocation-recent" class="recent-projects" aria-label="Commesse recenti"></div>
-      <fieldset class="allocation-time-fields">
-        <legend>Intervallo della giornata</legend>
-        <div class="field-grid">
-          <div class="field"><label for="allocation-start">Dalle</label><input id="allocation-start" type="time"></div>
-          <div class="field"><label for="allocation-end">Alle</label><input id="allocation-end" type="time"></div>
-        </div>
-        <p class="field-hint">Compila entrambi gli orari; la durata viene calcolata automaticamente.</p>
+      <fieldset class="project-picker-fieldset">
+        <legend>Commesse della giornata</legend>
+        <div id="allocation-project-options" class="project-picker-options" role="group" aria-label="Seleziona le commesse"></div>
+        <p id="allocation-project-empty" class="field-hint" hidden>Nessuna commessa corrisponde alla ricerca.</p>
       </fieldset>
-      <div class="allocation-duration-divider"><span>oppure</span></div>
+      <fieldset class="allocation-method-fieldset">
+        <legend>Ripartizione</legend>
+        <label class="allocation-method-option"><input type="radio" name="allocation-method" value="automatic" checked> <span><strong>Percentuali automatiche</strong><small>1 commessa = 100%; 2 = 50% + 50%; con più commesse la giornata viene divisa in parti uguali.</small></span></label>
+        <label class="allocation-method-option"><input type="radio" name="allocation-method" value="hours"> <span><strong>Ore manuali</strong><small>Indica le ore per ciascuna commessa.</small></span></label>
+      </fieldset>
+      <p id="allocation-worked-summary" class="allocation-worked-summary" role="status"></p>
+      <div id="allocation-hours-list" class="allocation-hours-list"></div>
       <div class="field">
-        <label for="allocation-duration">Durata</label>
-        <div class="duration-input-row">
-          <input id="allocation-duration" type="number" min="1" max="1440" inputmode="numeric" aria-describedby="allocation-duration-help">
-          <span>minuti</span>
-        </div>
-        <p id="allocation-duration-help" class="field-hint">Per un inserimento rapido puoi aggiungere 30 minuti o 1 ora.</p>
-      </div>
-      <div class="quick-duration-row" aria-label="Inserimento rapido">
-        <button class="button secondary" type="button" data-quick-minutes="30">+ 30 min</button>
-        <button class="button secondary" type="button" data-quick-minutes="60">+ 1 ora</button>
-      </div>
-      <div class="field">
-        <label for="allocation-note">Nota <span class="optional-label">facoltativa</span></label>
+        <label for="allocation-note">Nota comune <span class="optional-label">facoltativa</span></label>
         <input id="allocation-note" maxlength="240">
       </div>
       <p id="allocation-error" class="form-error" role="alert" hidden></p>
       <div class="dialog-actions">
-        <button id="delete-allocation" class="button danger" type="button" hidden>Elimina</button>
-        <button class="button primary" type="submit">Salva attività</button>
+        <button id="delete-allocation" class="button danger" type="button" hidden>Rimuovi attività</button>
+        <button class="button primary" type="submit">Salva commesse</button>
       </div>
     </form>
   </dialog>
@@ -1186,6 +1177,6 @@
   </div>
   <div id="live-region" class="sr-only" aria-live="polite"></div>
 
-  <script type="module" src="src/app.v3.3.0.mjs"></script>
+  <script type="module" src="src/app.v3.3.1.mjs"></script>
 </body>
 </html>
