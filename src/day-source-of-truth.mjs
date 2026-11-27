@@ -1,12 +1,35 @@
 const WORK_MODES = new Set(["office", "smart", "travel"]);
+const DAY_MODES = new Set([...WORK_MODES, "absence"]);
+const TRACKED_EVENT_TYPES = new Set(["entry", "pause", "resume", "exit"]);
+
+function validMode(mode) {
+  return DAY_MODES.has(mode) ? mode : null;
+}
+
+export function dayHasRecordedActivity(day) {
+  return Array.isArray(day?.events)
+    && day.events.some((event) => event
+      && !event.superseded
+      && TRACKED_EVENT_TYPES.has(event.type)
+      && typeof event.at === "string"
+      && event.at.length > 0);
+}
 
 export function effectiveDayMode(day) {
-  const mode = day?.actual_type || day?.planned_type;
-  return WORK_MODES.has(mode) || mode === "absence" ? mode : "office";
+  return validMode(day?.actual_type) || validMode(day?.planned_type) || "office";
 }
 
 export function homeModeForToday(savedDay) {
-  return savedDay ? effectiveDayMode(savedDay) : "office";
+  if (!savedDay) return "office";
+  const planned = validMode(savedDay.planned_type);
+  const actual = validMode(savedDay.actual_type);
+
+  // Prima dell'ingresso la Home rappresenta la pianificazione odierna. Un
+  // vecchio actual_type non deve sovrascrivere una successiva pianificazione
+  // Smart/Trasferta dopo reload o riapertura PWA. Dopo la prima attività
+  // registrata, invece, l'effettivo torna prioritario.
+  if (!dayHasRecordedActivity(savedDay)) return planned || actual || "office";
+  return actual || planned || "office";
 }
 
 export function applyHomeModeToDay(day, date, mode) {

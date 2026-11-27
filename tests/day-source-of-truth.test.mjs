@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyHomeModeToDay, homeModeForToday, mayReplaceTodayFromCloud } from '../src/day-source-of-truth.mjs';
+import { applyHomeModeToDay, dayHasRecordedActivity, homeModeForToday, mayReplaceTodayFromCloud } from '../src/day-source-of-truth.mjs';
 
 const TODAY = '2026-11-27';
 
@@ -10,6 +10,34 @@ test('Calendario oggi Smart: la Home riaperta resta Smart', () => {
 
 test('Calendario oggi Trasferta: il refresh resta Trasferta', () => {
   assert.equal(homeModeForToday({ work_date: TODAY, planned_type: 'travel', actual_type: 'travel' }), 'travel');
+});
+
+test('una vecchia modalità effettiva senza attività non sovrascrive la pianificazione odierna', () => {
+  const day = { work_date: TODAY, planned_type: 'smart', actual_type: 'office', events: [] };
+  assert.equal(homeModeForToday(day), 'smart');
+  assert.equal(dayHasRecordedActivity(day), false);
+});
+
+test('dopo l’ingresso la modalità effettiva torna prioritaria', () => {
+  const day = {
+    work_date: TODAY,
+    planned_type: 'smart',
+    actual_type: 'office',
+    events: [{ type: 'entry', at: `${TODAY}T08:00:00.000Z` }]
+  };
+  assert.equal(dayHasRecordedActivity(day), true);
+  assert.equal(homeModeForToday(day), 'office');
+});
+
+test('gli eventi storici superati non fanno risultare iniziata la giornata', () => {
+  const day = {
+    work_date: TODAY,
+    planned_type: 'travel',
+    actual_type: 'office',
+    events: [{ type: 'exit', at: `${TODAY}T16:00:00.000Z`, superseded: true }]
+  };
+  assert.equal(dayHasRecordedActivity(day), false);
+  assert.equal(homeModeForToday(day), 'travel');
 });
 
 test('senza pianificazione la Home usa Ufficio', () => {

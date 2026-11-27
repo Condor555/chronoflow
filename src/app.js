@@ -54,6 +54,7 @@ import {
 } from "./project-allocation-policy.mjs";
 import {
   applyHomeModeToDay,
+  dayHasRecordedActivity,
   effectiveDayMode,
   homeModeForToday,
   mayReplaceTodayFromCloud
@@ -400,7 +401,7 @@ function allocationMinutesForDate(date) {
 function workedMinutesForDate(date) {
   const day = state.days.get(date);
   if (!day) return 0;
-  return calculateTrackedDay(day, lastEventTime(day)).ordinaryWorkedMinutes;
+  return calculateTrackedDay(day, calculationNow(day)).ordinaryWorkedMinutes;
 }
 
 async function recalculateAutomaticAllocationsForDay(date) {
@@ -1190,7 +1191,7 @@ async function calendarSharingService() {
 function projectionForDay(day) {
   const normalized = normalizeDay(day);
   const effectiveType = normalized.actual_type || normalized.planned_type || "office";
-  const result = calculateTrackedDay(normalized, lastEventTime(normalized));
+  const result = calculateTrackedDay(normalized, calculationNow(normalized));
   return {
     work_date: normalized.work_date,
     mode: effectiveType === "absence" ? null : effectiveType,
@@ -2014,6 +2015,7 @@ function renderCalendar() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "calendar-day";
+    button.dataset.workDate = key;
     button.setAttribute("role", "gridcell");
     if (date.getMonth() !== month.getMonth()) button.classList.add("outside");
     if (key === isoDateLocal()) button.classList.add("today");
@@ -2054,7 +2056,6 @@ function renderCalendar() {
       mark.setAttribute("aria-hidden", "true");
       button.append(mark);
     }
-    button.addEventListener("click", () => openDayDialog(key));
     grid.append(button);
   }
 }
@@ -2127,7 +2128,101 @@ function openDayDialog(date) {
   $("#delete-day").hidden = !state.days.has(date);
   toggleAbsenceFields("day");
   renderDayProjects(date);
-  $("#day-dialog").showModal();
+  const dialog = $("#day-dialog");
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+}
+
+function closeDayDialog() {
+  const dialog = $("#day-dialog");
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+}
+
+let personalCalendarEditorBound = false;
+
+function bindPersonalCalendarEditor() {
+  if (personalCalendarEditorBound) return;
+  personalCalendarEditorBound = true;
+
+  // Delegazione stabile: continua a funzionare dopo ogni render del mese e
+  // viene registrata prima delle sezioni opzionali Commesse/Condivisione.
+  $("#calendar-grid").addEventListener("click", (event) => {
+    const button = event.target.closest("button.calendar-day[data-work-date]");
+    if (!button || state.calendarScope !== "mine") return;
+    openDayDialog(button.dataset.workDate);
+  });
+  $("#close-day-dialog").addEventListener("click", closeDayDialog);
+  $("#day-planned-type").addEventListener("change", () => { toggleAbsenceFields("day"); updateDayAutoExitEditor(); });
+  $("#day-actual-type").addEventListener("change", () => { toggleAbsenceFields("day"); updateDayAutoExitEditor(); });
+  $("#day-absence-type").addEventListener("change", () => toggleAbsenceFields("day"));
+  $("#day-child-id").addEventListener("change", () => updateChildPolicyHint("day"));
+  ["#day-entry-time", "#day-pause-start-time", "#day-pause-end-time"].forEach((selector) => {
+    $(selector).addEventListener("input", updateDayAutoExitEditor);
+  });
+
+  $("#day-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (state.calendarScope !== "mine") return showToast("Il calendario condiviso è disponibile solo in lettura.");
+    const form = event.currentTarget;
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit?.disabled) return;
+    if (submit) submit.disabled = true;
+    try {
+      const date = $("#day-date").value;
+      const day = normalizeDay(state.days.get(date) || defaultDay(date));
+      day.planned_type = $("#day-planned-type").value;
+      day.actual_type = $("#day-actual-type").value || null;
+      const effectiveType = day.actual_type || day.planned_type;
+      day.absence_type = effectiveType === "absence" ? $("#day-absence-type").value : null;
+      const absenceError = sundayHolidayRecoveryError(day.absence_type, day.work_date);
+      if (absenceError) return showToast(absenceError);
+      day.child_id = CHILD_LINKED_ABSENCE_TYPES.has(day.absence_type) ? $("#day-child-id").value || null : null;
+      if (CHILD_LINKED_ABSENCE_TYPES.has(day.absence_type) && !day.child_id) {
+        $("#day-child-id").focus();
+        return showToast("Seleziona il figlio: i plafond sono separati e non possono essere condivisi.");
+      }
+      const childEventError = childEventAbsenceError(day.absence_type, day.child_id, day.work_date);
+      if (childEventError) return showToast(childEventError);
+      day.ticket_override = effectiveType === "absence" || $("#day-ticket").value === "auto" ? null : $("#day-ticket").value === "yes";
+      day.notes = $("#day-notes").value.trim();
+      if (effectiveType !== "absence") {
+        const automaticExitHistory = day.events
+          .filter((item) => item?.type === "exit" && item.auto_exit === true)
+          .map((item) => ({ ...item, superseded: true, superseded_reason: "manual_day_edit", superseded_at: new Date().toISOString() }));
+        day.events = [...automaticExitHistory, ...eventsFromLocalTimes(date, {
+          entry: $("#day-entry-time").value,
+          pauseStart: $("#day-pause-start-time").value,
+          pauseEnd: $("#day-pause-end-time").value,
+          exit: $("#day-exit-time").disabled ? "" : $("#day-exit-time").value
+        })];
+      } else {
+        day.events = [];
+      }
+      await saveDay(day, { silent: true });
+      if (projectsEnabled()) await recalculateAutomaticAllocationsForDay(date);
+      closeDayDialog();
+      showToast("Giornata salvata.");
+    } catch (error) {
+      showToast(`Giornata non salvata: ${friendlyError(error)}`);
+    } finally {
+      if (submit) submit.disabled = false;
+    }
+  });
+
+  $("#delete-day").addEventListener("click", async () => {
+    const date = $("#day-date").value;
+    const before = state.days.has(date) ? structuredClone(state.days.get(date)) : null;
+    const beforeAllocations = allocationsForDate(date).map((allocation) => structuredClone(allocation));
+    if (!before) return closeDayDialog();
+    await deleteDay(date, { silent: true });
+    closeDayDialog();
+    showToast("Giornata eliminata.", async () => {
+      await saveDay(before, { silent: true });
+      for (const allocation of beforeAllocations) await saveAllocation(allocation);
+      showToast("Giornata ripristinata.");
+    });
+  });
 }
 
 function recoveryRuleCopy(rule) {
@@ -2959,7 +3054,7 @@ function renderProjectSummary(selectedYear, start, end) {
   $("#summary-projects-total").textContent = minutesToDuration(monthTotal);
   const worked = [...state.days.values()]
     .filter((day) => day.work_date >= start && day.work_date <= end)
-    .reduce((total, day) => total + calculateTrackedDay(day, lastEventTime(day)).ordinaryWorkedMinutes, 0);
+    .reduce((total, day) => total + calculateTrackedDay(day, calculationNow(day)).ordinaryWorkedMinutes, 0);
   const balance = allocationBalanceCopy(monthTotal, worked);
   $("#summary-projects-caption").textContent = `${minutesToDuration(monthTotal)} allocate su ${minutesToDuration(worked)} lavorate · ${balance.label}.`;
 
@@ -4115,7 +4210,7 @@ function registerServiceWorker() {
     window.location.reload();
   });
   navigator.serviceWorker
-    .register("./sw.v3.3.1.js", { updateViaCache: "none" })
+    .register("./sw.v3.3.2.js", { updateViaCache: "none" })
     .then((registration) => registration.update())
     .catch(() => {});
 }
@@ -4170,6 +4265,7 @@ async function initialize() {
 }
 
 function bindEvents() {
+  bindPersonalCalendarEditor();
   $("#install-app").addEventListener("click", handleInstallAction);
   $("#dismiss-install-banner").addEventListener("click", dismissInstallBanner);
   $("#close-install-banner").addEventListener("click", dismissInstallBanner);
@@ -4402,6 +4498,7 @@ function bindEvents() {
       const date = isoDateLocal(cursor);
       const day = normalizeDay(state.days.get(date) || defaultDay(date));
       day.planned_type = type;
+      if (!dayHasRecordedActivity(day)) day.actual_type = null;
       changed.push(day);
       state.days.set(date, day);
       syncSummaryYearDay(day);
@@ -4439,70 +4536,7 @@ function bindEvents() {
   ["#calendar-month-select", "#calendar-year-select"].forEach((selector) => {
     $(selector).addEventListener("change", () => selectMonth("calendar", selectedMonthFromControls("calendar", state.calendarMonth)));
   });
-  $("#day-planned-type").addEventListener("change", () => { toggleAbsenceFields("day"); updateDayAutoExitEditor(); });
-  $("#day-actual-type").addEventListener("change", () => { toggleAbsenceFields("day"); updateDayAutoExitEditor(); });
-  $("#day-absence-type").addEventListener("change", () => toggleAbsenceFields("day"));
-  $("#day-child-id").addEventListener("change", () => updateChildPolicyHint("day"));
   $("#today-child-id").addEventListener("change", () => updateChildPolicyHint("today"));
-  ["#day-entry-time", "#day-pause-start-time", "#day-pause-end-time"].forEach((selector) => {
-    $(selector).addEventListener("input", updateDayAutoExitEditor);
-  });
-  $("#close-day-dialog").addEventListener("click", () => $("#day-dialog").close());
-  $("#day-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (state.calendarScope !== "mine") return showToast("Il calendario condiviso è disponibile solo in lettura.");
-    const date = $("#day-date").value;
-    const day = normalizeDay(state.days.get(date) || defaultDay(date));
-    day.planned_type = $("#day-planned-type").value;
-    day.actual_type = $("#day-actual-type").value || null;
-    const effectiveType = day.actual_type || day.planned_type;
-    day.absence_type = effectiveType === "absence" ? $("#day-absence-type").value : null;
-    const absenceError = sundayHolidayRecoveryError(day.absence_type, day.work_date);
-    if (absenceError) return showToast(absenceError);
-    day.child_id = CHILD_LINKED_ABSENCE_TYPES.has(day.absence_type) ? $("#day-child-id").value || null : null;
-    if (CHILD_LINKED_ABSENCE_TYPES.has(day.absence_type) && !day.child_id) {
-      $("#day-child-id").focus();
-      return showToast("Seleziona il figlio: i plafond sono separati e non possono essere condivisi.");
-    }
-    const childEventError = childEventAbsenceError(day.absence_type, day.child_id, day.work_date);
-    if (childEventError) return showToast(childEventError);
-    day.ticket_override = effectiveType === "absence" || $("#day-ticket").value === "auto" ? null : $("#day-ticket").value === "yes";
-    day.notes = $("#day-notes").value.trim();
-    if (effectiveType !== "absence") {
-      try {
-        const automaticExitHistory = day.events
-          .filter((item) => item?.type === "exit" && item.auto_exit === true)
-          .map((item) => ({ ...item, superseded: true, superseded_reason: "manual_day_edit", superseded_at: new Date().toISOString() }));
-        day.events = [...automaticExitHistory, ...eventsFromLocalTimes(date, {
-          entry: $("#day-entry-time").value,
-          pauseStart: $("#day-pause-start-time").value,
-          pauseEnd: $("#day-pause-end-time").value,
-          exit: $("#day-exit-time").disabled ? "" : $("#day-exit-time").value
-        })];
-      } catch (error) {
-        showToast(friendlyError(error));
-        return;
-      }
-    } else {
-      day.events = [];
-    }
-    await saveDay(day, { silent: true });
-    if (projectsEnabled()) await recalculateAutomaticAllocationsForDay(date);
-    $("#day-dialog").close();
-    showToast("Giornata salvata.");
-  });
-  $("#delete-day").addEventListener("click", async () => {
-    const date = $("#day-date").value;
-    const before = structuredClone(state.days.get(date));
-    const beforeAllocations = allocationsForDate(date).map((allocation) => structuredClone(allocation));
-    await deleteDay(date, { silent: true });
-    $("#day-dialog").close();
-    showToast("Giornata eliminata.", async () => {
-      await saveDay(before, { silent: true });
-      for (const allocation of beforeAllocations) await saveAllocation(allocation);
-      showToast("Giornata ripristinata.");
-    });
-  });
 
   $("#previous-summary-month").addEventListener("click", () => selectMonth("summary", new Date(state.summaryMonth.getFullYear(), state.summaryMonth.getMonth() - 1, 1)));
   $("#next-summary-month").addEventListener("click", () => selectMonth("summary", new Date(state.summaryMonth.getFullYear(), state.summaryMonth.getMonth() + 1, 1)));
