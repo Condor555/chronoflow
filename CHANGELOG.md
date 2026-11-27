@@ -1,3 +1,14 @@
+# Chrono Flow 3.3.4 — Registrazione e modifica puntuale delle commesse
+
+- Le nuove registrazioni non preselezionano più commesse usate in passato o preferite.
+- Dopo ogni selezione la ricerca viene svuotata, l’elenco torna completo e il focus ritorna nel campo senza perdere le selezioni già effettuate.
+- Le commesse già presenti nella giornata non vengono duplicate dal flusso di nuova registrazione.
+- Il pulsante **Modifica** apre un dialogo dedicato alla sola allocazione selezionata, senza ricerca o aggiunta di altre commesse.
+- La singola voce può essere eliminata oppure aggiornata nella percentuale automatica o nelle ore manuali.
+- Home, Calendario, dettaglio giornata e Riepilogo vengono aggiornati immediatamente dopo salvataggio o eliminazione.
+- Entry point e service worker immutabili 3.3.4 per forzare l’aggiornamento della PWA.
+- 220 test automatici superati; nessuna nuova migration Supabase.
+
 # Chrono Flow 3.3.3 — Flussi Home, Calendario, Commesse e pausa automatica
 
 - Pausa automatica delle 13:00 calcolata dagli orari reali: il conteggio si ferma, la Home mostra `Pausa automatica` e riprende alla fine della durata configurata anche dopo chiusura o riapertura della PWA.

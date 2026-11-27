@@ -37,6 +37,21 @@ export function minutesToHoursInput(minutes) {
   return numeric ? String(Math.round((numeric / MINUTES_PER_HOUR) * 100) / 100) : "";
 }
 
+export function minutesToPercentageInput(durationMinutes, workedMinutes) {
+  const duration = Math.max(0, Number(durationMinutes) || 0);
+  const worked = Math.max(0, Number(workedMinutes) || 0);
+  return duration && worked ? String(Math.round((duration / worked) * 10000) / 100) : "";
+}
+
+export function percentageToMinutes(workedMinutes, value) {
+  const worked = positiveInteger(workedMinutes, "L’orario lavorato");
+  const percentage = Number(String(value).replace(",", "."));
+  if (!Number.isFinite(percentage) || percentage <= 0 || percentage > 100) {
+    throw new Error("La percentuale deve essere maggiore di 0 e non superiore al 100%.");
+  }
+  return Math.max(1, Math.round((worked * percentage) / 100));
+}
+
 export function searchProjects(projects = [], query = "") {
   const normalizedQuery = String(query || "").trim().toLocaleLowerCase("it");
   return [...projects].filter((project) => {
@@ -44,6 +59,10 @@ export function searchProjects(projects = [], query = "") {
     const searchable = `${project.code || ""} ${project.description || ""}`.toLocaleLowerCase("it");
     return !normalizedQuery || searchable.includes(normalizedQuery);
   });
+}
+
+export function initialAllocationProjectIds(existingProjectIds = []) {
+  return [...new Set(existingProjectIds.filter(Boolean))];
 }
 
 export function buildAllocationDurations({ mode, projectIds, workedMinutes, manualHours = {} }) {

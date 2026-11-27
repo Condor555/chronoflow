@@ -49,7 +49,11 @@ import {
 import {
   buildAllocationDurations,
   equalPercentages,
+  hoursToMinutes,
+  initialAllocationProjectIds,
   minutesToHoursInput,
+  minutesToPercentageInput,
+  percentageToMinutes,
   searchProjects,
   splitEvenMinutes
 } from "./project-allocation-policy.mjs";
@@ -419,13 +423,6 @@ async function recalculateAutomaticAllocationsForDay(date) {
   });
   await replaceDayAllocations(date, next);
   return next;
-}
-
-function preferredProjectId() {
-  const settings = normalizeFamilySettings(state.profile.family_settings);
-  const defaultProject = state.projects.get(settings.default_project_id);
-  if (defaultProject?.is_active) return defaultProject.id;
-  return recentProjectIds().find((id) => state.projects.get(id)?.is_active) || "";
 }
 
 function recentProjectIds(limit = 4) {
@@ -1678,9 +1675,13 @@ function allocationRow(allocation, { editable = true } = {}) {
   const name = document.createElement("strong");
   name.textContent = projectLabel(project);
   const meta = document.createElement("span");
-  meta.textContent = allocation.start_time && allocation.end_time
-    ? `${allocation.start_time}–${allocation.end_time} · ${minutesToDuration(allocation.duration_minutes)}`
+  const workedMinutes = workedMinutesForDate(allocation.work_date);
+  const durationLabel = allocation.allocation_method === "automatic" && workedMinutes
+    ? `${minutesToPercentageInput(allocation.duration_minutes, workedMinutes)}% · ${minutesToDuration(allocation.duration_minutes)}`
     : minutesToDuration(allocation.duration_minutes);
+  meta.textContent = allocation.start_time && allocation.end_time
+    ? `${allocation.start_time}–${allocation.end_time} · ${durationLabel}`
+    : durationLabel;
   copy.append(name, meta);
   if (allocation.note) {
     const note = document.createElement("small");
@@ -1694,7 +1695,7 @@ function allocationRow(allocation, { editable = true } = {}) {
     edit.className = "button ghost allocation-edit";
     edit.textContent = "Modifica";
     edit.setAttribute("aria-label", `Modifica attività ${projectLabel(project)}`);
-    edit.addEventListener("click", () => openAllocationDialog(allocation.work_date, allocation.id));
+    edit.addEventListener("click", () => openSingleAllocationDialog(allocation.work_date, allocation.id));
     row.append(edit);
   }
   return row;
@@ -1824,12 +1825,19 @@ function renderAllocationHoursEditor() {
 function renderAllocationProjectPicker() {
   const root = $("#allocation-project-options");
   if (!root) return;
-  const query = $("#allocation-project-search").value;
+  const searchInput = $("#allocation-project-search");
+  const query = searchInput.value;
+  const defaultProjectId = normalizeFamilySettings(state.profile.family_settings).default_project_id;
+  const existingProjectIds = new Set(allocationsForDate($("#allocation-date").value).map((allocation) => allocation.project_id));
   const projects = searchProjects(
-    [...state.projects.values()].filter((project) => project.is_active || state.allocationSelectedProjects.has(project.id)),
+    [...state.projects.values()].filter((project) => (project.is_active && !existingProjectIds.has(project.id)) || state.allocationSelectedProjects.has(project.id)),
     query
   )
-    .sort((left, right) => left.code.localeCompare(right.code, "it", { numeric: true }));
+    .sort((left, right) => {
+      if (left.id === defaultProjectId) return -1;
+      if (right.id === defaultProjectId) return 1;
+      return left.code.localeCompare(right.code, "it", { numeric: true });
+    });
   $("#allocation-project-empty").hidden = projects.length > 0;
   root.replaceChildren(...projects.map((project) => {
     const label = document.createElement("label");
@@ -1845,8 +1853,14 @@ function renderAllocationProjectPicker() {
     description.textContent = `${project.description}${project.is_active ? "" : " · archiviata"}`;
     copy.append(code, description);
     input.addEventListener("change", () => {
-      if (input.checked) state.allocationSelectedProjects.add(project.id);
-      else state.allocationSelectedProjects.delete(project.id);
+      if (input.checked) {
+        state.allocationSelectedProjects.add(project.id);
+        searchInput.value = "";
+        renderAllocationProjectPicker();
+        window.requestAnimationFrame(() => searchInput.focus());
+        return;
+      }
+      state.allocationSelectedProjects.delete(project.id);
       renderAllocationHoursEditor();
     });
     label.append(input, copy);
@@ -1855,32 +1869,49 @@ function renderAllocationProjectPicker() {
   renderAllocationHoursEditor();
 }
 
-function openAllocationDialog(date, allocationId = null) {
+function openAllocationDialog(date) {
   if (!projectsEnabled()) return;
-  const allocation = allocationId ? allAllocations().find((item) => item.id === allocationId) : null;
-  const existing = allocationsForDate(date);
-  state.editingAllocationId = allocation?.id || null;
-  state.allocationSelectedProjects = new Set(existing.map((item) => item.project_id));
-  if (!state.allocationSelectedProjects.size && preferredProjectId()) state.allocationSelectedProjects.add(preferredProjectId());
-  state.allocationManualHours = new Map(existing.map((item) => [item.project_id, minutesToHoursInput(item.duration_minutes)]));
-  $("#allocation-id").value = allocation?.id || "";
+  state.editingAllocationId = null;
+  state.allocationSelectedProjects = new Set(initialAllocationProjectIds());
+  state.allocationManualHours = new Map();
+  $("#allocation-id").value = "";
   $("#allocation-date").value = date;
-  $("#allocation-dialog-title").textContent = existing.length ? "Modifica attività" : "Registra attività";
-  $("#allocation-dialog-description").textContent = `${new Intl.DateTimeFormat("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${date}T12:00:00`))}. Se non indichi ore, Chrono Flow divide automaticamente l’orario lavorato.`;
+  $("#allocation-dialog-title").textContent = "Registra attività";
+  $("#allocation-dialog-description").textContent = `${new Intl.DateTimeFormat("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${date}T12:00:00`))}. Seleziona una o più nuove commesse; quelle già presenti si modificano dal relativo pulsante Modifica.`;
   $("#allocation-project-search").value = "";
-  const method = existing.length && existing.every((item) => item.allocation_method === "automatic") ? "automatic" : existing.length ? "hours" : "automatic";
-  const methodControl = $(`input[name="allocation-method"][value="${method}"]`);
+  const methodControl = $('input[name="allocation-method"][value="automatic"]');
   if (methodControl) methodControl.checked = true;
-  $("#allocation-note").value = allocation?.note || "";
-  const hasSelectableProjects = [...state.projects.values()].some((project) => project.is_active || state.allocationSelectedProjects.has(project.id));
+  $("#allocation-note").value = "";
+  const existingProjectIds = new Set(allocationsForDate(date).map((allocation) => allocation.project_id));
+  const hasSelectableProjects = [...state.projects.values()].some((project) => project.is_active && !existingProjectIds.has(project.id));
   $("#allocation-error").hidden = hasSelectableProjects;
   $("#allocation-error").textContent = hasSelectableProjects
     ? ""
-    : "Nessuna commessa attiva. Puoi chiudere questa finestra e aggiungerne una in Impostazioni → Commesse.";
-  $("#delete-allocation").hidden = !allocation;
+    : "Non ci sono nuove commesse attive da aggiungere. Puoi modificare quelle già presenti oppure aggiungerne una in Impostazioni → Commesse.";
   renderAllocationProjectPicker();
   $("#allocation-dialog").showModal();
   window.requestAnimationFrame(() => $("#allocation-project-search").focus());
+}
+
+function openSingleAllocationDialog(date, allocationId) {
+  const allocation = allocationsForDate(date).find((item) => item.id === allocationId);
+  if (!allocation) return showToast("L’attività non è più disponibile.");
+  const project = state.projects.get(allocation.project_id);
+  const automatic = allocation.allocation_method === "automatic";
+  state.editingAllocationId = allocation.id;
+  $("#single-allocation-id").value = allocation.id;
+  $("#single-allocation-date").value = date;
+  $("#single-allocation-project").textContent = projectLabel(project);
+  $("#single-allocation-method").textContent = automatic ? "Allocazione percentuale / automatica" : "Allocazione manuale a ore";
+  $("#single-allocation-percentage-field").hidden = !automatic;
+  $("#single-allocation-hours-field").hidden = automatic;
+  $("#single-allocation-percentage").value = automatic
+    ? minutesToPercentageInput(allocation.duration_minutes, workedMinutesForDate(date))
+    : "";
+  $("#single-allocation-hours").value = automatic ? "" : minutesToHoursInput(allocation.duration_minutes);
+  $("#single-allocation-error").hidden = true;
+  $("#single-allocation-dialog").showModal();
+  window.requestAnimationFrame(() => $(automatic ? "#single-allocation-percentage" : "#single-allocation-hours").focus());
 }
 
 function minutesFromTimeRange(start, end) {
@@ -4215,7 +4246,7 @@ function registerServiceWorker() {
     window.location.reload();
   });
   navigator.serviceWorker
-    .register("./sw.v3.3.3.js", { updateViaCache: "none" })
+    .register("./sw.v3.3.4.js", { updateViaCache: "none" })
     .then((registration) => registration.update())
     .catch(() => {});
 }
@@ -4387,18 +4418,19 @@ function bindEvents() {
     try {
       const date = $("#allocation-date").value;
       const projectIds = allocationSelectedProjectIds();
-      const existingByProject = new Map(allocationsForDate(date).map((item) => [item.project_id, item]));
       const manualHours = Object.fromEntries(state.allocationManualHours);
+      const method = allocationMethod();
+      const workedMinutes = workedMinutesForDate(date);
+      const unallocatedMinutes = workedMinutes - allocationMinutesForDate(date);
       const durations = buildAllocationDurations({
-        mode: allocationMethod(),
+        mode: method,
         projectIds,
-        workedMinutes: workedMinutesForDate(date),
+        workedMinutes: method === "automatic" ? unallocatedMinutes : workedMinutes,
         manualHours
       });
       const note = $("#allocation-note").value.trim();
-      const method = allocationMethod();
-      await replaceDayAllocations(date, durations.map(({ projectId, durationMinutes }) => ({
-        id: existingByProject.get(projectId)?.id || crypto.randomUUID(),
+      for (const { projectId, durationMinutes } of durations) await saveAllocation({
+        id: crypto.randomUUID(),
         user_id: state.user.id,
         project_id: projectId,
         work_date: date,
@@ -4406,23 +4438,47 @@ function bindEvents() {
         end_time: null,
         duration_minutes: durationMinutes,
         allocation_method: method,
-        note: note || existingByProject.get(projectId)?.note || ""
-      })));
+        note
+      });
       $("#allocation-dialog").close();
       state.editingAllocationId = null;
-      showToast("Commesse della giornata salvate.");
+      showToast("Nuove commesse registrate.");
     } catch (error) {
       errorBox.textContent = friendlyError(error);
       errorBox.hidden = false;
       errorBox.focus();
     }
   });
-  $("#delete-allocation").addEventListener("click", async () => {
-    const id = $("#allocation-id").value;
-    const date = $("#allocation-date").value;
+  $("#close-single-allocation-dialog").addEventListener("click", () => $("#single-allocation-dialog").close());
+  $("#single-allocation-dialog").addEventListener("cancel", () => { state.editingAllocationId = null; });
+  $("#single-allocation-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const errorBox = $("#single-allocation-error");
+    errorBox.hidden = true;
+    try {
+      const id = $("#single-allocation-id").value;
+      const date = $("#single-allocation-date").value;
+      const allocation = allocationsForDate(date).find((item) => item.id === id);
+      if (!allocation) throw new Error("L’attività non è più disponibile.");
+      const durationMinutes = allocation.allocation_method === "automatic"
+        ? percentageToMinutes(workedMinutesForDate(date), $("#single-allocation-percentage").value)
+        : hoursToMinutes($("#single-allocation-hours").value);
+      await saveAllocation({ ...allocation, duration_minutes: durationMinutes });
+      $("#single-allocation-dialog").close();
+      state.editingAllocationId = null;
+      showToast("Allocazione aggiornata.");
+    } catch (error) {
+      errorBox.textContent = friendlyError(error);
+      errorBox.hidden = false;
+      errorBox.focus();
+    }
+  });
+  $("#delete-single-allocation").addEventListener("click", async () => {
+    const id = $("#single-allocation-id").value;
+    const date = $("#single-allocation-date").value;
     if (!id) return;
     await deleteAllocation(id, date);
-    $("#allocation-dialog").close();
+    $("#single-allocation-dialog").close();
     state.editingAllocationId = null;
     showToast("Attività eliminata.");
   });

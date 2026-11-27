@@ -7,7 +7,7 @@ const [html, app, calculations, sourceOfTruth, worker, compatWorker, pkg] = awai
   readFile(new URL('../src/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../src/calculations.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../src/day-source-of-truth.mjs', import.meta.url), 'utf8'),
-  readFile(new URL('../sw.v3.3.3.js', import.meta.url), 'utf8'),
+  readFile(new URL('../sw.v3.3.4.js', import.meta.url), 'utf8'),
   readFile(new URL('../sw.js', import.meta.url), 'utf8'),
   readFile(new URL('../package.json', import.meta.url), 'utf8')
 ]);
@@ -50,11 +50,11 @@ test('Registra attività apre il dialogo anche con elenco vuoto e mantiene ricer
   assert.match(html, /name="allocation-method" value="hours"/);
 });
 
-test('shell 3.3.3 usa entry point e service worker immutabili senza modifiche Supabase', () => {
-  assert.match(html, /data-build="3\.3\.3"/);
-  assert.match(html, /src\/app\.v3\.3\.3\.mjs/);
-  assert.match(app, /sw\.v3\.3\.3\.js/);
-  assert.match(worker, /chrono-flow-v3\.3\.3-complete-flows/);
-  assert.match(compatWorker, /sw\.v3\.3\.3\.js/);
-  assert.equal(JSON.parse(pkg).version, '3.3.3');
+test('shell 3.3.4 usa entry point e service worker immutabili senza modifiche Supabase', () => {
+  assert.match(html, /data-build="3\.3\.4"/);
+  assert.match(html, /src\/app\.v3\.3\.4\.mjs/);
+  assert.match(app, /sw\.v3\.3\.4\.js/);
+  assert.match(worker, /chrono-flow-v3\.3\.4-complete-flows/);
+  assert.match(compatWorker, /sw\.v3\.3\.4\.js/);
+  assert.equal(JSON.parse(pkg).version, '3.3.4');
 });

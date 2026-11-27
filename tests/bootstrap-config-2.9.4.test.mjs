@@ -124,14 +124,14 @@ test('restored bootstrap uses the stable client and immutable 3.2 service worker
   const [indexSource, appSource, workerSource, legacySource] = await Promise.all([
     readProjectFile('index.html'),
     readProjectFile('src/app.js'),
-    readProjectFile('sw.v3.3.3.js'),
+    readProjectFile('sw.v3.3.4.js'),
     readProjectFile('src/supabase-client.mjs')
   ]);
 
-  assert.match(indexSource, /src=["']src\/app\.v3\.3\.3\.mjs["']/);
+  assert.match(indexSource, /src=["']src\/app\.v3\.3\.4\.mjs["']/);
   assert.match(appSource, /from\s+['"]\.\/supabase-client\.v3\.0\.3\.mjs['"]/);
   assert.doesNotMatch(appSource, /from\s+['"]\.\/supabase-client\.mjs['"]/);
-  assert.match(appSource, /register\(["']\.\/sw\.v3\.3\.3\.js["']/);
+  assert.match(appSource, /register\(["']\.\/sw\.v3\.3\.4\.js["']/);
   assert.match(workerSource, /\.\/src\/supabase-client\.v3\.0\.3\.mjs/);
   assert.doesNotMatch(workerSource, /['"]\.\/src\/(?:config\/)?supabase-client\.mjs['"]/);
   assert.match(legacySource, /from\s+['"]\.\/supabase-client\.v3\.0\.3\.mjs['"]/);

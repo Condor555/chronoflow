@@ -1,10 +1,10 @@
 {
   "name": "chrono-flow",
-  "version": "3.3.3",
+  "version": "3.3.4",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check src/app.v3.3.3.mjs && node --check src/app.js && node --check src/calculations.mjs && node --check src/project-allocation-policy.mjs && node --check src/day-source-of-truth.mjs && node --check sw.v3.3.3.js && node --test tests/full-user-flows.test.mjs tests/calculations.test.mjs tests/day-source-of-truth.test.mjs tests/critical-regressions-v3.3.3.test.mjs"
+    "check": "node --check src/app.v3.3.4.mjs && node --check src/app.js && node --check src/calculations.mjs && node --check src/project-allocation-policy.mjs && node --check src/day-source-of-truth.mjs && node --check sw.v3.3.4.js && node --test tests/full-user-flows.test.mjs tests/calculations.test.mjs tests/day-source-of-truth.test.mjs tests/critical-regressions-v3.3.4.test.mjs"
   }
 }

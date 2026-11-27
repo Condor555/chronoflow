@@ -871,6 +871,8 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
 .allocation-method-option small { margin-top: 2px; color: var(--muted); overflow-wrap: anywhere; }
 .allocation-method-fieldset { display: grid; gap: 8px; }
 .allocation-worked-summary { margin: 0 0 12px; color: var(--primary); font-weight: 750; }
+.allocation-single-summary { display: grid; gap: 4px; margin: 2px 0 16px; padding: 12px 14px; background: #f6f9fa; border: 1px solid var(--line); border-radius: 12px; }
+.allocation-single-summary strong { color: var(--primary); overflow-wrap: anywhere; }
 .allocation-hours-list { display: grid; gap: 8px; margin-bottom: 16px; }
 .allocation-hours-row {
   display: grid;
