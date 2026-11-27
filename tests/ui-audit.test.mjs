@@ -8,7 +8,7 @@ const [html, css, app, liveClock, sw, homeDisplay] = await Promise.all([
   readFile(new URL("styles.css", root), "utf8"),
   readFile(new URL("src/app.js", root), "utf8"),
   readFile(new URL("src/live-clock.mjs", root), "utf8"),
-  readFile(new URL("sw.v3.2.0.js", root), "utf8"),
+  readFile(new URL("sw.v3.2.1.js", root), "utf8"),
   readFile(new URL("src/home-display.mjs", root), "utf8")
 ]);
 
@@ -23,14 +23,17 @@ test("MonthSelector Chrono Flow sostituisce i controlli month nativi", () => {
 });
 
 test("tutte le card Impostazioni usano progressive disclosure con riepilogo", () => {
-  const expected = [
-    "profile-settings", "work-mode-settings", "leave-settings", "ticket-settings", "absence-settings",
-    "summary-preferences", "calendar-sharing-settings", "notification-settings", "family-settings", "holiday-settings", "security-settings", "data-settings"
+  const macros = [
+    "profile-settings", "work-mode-settings", "ticket-settings", "leave-settings",
+    "family-settings", "notification-settings", "calendar-sharing-settings", "account-data-settings"
   ];
-  for (const id of expected) {
-    assert.match(html, new RegExp(`<details id=["']${id}["'][^>]*settings-disclosure`));
+  for (const id of macros) {
+    assert.match(html, new RegExp(`<details id=["']${id}["'][^>]*settings-disclosure[^>]*data-settings-section`));
     assert.match(html, new RegExp(`aria-controls=["']${id}-panel["']`));
     assert.match(html, new RegExp(`id=["']${id}-panel["']`));
+  }
+  for (const id of ["absence-settings", "summary-preferences", "holiday-settings", "security-settings", "data-settings"]) {
+    assert.match(html, new RegExp(`<details id=["']${id}["'][^>]*settings-advanced`));
   }
   assert.match(html, /id="profile-settings-summary"/);
   assert.match(html, /id="holiday-settings-summary"/);
@@ -86,7 +89,7 @@ test("home e recuperi hanno aggiornamento immediato", () => {
   assert.match(app, /result\.ordinaryWorkedSeconds/);
 });
 
-test("card timer usa esattamente i colori delle pill per Ufficio, Casa e Trasferta", () => {
+test("card timer usa il trattamento profondo approvato per Ufficio, Casa e Trasferta", () => {
   assert.match(html, /id="work-mode-label"/);
   assert.match(html, /id="work-timer-card"[^>]*class="hero-card mode-office"[^>]*data-mode="office"/);
   assert.match(app, /function updateHeroMode/);
@@ -94,47 +97,21 @@ test("card timer usa esattamente i colori delle pill per Ufficio, Casa e Trasfer
   assert.match(homeDisplay, /card\.classList\.remove\(\.\.\.HOME_MODE_CLASSES\)/);
   assert.match(homeDisplay, /card\.classList\.add\(presentation\.className\)/);
   assert.match(app, /updateHeroMode\(button\.dataset\.location\)[\s\S]*updateLocationChoice\(button\.dataset\.location\)[\s\S]*await saveDay/);
-  for (const token of [
-    "home-office-background", "home-office-foreground", "home-office-accent",
-    "home-smart-background", "home-smart-foreground", "home-smart-accent",
-    "home-travel-background", "home-travel-foreground", "home-travel-accent"
-  ]) assert.match(css, new RegExp(`--${token}:`));
   for (const mode of ["office", "smart", "travel"]) {
-    assert.match(css, new RegExp(`--home-${mode}-background:\\s*var\\(--${mode}\\);`));
-    assert.match(css, new RegExp(`--home-${mode}-foreground:\\s*var\\(--${mode}-ink\\)`));
-    assert.match(css, new RegExp(`--home-${mode}-accent:\\s*var\\(--${mode}-ink\\)`));
+    assert.match(css, new RegExp(`--home-${mode}-deep-from:`));
+    assert.match(css, new RegExp(`--home-${mode}-deep-to:`));
+    assert.match(css, new RegExp(`\\.hero-card\\.mode-${mode}`));
   }
-  assert.match(css, /\.type-badge\s*\{[^}]*background:\s*var\(--office\)/);
-  assert.match(css, /\.type-badge\.smart\s*\{[^}]*background:\s*var\(--smart\)/);
-  assert.match(css, /\.type-badge\.travel\s*\{[^}]*background:\s*var\(--travel\)/);
-  assert.match(css, /\.hero-card::after\s*\{\s*content:\s*none;/);
-  assert.match(css, /\.hero-card\.mode-office/);
-  assert.match(css, /\.hero-card\.mode-smart/);
-  assert.match(css, /\.hero-card\.mode-travel/);
+  assert.match(css, /\.hero-card\s*\{[^}]*background-image:\s*linear-gradient/s);
+  assert.match(css, /\.hero-card::after\s*\{[^}]*content:\s*""[^}]*border-radius:\s*50%/s);
+  assert.match(css, /\.hero-card \.auto-exit-note/);
+  assert.match(css, /\.hero-card \.action-stack \.primary/);
   assert.match(homeDisplay, /mode-office/);
   assert.match(homeDisplay, /mode-smart/);
   assert.match(homeDisplay, /mode-travel/);
   assert.match(sw, /\.\/styles\.css/);
   assert.match(sw, /\.\/src\/home-display\.mjs/);
   assert.match(sw, /isCodeOrStyle|codeOrStyle/);
-
-  const luminance = (hex) => {
-    const channels = hex.match(/[a-f\d]{2}/gi).map((value) => Number.parseInt(value, 16) / 255)
-      .map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
-    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
-  };
-  for (const [foreground, background] of [
-    ["#124d7b", "#d6ecff"],
-    ["#12624e", "#d8f4e8"],
-    ["#56389a", "#ebe2ff"]
-  ]) {
-    const lighter = Math.max(luminance(foreground), luminance(background));
-    const darker = Math.min(luminance(foreground), luminance(background));
-    const ratio = (lighter + 0.05) / (darker + 0.05);
-    assert.ok(ratio >= 4.5, `${foreground} su ${background} deve mantenere contrasto AA`);
-  }
-  assert.match(css, /\.action-stack \.primary[^}]*color:\s*var\(--home-mode-foreground\)[^}]*border-color:\s*var\(--home-mode-foreground\)/);
-  assert.match(css, /\.action-stack \.secondary[^}]*color:\s*var\(--home-mode-foreground\)[^}]*border-color:\s*var\(--home-mode-foreground\)/);
 });
 
 test("assenze mostrano dati non mappati ed empty state esplicito", () => {

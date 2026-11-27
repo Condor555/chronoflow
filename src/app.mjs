@@ -1,2 +1,2 @@
-// Recovery entry for cached 3.0.3/3.0.4 pages.
-import './stale-shell-recovery.v3.2.0.mjs';
+// Recovery entry for a cached earlier shell.
+import './stale-shell-recovery.v3.2.1.mjs';

@@ -8,13 +8,13 @@ La 2.9.4 è la sorgente di verità per DOM, componenti, navigazione e design sys
 | Avvio | Home/Oggi | Home/Oggi anche dopo login, reload e riapertura PWA | `app.js` + cache recovery 3.2 | routing/session + UI restoration |
 | Navigazione | Oggi, Calendario, Riepilogo, Impostazioni | Conservata integralmente | DOM 2.9.4 | visual-contract + render |
 | Profilo/account | Nome, email, logout | Conservato integralmente | DOM/app 2.9.4 | visual-contract + functional navigation |
-| Home | Grande card, tre modalità, metriche e azioni | Conservata; aggiunta microcopy uscita automatica | DOM/CSS 2.9.4 + `smart-auto-exit.mjs` | home-display, calculations, Smart auto-exit |
+| Home | Grande card, tre modalità, metriche e azioni | Conservata; trattamento profondo approvato, decorazione soft e microcopy uscita automatica | DOM 2.9.4 + estensione CSS 3.2.1 + `smart-auto-exit.mjs` | home-display, calculations, theme/render, Smart auto-exit |
 | Smart senza straordinario | Timer ordinario limitato | Solo ingresso; uscita automatica con pausa standard/effettiva; ricalcolo non distruttivo | `smart-auto-exit.mjs` | 5 scenari dedicati |
 | Smart con straordinario | Timer ordinario fermo e straordinario separato | Conservato | calculations 2.9.x | test realtime Smart |
 | Calendario personale | Pianificazione, mese/anno, modifica giornata | Conservato sotto **Il mio** | DOM/app/CSS 2.9.4 | UI audit + render calendario |
 | Condivisione | Assente | **Condivisi**, inviti, revoca, privacy, confronto settimanale | moduli Calendar 3.0.5 caricati lazy | calendar-sharing, security, stability |
 | Riepilogo | Mese, saldi, dettagli, storico | Conservato integralmente con filtri configurabili | DOM/app/calculations 2.9.4 | calculations + UI audit |
-| Impostazioni | Progressive disclosure completa | Conservata; aggiunto ingresso alla condivisione | DOM/app 2.9.4 | UI audit + render impostazioni |
+| Impostazioni | Progressive disclosure completa | Otto macro-sezioni single-open; 52 controlli conservati; Avanzate annidate; Condivisione nativa | DOM/app 2.9.4 + accordion 3.2.1 | UI audit, settings contract, render mobile/desktop |
 | Genitorialità | Figli, periodi attivi, congedi | Conservata integralmente | calculations/app 2.9.4 | malattia bambino, maternità, paternità, quote parentali |
 | Ferie e recuperi | Riporto, festività soppresse, recuperi | Conservati integralmente | calculations/app 2.9.4 | rollover, saldi, festività domenicali |
 | Buoni pasto | Regole per modalità e riepilogo mensile | Conservati integralmente | calculations/app 2.9.4 | ticket e riepilogo consolidato |

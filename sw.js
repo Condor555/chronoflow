@@ -1,2 +1,2 @@
-// Compatibility entry for installations that still register the unversioned worker.
-importScripts('./sw.v3.2.0.js');
+// Compatibility entry for a cached earlier worker.
+importScripts('./sw.v3.2.1.js');

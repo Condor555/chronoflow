@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-chrono-flow-ui="2.9.4-restored" data-build="3.2.0">
+<html lang="it" data-chrono-flow-ui="2.9.4-restored" data-build="3.2.1">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css?v=3.2.0">
+  <link rel="stylesheet" href="styles.css?v=3.2.1">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Vai al contenuto</a>
@@ -511,10 +511,10 @@
             <h1 id="settings-title">Impostazioni</h1>
           </div>
         </div>
-        <form id="settings-form">
-          <details id="profile-settings" class="details-card settings-disclosure" data-disclosure open>
+        <form id="settings-form" class="settings-accordion" data-settings-accordion novalidate>
+<details id="profile-settings" class="details-card settings-disclosure" data-settings-section data-disclosure open>
             <summary aria-expanded="true" aria-controls="profile-settings-panel">
-              <span class="settings-summary-copy"><strong>Profilo lavorativo</strong><small id="profile-settings-summary">Giornata e regole di lavoro</small></span>
+              <span class="settings-summary-copy"><strong>Giornata di lavoro</strong><small id="profile-settings-summary">Durata, pause e profilo della giornata</small></span>
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
             </summary>
             <div id="profile-settings-panel" class="settings-disclosure-body">
@@ -545,17 +545,13 @@
                 <label for="travel-break">Pausa trasferta (minuti)</label>
                 <input id="travel-break" type="number" min="0" max="240" required>
               </div>
-              <div class="field">
-                <label for="overtime-threshold">Soglia straordinario (minuti)</label>
-                <input id="overtime-threshold" type="number" min="0" max="240" required>
-              </div>
             </div>
             </div>
           </details>
 
-          <details id="work-mode-settings" class="details-card settings-disclosure" data-disclosure>
+<details id="work-mode-settings" class="details-card settings-disclosure" data-settings-section data-disclosure>
             <summary aria-expanded="false" aria-controls="work-mode-settings-panel">
-              <span class="settings-summary-copy"><strong>Modalità di lavoro</strong><small id="work-mode-settings-summary">Luoghi, sabato e straordinario</small></span>
+              <span class="settings-summary-copy"><strong>Modalità e straordinari</strong><small id="work-mode-settings-summary">Ufficio, Smart, Trasferta e soglie</small></span>
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
             </summary>
             <div id="work-mode-settings-panel" class="settings-disclosure-body">
@@ -573,12 +569,54 @@
                 <label class="check-row"><input id="overtime-smart" type="checkbox"> <span>Calcola straordinario in Smart Working</span></label>
                 <label class="check-row"><input id="overtime-travel" type="checkbox"> <span>Calcola in trasferta</span></label>
               </fieldset>
+            
+              <div class="field settings-primary-field"><div class="field">
+                <label for="overtime-threshold">Soglia straordinario (minuti)</label>
+                <input id="overtime-threshold" type="number" min="0" max="240" required>
+              </div></div>
+<details id="absence-settings" class="secondary-settings settings-advanced" data-disclosure>
+            <summary aria-expanded="false" aria-controls="absence-settings-panel">
+              <span class="settings-summary-copy"><span>Avanzate · Causali e assenze</span><small id="absence-settings-summary">Mostra solo ciò che vuoi monitorare</small></span>
+              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div id="absence-settings-panel" class="settings-disclosure-body">
+              <p class="supporting">Le causali già usate restano sempre nello storico. Qui puoi attivare quelle che vuoi trovare subito in Calendario e nel Riepilogo.</p>
+              <label class="check-row"><input id="feature-sickness" type="checkbox"> <span>Malattia</span></label>
+              <label class="check-row"><input id="feature-marriage" type="checkbox"> <span>Congedo matrimoniale</span></label>
+              <label class="check-row"><input id="feature-performance-recovery" type="checkbox"> <span>Recupero maggiori prestazioni</span></label>
+            </div>
+          </details>
+<details id="summary-preferences" class="secondary-settings settings-advanced" data-disclosure>
+            <summary aria-expanded="false" aria-controls="summary-preferences-panel">
+              <span class="settings-summary-copy"><span>Avanzate · Presentazione del Riepilogo</span><small id="summary-preferences-summary">Dettagli e storico su richiesta</small></span>
+              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div id="summary-preferences-panel" class="settings-disclosure-body">
+              <p class="supporting">I dati non vengono cancellati: queste scelte regolano soltanto cosa mostrare.</p>
+              <label class="check-row"><input id="summary-show-distribution" type="checkbox"> <span>Mostra la distribuzione delle giornate</span></label>
+              <label class="check-row"><input id="summary-show-annual-table" type="checkbox"> <span>Mostra lo storico mensile dell’anno</span></label>
+            </div>
+          </details>
+</div>
+          </details>
+
+<details id="ticket-settings" class="details-card settings-disclosure" data-settings-section data-disclosure>
+            <summary aria-expanded="false" aria-controls="ticket-settings-panel">
+              <span class="settings-summary-copy"><strong>Buoni pasto</strong><small id="ticket-settings-summary">Regole automatiche per luogo</small></span>
+              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div id="ticket-settings-panel" class="settings-disclosure-body">
+            <p class="supporting">Scegli dove matura automaticamente il buono pasto. La singola giornata può essere corretta senza esporre dettagli tecnici nel Riepilogo principale.</p>
+            <p class="policy-note"><strong>Esclusioni automatiche:</strong> assenze, festività, recuperi e sabato lavorativo. Le correzioni restano conservate nel dettaglio storico dei Buoni pasto.</p>
+            <label class="check-row"><input id="ticket-office" type="checkbox"> <span>Spetta in ufficio</span></label>
+            <label class="check-row"><input id="ticket-smart" type="checkbox"> <span>Spetta in smart working</span></label>
+            <label class="check-row"><input id="ticket-travel" type="checkbox"> <span>Spetta in trasferta</span></label>
             </div>
           </details>
 
-          <details id="leave-settings" class="details-card settings-disclosure" data-disclosure>
+<details id="leave-settings" class="details-card settings-disclosure" data-settings-section data-disclosure>
             <summary aria-expanded="false" aria-controls="leave-settings-panel">
-              <span class="settings-summary-copy"><strong>Ferie e festività soppresse</strong><small id="leave-settings-summary">Spettanze annuali e riporto automatico</small></span>
+              <span class="settings-summary-copy"><strong>Ferie, festività e recuperi</strong><small id="leave-settings-summary">Spettanze annuali, riporto automatico e recuperi</small></span>
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
             </summary>
             <div id="leave-settings-panel" class="settings-disclosure-body">
@@ -611,156 +649,10 @@
                   </div>
                 </div>
               </details>
-            </div>
-          </details>
-
-          <details id="ticket-settings" class="details-card settings-disclosure" data-disclosure>
-            <summary aria-expanded="false" aria-controls="ticket-settings-panel">
-              <span class="settings-summary-copy"><strong>Buoni pasto</strong><small id="ticket-settings-summary">Regole automatiche per luogo</small></span>
-              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
-            </summary>
-            <div id="ticket-settings-panel" class="settings-disclosure-body">
-            <p class="supporting">Scegli dove matura automaticamente il buono pasto. La singola giornata può essere corretta senza esporre dettagli tecnici nel Riepilogo principale.</p>
-            <p class="policy-note"><strong>Esclusioni automatiche:</strong> assenze, festività, recuperi e sabato lavorativo. Le correzioni restano conservate nel dettaglio storico dei Buoni pasto.</p>
-            <label class="check-row"><input id="ticket-office" type="checkbox"> <span>Spetta in ufficio</span></label>
-            <label class="check-row"><input id="ticket-smart" type="checkbox"> <span>Spetta in smart working</span></label>
-            <label class="check-row"><input id="ticket-travel" type="checkbox"> <span>Spetta in trasferta</span></label>
-            </div>
-          </details>
-
-          <details id="absence-settings" class="details-card settings-disclosure" data-disclosure>
-            <summary aria-expanded="false" aria-controls="absence-settings-panel">
-              <span class="settings-summary-copy"><strong>Altre assenze e congedi</strong><small id="absence-settings-summary">Mostra solo ciò che vuoi monitorare</small></span>
-              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
-            </summary>
-            <div id="absence-settings-panel" class="settings-disclosure-body">
-              <p class="supporting">Le causali già usate restano sempre nello storico. Qui puoi attivare quelle che vuoi trovare subito in Calendario e nel Riepilogo.</p>
-              <label class="check-row"><input id="feature-sickness" type="checkbox"> <span>Malattia</span></label>
-              <label class="check-row"><input id="feature-marriage" type="checkbox"> <span>Congedo matrimoniale</span></label>
-              <label class="check-row"><input id="feature-performance-recovery" type="checkbox"> <span>Recupero maggiori prestazioni</span></label>
-            </div>
-          </details>
-
-          <details id="summary-preferences" class="details-card settings-disclosure" data-disclosure>
-            <summary aria-expanded="false" aria-controls="summary-preferences-panel">
-              <span class="settings-summary-copy"><strong>Preferenze Riepilogo</strong><small id="summary-preferences-summary">Dettagli e storico su richiesta</small></span>
-              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
-            </summary>
-            <div id="summary-preferences-panel" class="settings-disclosure-body">
-              <p class="supporting">I dati non vengono cancellati: queste scelte regolano soltanto cosa mostrare.</p>
-              <label class="check-row"><input id="summary-show-distribution" type="checkbox"> <span>Mostra la distribuzione delle giornate</span></label>
-              <label class="check-row"><input id="summary-show-annual-table" type="checkbox"> <span>Mostra lo storico mensile dell’anno</span></label>
-            </div>
-          </details>
-
-          <details id="calendar-sharing-settings" class="details-card settings-disclosure" data-disclosure>
-            <summary aria-expanded="false" aria-controls="calendar-sharing-settings-panel">
-              <span class="settings-summary-copy"><strong>Condivisione calendario</strong><small>Inviti, accessi e privacy in sola lettura</small></span>
-              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
-            </summary>
-            <div id="calendar-sharing-settings-panel" class="settings-disclosure-body">
-              <p class="supporting">Gestisci chi può consultare il tuo calendario e quali informazioni condividere. Il calendario personale e le sue funzioni restano separati.</p>
-              <div id="calendar-sharing-settings-root" class="sharing-settings-native shared-calendar-pane"><p class="field-hint">Apri questa sezione per caricare inviti, accessi e preferenze privacy.</p></div>
-            </div>
-          </details>
-
-          <details id="notification-settings" class="details-card settings-disclosure" data-disclosure>
-            <summary aria-expanded="false" aria-controls="notification-settings-panel">
-              <span class="settings-summary-copy"><strong>Notifica dell’uscita</strong><small id="notification-settings-summary">Stato notifiche del dispositivo</small></span>
-              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
-            </summary>
-            <div id="notification-settings-panel" class="settings-disclosure-body">
-            <p class="supporting">Chrono Flow calcola l’uscita dall’ora di ingresso, dalla durata giornaliera e dalla pausa impostata. La notifica è configurata separatamente su ogni dispositivo.</p>
-            <label class="check-row"><input id="exit-notification-enabled" type="checkbox"> <span>Avvisami quando è ora di uscire</span></label>
-            <div class="field">
-              <label for="exit-notification-lead">Quando avvisarmi</label>
-              <select id="exit-notification-lead">
-                <option value="0">All’orario di uscita previsto</option>
-                <option value="5">5 minuti prima</option>
-                <option value="10">10 minuti prima</option>
-                <option value="15">15 minuti prima</option>
-                <option value="30">30 minuti prima</option>
-              </select>
-            </div>
-            <div class="button-row">
-              <button id="request-notification-permission" class="button secondary" type="button">Consenti notifiche su questo dispositivo</button>
-            </div>
-            <p id="notification-permission-status" class="field-hint" role="status"></p>
-            </div>
-          </details>
-
-          <details id="family-settings" class="details-card settings-disclosure" data-disclosure>
-            <summary aria-expanded="false" aria-controls="family-settings-panel">
-              <span class="settings-summary-copy"><strong>Famiglia</strong><small id="family-settings-summary">Figli e assenze collegate</small></span>
-              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
-            </summary>
-            <div id="family-settings-panel" class="settings-disclosure-body">
-            <div class="field parent-role-field">
-              <label for="parental-role">Congedi da mostrare</label>
-              <select id="parental-role">
-                <option value="unspecified">Da configurare</option>
-                <option value="father">Paternità · sono il padre</option>
-                <option value="mother">Maternità · sono la madre</option>
-                <option value="custom">Configurazione personalizzata</option>
-              </select>
-              <p class="field-hint">Serve solo a mostrare gli istituti pertinenti. Chrono Flow non salva il sesso dell’utente.</p>
-            </div>
-            <label id="alternative-paternity-field" class="check-row" hidden><input id="show-paternity-alternative" type="checkbox"> <span>Mostra la paternità alternativa quando applicabile</span></label>
-            <p class="supporting">Per ciascun figlio Chrono Flow applica automaticamente la fascia corretta. Fino al 3° compleanno l’assenza segue la durata della malattia e i primi 30 giorni retribuiti si rinnovano per anno di vita, non per anno solare. Dai 3 ai 14 anni il limite è 10 giorni lavorativi per anno solare.</p>
-            <p class="supporting">Il congedo parentale facoltativo è associato al figlio e può essere registrato fino ai 14 anni. Il contatore dell’app mostra le giornate inserite, ma i limiti legali in mesi (individuali e di coppia) dipendono anche dalle fruizioni dell’altro genitore e restano da verificare con INPS/Ufficio del Personale.</p>
-            <div id="children-list" class="children-list"></div>
-            <div class="field-grid align-end">
-              <div class="field">
-                <label for="child-name">Nome o soprannome</label>
-                <input id="child-name" maxlength="80">
-              </div>
-              <div class="field">
-                <label for="child-birth-date">Data di nascita / evento</label>
-                <input id="child-birth-date" type="date">
-              </div>
-              <div class="field">
-                <label for="child-expected-date">Data presunta del parto</label>
-                <input id="child-expected-date" type="date">
-              </div>
-              <div class="field">
-                <label for="child-event-type">Tipo di evento</label>
-                <select id="child-event-type"><option value="birth">Nascita</option><option value="adoption">Adozione</option><option value="foster">Affidamento</option></select>
-              </div>
-              <div id="child-maternity-mode-field" class="field" hidden>
-                <label for="child-maternity-mode">Maternità obbligatoria</label>
-                <select id="child-maternity-mode"><option value="2+3">2+3 · ordinaria</option><option value="1+4">1+4 · flessibile, con certificazione</option><option value="0+5">0+5 · dopo il parto, con certificazione</option></select>
-              </div>
-              <label id="child-multiple-birth-field" class="check-row" hidden><input id="child-multiple-birth" type="checkbox"> <span>Parto plurimo · paternità obbligatoria 20 giorni</span></label>
-              <fieldset id="child-institutes-field" class="settings-choice child-institutes-choice">
-                <legend>Istituti da monitorare</legend>
-                <label class="check-row"><input id="child-enable-sickness" type="checkbox" checked> <span>Malattia bambino</span></label>
-                <label class="check-row"><input id="child-enable-parental" type="checkbox"> <span>Congedo parentale</span></label>
-                <label id="child-enable-maternity-field" class="check-row" hidden><input id="child-enable-maternity" type="checkbox"> <span>Maternità obbligatoria</span></label>
-                <label id="child-enable-paternity-field" class="check-row" hidden><input id="child-enable-paternity" type="checkbox"> <span>Paternità obbligatoria</span></label>
-                <label id="child-enable-paternity-alternative-field" class="check-row" hidden><input id="child-enable-paternity-alternative" type="checkbox"> <span>Paternità alternativa</span></label>
-              </fieldset>
-              <div id="child-parental-settings" class="parental-quota-settings" hidden>
-                <div class="field">
-                  <label for="child-parental-quota-months">Congedo parentale che voglio monitorare/usare</label>
-                  <input id="child-parental-quota-months" type="number" min="0.5" max="11" step="0.5" inputmode="decimal" aria-describedby="child-parental-quota-help">
-                  <p id="child-parental-quota-help" class="field-hint">Quota personale in mesi. Chrono Flow converte 1 mese in 30 giorni; la scelta non aumenta il diritto legale.</p>
-                </div>
-                <label class="check-row"><input id="child-parental-single-parent" type="checkbox"> <span>Genitore solo per questo figlio/evento</span></label>
-                <label class="check-row"><input id="child-parental-father-three" type="checkbox"> <span>Il padre fruisce di almeno 3 mesi</span></label>
-                <div class="field">
-                  <label for="child-parental-other-months">Mesi già fruiti dall’altro genitore</label>
-                  <input id="child-parental-other-months" type="number" min="0" max="11" step="0.5" value="0" inputmode="decimal">
-                </div>
-                <p id="child-parental-limit-preview" class="policy-note" role="status"></p>
-              </div>
-              <button id="add-child" class="button secondary" type="button">Aggiungi figlio / evento</button>
-            </div>
-            </div>
-          </details>
-
-          <details id="holiday-settings" class="details-card settings-disclosure" data-disclosure>
+            
+<details id="holiday-settings" class="secondary-settings settings-advanced" data-disclosure>
             <summary aria-expanded="false" aria-controls="holiday-settings-panel">
-              <span class="settings-summary-copy"><strong>Festività che cadono di domenica</strong><small id="holiday-settings-summary">Regola e saldo recuperi</small></span>
+              <span class="settings-summary-copy"><span>Recuperi e festività locali</span><small id="holiday-settings-summary">Regola e saldo recuperi</small></span>
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
             </summary>
             <div id="holiday-settings-panel" class="settings-disclosure-body">
@@ -843,13 +735,131 @@
             </details>
             </div>
           </details>
+</div>
+          </details>
 
-          <button class="button primary full" type="submit">Salva le impostazioni</button>
+<details id="family-settings" class="details-card settings-disclosure" data-settings-section data-disclosure>
+            <summary aria-expanded="false" aria-controls="family-settings-panel">
+              <span class="settings-summary-copy"><strong>Famiglia e congedi</strong><small id="family-settings-summary">Profilo genitoriale, figli e istituti attivi</small></span>
+              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div id="family-settings-panel" class="settings-disclosure-body">
+            <div class="field parent-role-field">
+              <label for="parental-role">Congedi da mostrare</label>
+              <select id="parental-role">
+                <option value="unspecified">Da configurare</option>
+                <option value="father">Paternità · sono il padre</option>
+                <option value="mother">Maternità · sono la madre</option>
+                <option value="custom">Configurazione personalizzata</option>
+              </select>
+              <p class="field-hint">Serve solo a mostrare gli istituti pertinenti. Chrono Flow non salva il sesso dell’utente.</p>
+            </div>
+            <label id="alternative-paternity-field" class="check-row" hidden><input id="show-paternity-alternative" type="checkbox"> <span>Mostra la paternità alternativa quando applicabile</span></label>
+            <p class="supporting">Per ciascun figlio Chrono Flow applica automaticamente la fascia corretta. Fino al 3° compleanno l’assenza segue la durata della malattia e i primi 30 giorni retribuiti si rinnovano per anno di vita, non per anno solare. Dai 3 ai 14 anni il limite è 10 giorni lavorativi per anno solare.</p>
+            <p class="supporting">Il congedo parentale facoltativo è associato al figlio e può essere registrato fino ai 14 anni. Il contatore dell’app mostra le giornate inserite, ma i limiti legali in mesi (individuali e di coppia) dipendono anche dalle fruizioni dell’altro genitore e restano da verificare con INPS/Ufficio del Personale.</p>
+            <div id="children-list" class="children-list"></div>
+            <div class="field-grid align-end">
+              <div class="field">
+                <label for="child-name">Nome o soprannome</label>
+                <input id="child-name" maxlength="80">
+              </div>
+              <div class="field">
+                <label for="child-birth-date">Data di nascita / evento</label>
+                <input id="child-birth-date" type="date">
+              </div>
+              <div class="field">
+                <label for="child-expected-date">Data presunta del parto</label>
+                <input id="child-expected-date" type="date">
+              </div>
+              <div class="field">
+                <label for="child-event-type">Tipo di evento</label>
+                <select id="child-event-type"><option value="birth">Nascita</option><option value="adoption">Adozione</option><option value="foster">Affidamento</option></select>
+              </div>
+              <div id="child-maternity-mode-field" class="field" hidden>
+                <label for="child-maternity-mode">Maternità obbligatoria</label>
+                <select id="child-maternity-mode"><option value="2+3">2+3 · ordinaria</option><option value="1+4">1+4 · flessibile, con certificazione</option><option value="0+5">0+5 · dopo il parto, con certificazione</option></select>
+              </div>
+              <label id="child-multiple-birth-field" class="check-row" hidden><input id="child-multiple-birth" type="checkbox"> <span>Parto plurimo · paternità obbligatoria 20 giorni</span></label>
+              <fieldset id="child-institutes-field" class="settings-choice child-institutes-choice">
+                <legend>Istituti da monitorare</legend>
+                <label class="check-row"><input id="child-enable-sickness" type="checkbox" checked> <span>Malattia bambino</span></label>
+                <label class="check-row"><input id="child-enable-parental" type="checkbox"> <span>Congedo parentale</span></label>
+                <label id="child-enable-maternity-field" class="check-row" hidden><input id="child-enable-maternity" type="checkbox"> <span>Maternità obbligatoria</span></label>
+                <label id="child-enable-paternity-field" class="check-row" hidden><input id="child-enable-paternity" type="checkbox"> <span>Paternità obbligatoria</span></label>
+                <label id="child-enable-paternity-alternative-field" class="check-row" hidden><input id="child-enable-paternity-alternative" type="checkbox"> <span>Paternità alternativa</span></label>
+              </fieldset>
+              <div id="child-parental-settings" class="parental-quota-settings" hidden>
+                <div class="field">
+                  <label for="child-parental-quota-months">Congedo parentale che voglio monitorare/usare</label>
+                  <input id="child-parental-quota-months" type="number" min="0.5" max="11" step="0.5" inputmode="decimal" aria-describedby="child-parental-quota-help">
+                  <p id="child-parental-quota-help" class="field-hint">Quota personale in mesi. Chrono Flow converte 1 mese in 30 giorni; la scelta non aumenta il diritto legale.</p>
+                </div>
+                <label class="check-row"><input id="child-parental-single-parent" type="checkbox"> <span>Genitore solo per questo figlio/evento</span></label>
+                <label class="check-row"><input id="child-parental-father-three" type="checkbox"> <span>Il padre fruisce di almeno 3 mesi</span></label>
+                <div class="field">
+                  <label for="child-parental-other-months">Mesi già fruiti dall’altro genitore</label>
+                  <input id="child-parental-other-months" type="number" min="0" max="11" step="0.5" value="0" inputmode="decimal">
+                </div>
+                <p id="child-parental-limit-preview" class="policy-note" role="status"></p>
+              </div>
+              <button id="add-child" class="button secondary" type="button">Aggiungi figlio / evento</button>
+            </div>
+            </div>
+          </details>
+
+<details id="notification-settings" class="details-card settings-disclosure" data-settings-section data-disclosure>
+            <summary aria-expanded="false" aria-controls="notification-settings-panel">
+              <span class="settings-summary-copy"><strong>Notifiche</strong><small id="notification-settings-summary">Stato notifiche del dispositivo</small></span>
+              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div id="notification-settings-panel" class="settings-disclosure-body">
+            <p class="supporting">Chrono Flow calcola l’uscita dall’ora di ingresso, dalla durata giornaliera e dalla pausa impostata. La notifica è configurata separatamente su ogni dispositivo.</p>
+            <label class="check-row"><input id="exit-notification-enabled" type="checkbox"> <span>Avvisami quando è ora di uscire</span></label>
+            <div class="field">
+              <label for="exit-notification-lead">Quando avvisarmi</label>
+              <select id="exit-notification-lead">
+                <option value="0">All’orario di uscita previsto</option>
+                <option value="5">5 minuti prima</option>
+                <option value="10">10 minuti prima</option>
+                <option value="15">15 minuti prima</option>
+                <option value="30">30 minuti prima</option>
+              </select>
+            </div>
+            <div class="button-row">
+              <button id="request-notification-permission" class="button secondary" type="button">Consenti notifiche su questo dispositivo</button>
+            </div>
+            <p id="notification-permission-status" class="field-hint" role="status"></p>
+            </div>
+          </details>
+
+
+
+          <div class="settings-save-bar"><button class="button primary full" type="submit">Salva le impostazioni</button></div>
         </form>
 
-        <details id="security-settings" class="details-card settings-disclosure data-panel" data-disclosure>
+        
+
+        
+        <div class="settings-accordion settings-accordion-secondary" data-settings-accordion>
+<details id="calendar-sharing-settings" class="details-card settings-disclosure" data-settings-section data-disclosure>
+            <summary aria-expanded="false" aria-controls="calendar-sharing-settings-panel">
+              <span class="settings-summary-copy"><strong>Condivisione calendario</strong><small id="calendar-sharing-settings-summary">Inviti, accessi e privacy in sola lettura</small></span>
+              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div id="calendar-sharing-settings-panel" class="settings-disclosure-body">
+              <p class="supporting">Gestisci chi può consultare il tuo calendario e quali informazioni condividere. Il calendario personale e le sue funzioni restano separati.</p>
+              <div id="calendar-sharing-settings-root" class="sharing-settings-native shared-calendar-pane"><p class="field-hint">Apri questa sezione per caricare inviti, accessi e preferenze privacy.</p></div>
+            </div>
+          </details>
+<details id="account-data-settings" class="details-card settings-disclosure" data-settings-section data-disclosure>
+          <summary aria-expanded="false" aria-controls="account-data-settings-panel">
+            <span class="settings-summary-copy"><strong>Account e dati</strong><small id="account-data-settings-summary">Password, backup e dati locali</small></span>
+            <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+          </summary>
+          <div id="account-data-settings-panel" class="settings-disclosure-body">
+            <details id="security-settings" class="secondary-settings settings-advanced" data-disclosure>
           <summary aria-expanded="false" aria-controls="security-settings-panel">
-            <span class="settings-summary-copy"><strong>Sicurezza account</strong><small>Password e accesso</small></span>
+            <span class="settings-summary-copy"><span>Sicurezza e password</span><small>Password e accesso</small></span>
             <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
           </summary>
           <div id="security-settings-panel" class="settings-disclosure-body">
@@ -863,10 +873,9 @@
           </form>
           </div>
         </details>
-
-        <details id="data-settings" class="details-card settings-disclosure data-panel" data-disclosure>
+            <details id="data-settings" class="secondary-settings settings-advanced" data-disclosure>
           <summary aria-expanded="false" aria-controls="data-settings-panel">
-            <span class="settings-summary-copy"><strong>I tuoi dati</strong><small>Backup, importazione e dati locali</small></span>
+            <span class="settings-summary-copy"><span>Backup, importazione e dati locali</span><small>Backup, importazione e dati locali</small></span>
             <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
           </summary>
           <div id="data-settings-panel" class="settings-disclosure-body">
@@ -879,6 +888,9 @@
           <p class="danger-note">L’importazione aggiunge o aggiorna le giornate presenti nel file, senza eliminare le altre.</p>
           </div>
         </details>
+          </div>
+        </details>
+        </div>
       </section>
     </main>
 
@@ -1049,6 +1061,6 @@
   </div>
   <div id="live-region" class="sr-only" aria-live="polite"></div>
 
-  <script type="module" src="src/app.v3.2.0.mjs"></script>
+  <script type="module" src="src/app.v3.2.1.mjs"></script>
 </body>
 </html>

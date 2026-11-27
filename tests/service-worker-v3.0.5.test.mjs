@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
 async function workerHarness() {
-  const source = await readFile(new URL('../sw.v3.2.0.js', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../sw.v3.2.1.js', import.meta.url), 'utf8');
   const listeners = new Map();
   const calls = { disable: 0, claim: 0, fetch: 0, put: 0, warnings: 0 };
   const network = { ok: true, clone: () => network };

@@ -1,3 +1,15 @@
+# Chrono Flow 3.2.1 — Home profonda e Impostazioni semplificate
+
+- Home aggiornata con la card ampia approvata: gradienti profondi per modalità, decorazione circolare soft e contrasto WCAG AA.
+- Microcopy `Uscita automatica alle HH:MM` integrata nella card Smart; nessuna reintroduzione del pulsante uscita quando lo straordinario Smart è disattivato.
+- Impostazioni ridotte a otto macro-sezioni con sintesi utile e accordion single-open.
+- Opzioni rare spostate nelle sottosezioni Avanzate senza eliminare controlli, dati o logiche.
+- Validazione inviti calendario resa inline e accessibile, senza tooltip nativo bloccante.
+- Salvataggio generale indipendente dal campo invito; label `Condivisione attiva` / `Condivisione non attiva` e controlli invito/privacy sospesi quando OFF senza cancellare storico o inviti.
+- 52 controlli dati delle Impostazioni verificati invariati.
+- 164 test automatici e render 390 px/desktop superati.
+- `src/config.js`, SQL/RLS e dati invariati.
+
 # Chrono Flow 3.2.0 — UI 2.9.4 autorevole
 
 - `index.html`, DOM e CSS 2.9.4 sono la shell grafica autorevole.

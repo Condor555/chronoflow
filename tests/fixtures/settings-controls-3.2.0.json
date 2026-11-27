@@ -1,0 +1,314 @@
+[
+  {
+    "id": "settings-name",
+    "tag": "input",
+    "type": "",
+    "name": ""
+  },
+  {
+    "id": "target-hours",
+    "tag": "input",
+    "type": "number",
+    "name": ""
+  },
+  {
+    "id": "target-minutes",
+    "tag": "input",
+    "type": "number",
+    "name": ""
+  },
+  {
+    "id": "office-break",
+    "tag": "input",
+    "type": "number",
+    "name": ""
+  },
+  {
+    "id": "smart-break",
+    "tag": "input",
+    "type": "number",
+    "name": ""
+  },
+  {
+    "id": "travel-break",
+    "tag": "input",
+    "type": "number",
+    "name": ""
+  },
+  {
+    "id": "overtime-threshold",
+    "tag": "input",
+    "type": "number",
+    "name": ""
+  },
+  {
+    "id": "mode-office",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "mode-smart",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "mode-travel",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "mode-saturday",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "overtime-smart",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "overtime-travel",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "leave-settings-year",
+    "tag": "input",
+    "type": "number",
+    "name": ""
+  },
+  {
+    "id": "leave-current-days",
+    "tag": "input",
+    "type": "number",
+    "name": ""
+  },
+  {
+    "id": "leave-suppressed-days",
+    "tag": "input",
+    "type": "number",
+    "name": ""
+  },
+  {
+    "id": "leave-carryover-override",
+    "tag": "input",
+    "type": "number",
+    "name": ""
+  },
+  {
+    "id": "ticket-office",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "ticket-smart",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "ticket-travel",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "feature-sickness",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "feature-marriage",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "feature-performance-recovery",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "summary-show-distribution",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "summary-show-annual-table",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "exit-notification-enabled",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "exit-notification-lead",
+    "tag": "select",
+    "type": "",
+    "name": ""
+  },
+  {
+    "id": "parental-role",
+    "tag": "select",
+    "type": "",
+    "name": ""
+  },
+  {
+    "id": "show-paternity-alternative",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "child-name",
+    "tag": "input",
+    "type": "",
+    "name": ""
+  },
+  {
+    "id": "child-birth-date",
+    "tag": "input",
+    "type": "date",
+    "name": ""
+  },
+  {
+    "id": "child-expected-date",
+    "tag": "input",
+    "type": "date",
+    "name": ""
+  },
+  {
+    "id": "child-event-type",
+    "tag": "select",
+    "type": "",
+    "name": ""
+  },
+  {
+    "id": "child-maternity-mode",
+    "tag": "select",
+    "type": "",
+    "name": ""
+  },
+  {
+    "id": "child-multiple-birth",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "child-enable-sickness",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "child-enable-parental",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "child-enable-maternity",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "child-enable-paternity",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "child-enable-paternity-alternative",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "child-parental-quota-months",
+    "tag": "input",
+    "type": "number",
+    "name": ""
+  },
+  {
+    "id": "child-parental-single-parent",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "child-parental-father-three",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "child-parental-other-months",
+    "tag": "input",
+    "type": "number",
+    "name": ""
+  },
+  {
+    "id": "sunday-holiday-adjustment-year",
+    "tag": "input",
+    "type": "number",
+    "name": ""
+  },
+  {
+    "id": "sunday-holiday-adjustment-days",
+    "tag": "input",
+    "type": "number",
+    "name": ""
+  },
+  {
+    "id": "sunday-holiday-adjustment-reason",
+    "tag": "input",
+    "type": "",
+    "name": ""
+  },
+  {
+    "id": "local-holiday-name",
+    "tag": "input",
+    "type": "",
+    "name": ""
+  },
+  {
+    "id": "local-holiday-day",
+    "tag": "input",
+    "type": "number",
+    "name": ""
+  },
+  {
+    "id": "local-holiday-month",
+    "tag": "select",
+    "type": "",
+    "name": ""
+  },
+  {
+    "id": "new-password",
+    "tag": "input",
+    "type": "password",
+    "name": ""
+  },
+  {
+    "id": "import-data",
+    "tag": "input",
+    "type": "file",
+    "name": ""
+  }
+]

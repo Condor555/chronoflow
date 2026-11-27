@@ -622,3 +622,100 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
 .shared-calendar-pane button:not(.segment):not(.icon-button):not(.back-button) { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 9px 14px; color: #fff; background: var(--primary); border: 1px solid var(--primary); border-radius: 11px; font-weight: 780; }
 .shared-calendar-pane button.secondary { color: var(--primary) !important; background: #fff !important; border-color: #8fa2b8 !important; }
 .shared-calendar-pane button.danger { color: var(--danger) !important; background: var(--danger-bg) !important; border-color: #e0a8a4 !important; }
+
+
+/* Chrono Flow 3.2.1 — approved deep Home card treatment.
+   The surrounding shell remains the 2.9.4 design system; only the Home hero
+   receives the previously approved tonal surface and soft corner decoration. */
+:root {
+  --home-office-deep-from: #24364e;
+  --home-office-deep-to: #36566a;
+  --home-smart-deep-from: #1b334d;
+  --home-smart-deep-to: #356a6c;
+  --home-travel-deep-from: #342c50;
+  --home-travel-deep-to: #665083;
+  --home-deep-foreground: #ffffff;
+}
+
+.hero-card {
+  min-height: clamp(280px, 34vw, 330px);
+  color: var(--home-deep-foreground);
+  border-color: color-mix(in srgb, var(--home-mode-deep-to) 72%, white);
+  background-color: var(--home-mode-deep-from);
+  background-image: linear-gradient(122deg, var(--home-mode-deep-from), var(--home-mode-deep-to));
+  box-shadow: 0 18px 42px rgba(16, 42, 67, .2);
+}
+.hero-card.mode-office {
+  --home-mode-deep-from: var(--home-office-deep-from);
+  --home-mode-deep-to: var(--home-office-deep-to);
+}
+.hero-card.mode-smart {
+  --home-mode-deep-from: var(--home-smart-deep-from);
+  --home-mode-deep-to: var(--home-smart-deep-to);
+}
+.hero-card.mode-travel {
+  --home-mode-deep-from: var(--home-travel-deep-from);
+  --home-mode-deep-to: var(--home-travel-deep-to);
+}
+.hero-card::after {
+  position: absolute;
+  z-index: -1;
+  right: clamp(-88px, -8vw, -54px);
+  bottom: clamp(-112px, -10vw, -72px);
+  width: clamp(210px, 31vw, 320px);
+  height: clamp(210px, 31vw, 320px);
+  content: "";
+  border: clamp(24px, 3.4vw, 42px) solid rgba(255, 255, 255, .12);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.hero-card .hero-mode-label,
+.hero-card .auto-exit-note {
+  color: #fff;
+  background: rgba(255, 255, 255, .08);
+  border-color: rgba(255, 255, 255, .58);
+  backdrop-filter: blur(7px);
+}
+.hero-card .supporting { color: rgba(255, 255, 255, .88); }
+.hero-card .action-stack { position: relative; z-index: 1; }
+.hero-card .action-stack .primary {
+  color: var(--home-mode-deep-from);
+  background: rgba(255, 255, 255, .97);
+  border-color: #fff;
+  box-shadow: 0 8px 22px rgba(8, 24, 39, .2);
+}
+.hero-card .action-stack .secondary {
+  color: #fff;
+  background: rgba(255, 255, 255, .06);
+  border-color: rgba(255, 255, 255, .7);
+}
+
+@media (max-width: 520px) {
+  .hero-card { min-height: 304px; padding: 24px 18px 26px; }
+  .hero-card::after { right: -94px; bottom: -106px; width: 250px; height: 250px; border-width: 30px; }
+  .hero-card .auto-exit-note { max-width: calc(100% - 24px); white-space: normal; text-align: center; }
+}
+
+
+/* Chrono Flow 3.2.1 — Settings information architecture and single-open accordion. */
+.settings-accordion { display: grid; gap: 12px; }
+.settings-accordion .settings-disclosure { margin-top: 0; scroll-margin-top: 82px; }
+.settings-accordion .settings-disclosure:not([open]) > summary { border-bottom: 0; }
+.settings-accordion .settings-disclosure > summary { border-radius: inherit; }
+.settings-accordion .settings-disclosure > summary:hover { background: #f8fbfb; }
+.settings-accordion .settings-disclosure[open] > summary { background: linear-gradient(135deg, #f7fbfa, #fff); }
+.settings-accordion-secondary { margin-top: 12px; }
+.settings-advanced { margin-top: 16px; padding: 0; overflow: clip; background: #f8fbfb; border: 1px solid var(--line); border-radius: 12px; }
+.settings-advanced > summary { min-height: 48px; padding: 10px 12px; color: var(--accent); }
+.settings-advanced > div { padding: 12px; background: #fff; border-top: 1px solid var(--line); }
+.settings-primary-field { margin-top: 16px; }
+.settings-save-bar { position: sticky; z-index: 9; bottom: calc(76px + var(--safe-bottom)); margin-top: 2px; padding: 10px; background: rgba(243, 247, 248, .94); border: 1px solid var(--line); border-radius: 15px; box-shadow: var(--shadow-soft); backdrop-filter: blur(14px); }
+.inline-form-error { grid-column: 1 / -1; margin: 0; }
+#invite-email[aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 20%, transparent); }
+
+@media (max-width: 520px) {
+  .settings-disclosure > summary { min-height: 68px; padding: 12px 14px; }
+  .settings-summary-copy small { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .settings-disclosure-body { padding: 14px; }
+  .settings-save-bar { bottom: calc(70px + var(--safe-bottom)); margin-right: -2px; margin-left: -2px; }
+}

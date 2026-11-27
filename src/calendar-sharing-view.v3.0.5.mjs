@@ -1,5 +1,5 @@
 import { addDays, enumerateDays, formatDay, formatMonth, monthRange, shiftMonth, toIsoDate, weekRange } from './calendar-date.mjs';
-import { DEFAULT_SHARING_SETTINGS, entrySummary, MODE_META, minutesToDuration } from './calendar-privacy.v3.0.5.mjs';
+import { DEFAULT_SHARING_SETTINGS, entrySummary, isEmail, MODE_META, minutesToDuration, normalizeEmail } from './calendar-privacy.v3.0.5.mjs';
 import { normalizeCalendarRecord, normalizeCalendarRows } from './calendar-record.v3.0.5.mjs';
 
 const SETTING_LABELS = {
@@ -57,7 +57,8 @@ export class CalendarSharingView {
     includeMine = true,
     initialSection = includeMine ? 'mine' : 'shared',
     allowSettings = true,
-    embeddedSettings = false
+    embeddedSettings = false,
+    onUpdate = () => {}
   } = {}) {
     this.root = root;
     this.service = service;
@@ -66,6 +67,7 @@ export class CalendarSharingView {
     this.includeMine = includeMine;
     this.allowSettings = allowSettings;
     this.embeddedSettings = embeddedSettings;
+    this.onUpdate = onUpdate;
     const now = new Date();
     this.state = {
       section: initialSection, year: now.getFullYear(), month: now.getMonth(), week: toIsoDate(now),
@@ -79,6 +81,7 @@ export class CalendarSharingView {
   async init() {
     this.root.addEventListener('click', this.onClick);
     this.root.addEventListener('change', this.onChange);
+    this.root.addEventListener('input', this.onChange);
     this.root.addEventListener('submit', this.onSubmit);
     await this.refresh();
   }
@@ -86,6 +89,7 @@ export class CalendarSharingView {
   destroy() {
     this.root.removeEventListener('click', this.onClick);
     this.root.removeEventListener('change', this.onChange);
+    this.root.removeEventListener('input', this.onChange);
     this.root.removeEventListener('submit', this.onSubmit);
   }
 
@@ -115,6 +119,7 @@ export class CalendarSharingView {
     if (!this.state.calendars.some((item) => item?.space_id === this.state.selectedSpace)) {
       this.state.selectedSpace = this.state.calendars[0]?.space_id || null;
     }
+    this.onUpdate(this.state);
     this.safeRender();
     await this.loadVisibleEntries();
   }
@@ -270,19 +275,27 @@ export class CalendarSharingView {
     const settings = { ...DEFAULT_SHARING_SETTINGS, ...(dashboard.settings || {}) };
     const members = dashboard.members || [];
     const invitations = dashboard.invitations || [];
-    return `
-      <div class="settings-header">${this.embeddedSettings ? '' : '<button class="back-button" data-section="mine">← Calendario</button>'}<p class="eyebrow">PRIVACY</p><h2>Condivisione calendario</h2><p>Accesso in sola lettura. Le informazioni non abilitate non sono restituite dal database.</p></div>
-      <section class="settings-card emphasis">
-        <label class="switch-row"><span><strong>Condivisione attiva</strong><small>Disattivandola, tutti gli accessi vengono sospesi immediatamente.</small></span><input type="checkbox" id="sharing-enabled" ${dashboard.space?.is_enabled ? 'checked' : ''}></label>
-      </section>
+    const enabled = dashboard.space?.is_enabled === true;
+    const activeControls = enabled ? `
       <section class="settings-card"><h2>Invita una persona</h2><p>L’indirizzo deve corrispondere all’account Chrono Flow del destinatario.</p>
-        <form id="invite-form" class="inline-form"><label class="sr-only" for="invite-email">Email</label><input id="invite-email" name="email" type="email" autocomplete="email" placeholder="nome@esempio.it" required><button type="submit">Invita</button></form>
+        <form id="invite-form" class="inline-form" novalidate><label class="sr-only" for="invite-email">Email</label><input id="invite-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="nome@esempio.it" aria-describedby="invite-email-error" required><button type="submit">Invita</button><p id="invite-email-error" class="form-error inline-form-error" role="alert" hidden></p></form>
       </section>
       <form id="privacy-form" class="settings-card"><div class="card-heading"><div><h2>Informazioni condivise</h2><p>Solo la modalità di lavoro è attiva per default.</p></div><button type="submit">Salva</button></div>
         <div class="privacy-list">${Object.entries(SETTING_LABELS).map(([key, [label, hint, recommended]]) => `<label class="switch-row ${!recommended ? 'sensitive' : ''}"><span><strong>${esc(label)}</strong><small>${esc(hint)}</small></span><input type="checkbox" name="${key}" ${settings[key] ? 'checked' : ''}></label>`).join('')}</div>
       </form>
       <section class="settings-card"><h2>Accessi attivi</h2>${members.length ? members.map((member) => `<div class="member-row"><div><strong>${esc(member.display_name || member.email_masked)}</strong><small>Sola lettura</small></div><button class="danger secondary" data-revoke="${esc(member.id)}">Revoca</button></div>`).join('') : '<p class="muted">Nessuna persona ha accesso.</p>'}</section>
-      <section class="settings-card"><h2>Inviti inviati</h2>${invitations.length ? invitations.map((invite) => `<div class="member-row"><div><strong>${esc(invite.invitee_email)}</strong><small>${invite.status === 'pending' ? 'In attesa' : esc(invite.status)}</small></div>${invite.status === 'pending' ? `<button class="secondary" data-cancel-invite="${esc(invite.id)}">Annulla</button>` : ''}</div>`).join('') : '<p class="muted">Nessun invito.</p>'}</section>`;
+      <section class="settings-card"><h2>Inviti inviati</h2>${invitations.length ? invitations.map((invite) => `<div class="member-row"><div><strong>${esc(invite.invitee_email)}</strong><small>${invite.status === 'pending' ? 'In attesa' : esc(invite.status)}</small></div>${invite.status === 'pending' ? `<button class="secondary" data-cancel-invite="${esc(invite.id)}">Annulla</button>` : ''}</div>`).join('') : '<p class="muted">Nessun invito.</p>'}</section>` : `
+      <section class="settings-card sharing-paused" role="status">
+        <h2>Inviti e permessi sospesi</h2>
+        <p>Riattiva la condivisione per invitare persone o modificare i permessi. Gli accessi e gli inviti già registrati restano conservati.</p>
+        <p class="muted">${members.length} access${members.length === 1 ? 'o' : 'i'} e ${invitations.length} invit${invitations.length === 1 ? 'o' : 'i'} conservati.</p>
+      </section>`;
+    return `
+      <div class="settings-header">${this.embeddedSettings ? '' : '<button class="back-button" data-section="mine">← Calendario</button>'}<p class="eyebrow">PRIVACY</p><h2>Condivisione calendario</h2><p>Accesso in sola lettura. Le informazioni non abilitate non sono restituite dal database.</p></div>
+      <section class="settings-card emphasis">
+        <label class="switch-row"><span><strong>${enabled ? 'Condivisione attiva' : 'Condivisione non attiva'}</strong><small>${enabled ? 'Disattivandola, tutti gli accessi vengono sospesi immediatamente.' : 'Inviti e permessi sono sospesi; storico e inviti restano conservati.'}</small></span><input type="checkbox" id="sharing-enabled" ${enabled ? 'checked' : ''}></label>
+      </section>
+      ${activeControls}`;
   }
 
   async onClick(event) {
@@ -298,6 +311,12 @@ export class CalendarSharingView {
   }
 
   async onChange(event) {
+    if (event.target.id === 'invite-email') {
+      const error = this.root.querySelector('#invite-email-error');
+      if (error) { error.hidden = true; error.textContent = ''; }
+      event.target.removeAttribute('aria-invalid');
+      return;
+    }
     if (event.target.id === 'shared-person-select') { this.state.selectedSpace = event.target.value; return this.loadVisibleEntries(); }
     if (event.target.id === 'sharing-enabled') return this.run(async () => { await this.service.setEnabled(event.target.checked); this.announce(event.target.checked ? 'Condivisione attivata.' : 'Condivisione sospesa.'); await this.reloadData(); });
     if (event.target.name === 'compare-space') {
@@ -309,11 +328,32 @@ export class CalendarSharingView {
   async onSubmit(event) {
     if (event.target.id === 'invite-form') {
       event.preventDefault();
-      const email = new FormData(event.target).get('email');
+      if (this.state.dashboard?.space?.is_enabled !== true) {
+        this.announce('Attiva la condivisione prima di inviare un invito.', 'error');
+        return;
+      }
+      const input = event.target.querySelector('#invite-email');
+      const email = normalizeEmail(new FormData(event.target).get('email'));
+      const error = event.target.querySelector('#invite-email-error');
+      if (!isEmail(email)) {
+        input?.setAttribute('aria-invalid', 'true');
+        if (error) {
+          error.textContent = email ? 'Inserisci un indirizzo email valido.' : 'Inserisci l’email dell’account Chrono Flow da invitare.';
+          error.hidden = false;
+        }
+        input?.focus();
+        return;
+      }
+      input?.removeAttribute('aria-invalid');
+      if (error) { error.hidden = true; error.textContent = ''; }
       return this.run(async () => { await this.service.invite(email); this.announce('Invito creato.'); await this.reloadData(); });
     }
     if (event.target.id === 'privacy-form') {
       event.preventDefault();
+      if (this.state.dashboard?.space?.is_enabled !== true) {
+        this.announce('Attiva la condivisione prima di modificare i permessi.', 'error');
+        return;
+      }
       const form = new FormData(event.target);
       const settings = Object.fromEntries(Object.keys(DEFAULT_SHARING_SETTINGS).map((key) => [key, form.get(key) === 'on']));
       return this.run(async () => { await this.service.updateSettings(settings); this.announce('Preferenze di condivisione salvate.'); await this.reloadData(); });

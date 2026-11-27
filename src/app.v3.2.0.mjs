@@ -1,2 +1,2 @@
-// Immutable production entry point. The complete 2.9.4-derived application lives in app.js.
-import './app.js?v=3.2.0';
+// Recovery entry for a cached earlier shell.
+import './stale-shell-recovery.v3.2.1.mjs';

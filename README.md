@@ -1,17 +1,19 @@
-# Chrono Flow 3.2.0 — UI 2.9.4 autorevole, motore corrente
+# Chrono Flow 3.2.1 — Home approvata e Impostazioni progressive
 
-La shell grafica, il DOM, i componenti e il design system derivano dalla baseline 2.9.4. Le funzioni successive restano attive e sono integrate come estensioni native: condivisione calendario, stabilità 3.x e uscita automatica Smart.
+La shell e il design system restano quelli ripristinati dalla 2.9.4, mentre la Home usa la superficie profonda già approvata: gradiente per modalità, decorazione circolare soft e nuova uscita Smart automatica integrata.
 
-La regressione visiva era nel frontend/bootstrap: le pagine ancora collegate all’entry point 3.0.5 continuavano a montare la shell minimale. Non è stata attribuita alla migration Supabase. La 3.2.0 sostituisce gli entry point e worker precedenti con shim di recupero verso la shell completa.
+Le Impostazioni sono organizzate in otto macro-sezioni single-open con sintesi a card chiusa. Tutti i 52 controlli dati della build precedente sono conservati; opzioni rare e tecniche sono state spostate in sottosezioni Avanzate chiuse di default.
 
+La condivisione calendario non partecipa alla validazione del salvataggio generale: l’email viene controllata solo con **Invita**. Il toggle mostra **Condivisione attiva** o **Condivisione non attiva**; quando è OFF, inviti e permessi vengono sospesi e nascosti senza cancellare accessi, storico o inviti esistenti.
+
+- Specifica e verifica: `docs/HOME_SETTINGS_UX_3.2.1.md`
+- Installazione: `docs/INSTALLAZIONE_PATCH_3.2.1.md`
 - Matrice funzionale: `docs/FUNCTIONAL_MATRIX_2.9.4_CURRENT.md`
-- Audit finale: `docs/FINAL_UI_RESTORATION_3.2.0.md`
-- Installazione: `docs/INSTALLAZIONE_PATCH_3.2.0.md`
 - Evidenze render: `tests/render-output/`
 
 ---
 
- Chrono Flow 3.0.0 — Condivisione calendario
+Chrono Flow 3.0.0 — Condivisione calendario
 
 Questa release aggiunge la condivisione del calendario con utenti specifici, in sola lettura, senza esporre direttamente le tabelle personali.
 

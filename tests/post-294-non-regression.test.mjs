@@ -7,7 +7,7 @@ const [html, app, calculations, sharing, sharingView, autoExit, migration, pwa, 
   read('index.html'), read('src/app.js'), read('src/calculations.mjs'),
   read('src/calendar-sharing.v3.0.5.mjs'), read('src/calendar-sharing-view.v3.0.5.mjs'),
   read('src/smart-auto-exit.mjs'), read('src/migration.mjs'), read('src/pwa-install.mjs'),
-  read('sw.v3.2.0.js'), read('tests/ui-audit.test.mjs'), read('tests/calculations.test.mjs')
+  read('sw.v3.2.1.js'), read('tests/ui-audit.test.mjs'), read('tests/calculations.test.mjs')
 ]);
 
 const contracts = [

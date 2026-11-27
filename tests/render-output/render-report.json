@@ -10,8 +10,19 @@
       "Impostazioni"
     ],
     "hero": true,
+    "heroBackgroundImage": "none",
+    "heroDecoration": "none",
+    "heroHeight": 361.375,
+    "autoExitVisible": false,
     "profile": true,
-    "visibleScreen": "today"
+    "visibleScreen": "today",
+    "openSettings": [],
+    "inviteValidationVisible": false,
+    "sharingStatus": "",
+    "sharingInviteVisible": false,
+    "sharingPrivacyVisible": false,
+    "sharingPausedVisible": false,
+    "settingsValuesPreserved": true
   },
   "current_mobile": {
     "width": 390,
@@ -24,8 +35,21 @@
       "Impostazioni"
     ],
     "hero": true,
+    "heroBackgroundImage": "linear-gradient(122deg, rgb(27, 51, 77), rgb(53, 106, 108))",
+    "heroDecoration": "\"\"",
+    "heroHeight": 364.59375,
+    "autoExitVisible": false,
     "profile": true,
-    "visibleScreen": "today"
+    "visibleScreen": "today",
+    "openSettings": [
+      "profile-settings"
+    ],
+    "inviteValidationVisible": false,
+    "sharingStatus": "",
+    "sharingInviteVisible": false,
+    "sharingPrivacyVisible": false,
+    "sharingPausedVisible": false,
+    "settingsValuesPreserved": true
   },
   "baseline_desktop": {
     "width": 1440,
@@ -38,8 +62,19 @@
       "Impostazioni"
     ],
     "hero": true,
+    "heroBackgroundImage": "none",
+    "heroDecoration": "none",
+    "heroHeight": 340.796875,
+    "autoExitVisible": false,
     "profile": true,
-    "visibleScreen": "today"
+    "visibleScreen": "today",
+    "openSettings": [],
+    "inviteValidationVisible": false,
+    "sharingStatus": "",
+    "sharingInviteVisible": false,
+    "sharingPrivacyVisible": false,
+    "sharingPausedVisible": false,
+    "settingsValuesPreserved": true
   },
   "current_desktop": {
     "width": 1440,
@@ -52,8 +87,21 @@
       "Impostazioni"
     ],
     "hero": true,
+    "heroBackgroundImage": "linear-gradient(122deg, rgb(27, 51, 77), rgb(53, 106, 108))",
+    "heroDecoration": "\"\"",
+    "heroHeight": 340.796875,
+    "autoExitVisible": false,
     "profile": true,
-    "visibleScreen": "today"
+    "visibleScreen": "today",
+    "openSettings": [
+      "profile-settings"
+    ],
+    "inviteValidationVisible": false,
+    "sharingStatus": "",
+    "sharingInviteVisible": false,
+    "sharingPrivacyVisible": false,
+    "sharingPausedVisible": false,
+    "settingsValuesPreserved": true
   },
   "autoexit_mobile": {
     "width": 390,
@@ -66,8 +114,21 @@
       "Impostazioni"
     ],
     "hero": true,
+    "heroBackgroundImage": "linear-gradient(122deg, rgb(27, 51, 77), rgb(53, 106, 108))",
+    "heroDecoration": "\"\"",
+    "heroHeight": 355.703125,
+    "autoExitVisible": true,
     "profile": true,
-    "visibleScreen": "today"
+    "visibleScreen": "today",
+    "openSettings": [
+      "profile-settings"
+    ],
+    "inviteValidationVisible": false,
+    "sharingStatus": "",
+    "sharingInviteVisible": false,
+    "sharingPrivacyVisible": false,
+    "sharingPausedVisible": false,
+    "settingsValuesPreserved": true
   },
   "autoexit_desktop": {
     "width": 1440,
@@ -80,8 +141,21 @@
       "Impostazioni"
     ],
     "hero": true,
+    "heroBackgroundImage": "linear-gradient(122deg, rgb(27, 51, 77), rgb(53, 106, 108))",
+    "heroDecoration": "\"\"",
+    "heroHeight": 395.90625,
+    "autoExitVisible": true,
     "profile": true,
-    "visibleScreen": "today"
+    "visibleScreen": "today",
+    "openSettings": [
+      "profile-settings"
+    ],
+    "inviteValidationVisible": false,
+    "sharingStatus": "",
+    "sharingInviteVisible": false,
+    "sharingPrivacyVisible": false,
+    "sharingPausedVisible": false,
+    "settingsValuesPreserved": true
   },
   "calendar_mobile": {
     "width": 390,
@@ -94,8 +168,21 @@
       "Impostazioni"
     ],
     "hero": true,
+    "heroBackgroundImage": "linear-gradient(122deg, rgb(27, 51, 77), rgb(53, 106, 108))",
+    "heroDecoration": "\"\"",
+    "heroHeight": 0,
+    "autoExitVisible": true,
     "profile": true,
-    "visibleScreen": "calendar"
+    "visibleScreen": "calendar",
+    "openSettings": [
+      "profile-settings"
+    ],
+    "inviteValidationVisible": false,
+    "sharingStatus": "",
+    "sharingInviteVisible": false,
+    "sharingPrivacyVisible": false,
+    "sharingPausedVisible": false,
+    "settingsValuesPreserved": true
   },
   "calendar_desktop": {
     "width": 1440,
@@ -108,8 +195,21 @@
       "Impostazioni"
     ],
     "hero": true,
+    "heroBackgroundImage": "linear-gradient(122deg, rgb(27, 51, 77), rgb(53, 106, 108))",
+    "heroDecoration": "\"\"",
+    "heroHeight": 0,
+    "autoExitVisible": true,
     "profile": true,
-    "visibleScreen": "calendar"
+    "visibleScreen": "calendar",
+    "openSettings": [
+      "profile-settings"
+    ],
+    "inviteValidationVisible": false,
+    "sharingStatus": "",
+    "sharingInviteVisible": false,
+    "sharingPrivacyVisible": false,
+    "sharingPausedVisible": false,
+    "settingsValuesPreserved": true
   },
   "shared_mobile": {
     "width": 390,
@@ -122,8 +222,21 @@
       "Impostazioni"
     ],
     "hero": true,
+    "heroBackgroundImage": "linear-gradient(122deg, rgb(27, 51, 77), rgb(53, 106, 108))",
+    "heroDecoration": "\"\"",
+    "heroHeight": 0,
+    "autoExitVisible": true,
     "profile": true,
-    "visibleScreen": "calendar"
+    "visibleScreen": "calendar",
+    "openSettings": [
+      "profile-settings"
+    ],
+    "inviteValidationVisible": false,
+    "sharingStatus": "",
+    "sharingInviteVisible": false,
+    "sharingPrivacyVisible": false,
+    "sharingPausedVisible": false,
+    "settingsValuesPreserved": true
   },
   "shared_desktop": {
     "width": 1440,
@@ -136,8 +249,21 @@
       "Impostazioni"
     ],
     "hero": true,
+    "heroBackgroundImage": "linear-gradient(122deg, rgb(27, 51, 77), rgb(53, 106, 108))",
+    "heroDecoration": "\"\"",
+    "heroHeight": 0,
+    "autoExitVisible": true,
     "profile": true,
-    "visibleScreen": "calendar"
+    "visibleScreen": "calendar",
+    "openSettings": [
+      "profile-settings"
+    ],
+    "inviteValidationVisible": false,
+    "sharingStatus": "",
+    "sharingInviteVisible": false,
+    "sharingPrivacyVisible": false,
+    "sharingPausedVisible": false,
+    "settingsValuesPreserved": true
   },
   "summary_mobile": {
     "width": 390,
@@ -150,8 +276,48 @@
       "Impostazioni"
     ],
     "hero": true,
+    "heroBackgroundImage": "linear-gradient(122deg, rgb(27, 51, 77), rgb(53, 106, 108))",
+    "heroDecoration": "\"\"",
+    "heroHeight": 0,
+    "autoExitVisible": true,
     "profile": true,
-    "visibleScreen": "summary"
+    "visibleScreen": "summary",
+    "openSettings": [
+      "profile-settings"
+    ],
+    "inviteValidationVisible": false,
+    "sharingStatus": "",
+    "sharingInviteVisible": false,
+    "sharingPrivacyVisible": false,
+    "sharingPausedVisible": false,
+    "settingsValuesPreserved": true
+  },
+  "settings_mobile": {
+    "width": 390,
+    "viewport": 390,
+    "overflow": false,
+    "nav": [
+      "Oggi",
+      "Calendario",
+      "Riepilogo",
+      "Impostazioni"
+    ],
+    "hero": true,
+    "heroBackgroundImage": "linear-gradient(122deg, rgb(27, 51, 77), rgb(53, 106, 108))",
+    "heroDecoration": "\"\"",
+    "heroHeight": 0,
+    "autoExitVisible": true,
+    "profile": true,
+    "visibleScreen": "settings",
+    "openSettings": [
+      "family-settings"
+    ],
+    "inviteValidationVisible": false,
+    "sharingStatus": "",
+    "sharingInviteVisible": false,
+    "sharingPrivacyVisible": false,
+    "sharingPausedVisible": false,
+    "settingsValuesPreserved": true
   },
   "settings_desktop": {
     "width": 1440,
@@ -164,8 +330,21 @@
       "Impostazioni"
     ],
     "hero": true,
+    "heroBackgroundImage": "linear-gradient(122deg, rgb(27, 51, 77), rgb(53, 106, 108))",
+    "heroDecoration": "\"\"",
+    "heroHeight": 0,
+    "autoExitVisible": true,
     "profile": true,
-    "visibleScreen": "settings"
+    "visibleScreen": "settings",
+    "openSettings": [
+      "family-settings"
+    ],
+    "inviteValidationVisible": false,
+    "sharingStatus": "",
+    "sharingInviteVisible": false,
+    "sharingPrivacyVisible": false,
+    "sharingPausedVisible": false,
+    "settingsValuesPreserved": true
   },
   "settings_sharing_mobile": {
     "width": 390,
@@ -178,9 +357,52 @@
       "Impostazioni"
     ],
     "hero": true,
+    "heroBackgroundImage": "linear-gradient(122deg, rgb(27, 51, 77), rgb(53, 106, 108))",
+    "heroDecoration": "\"\"",
+    "heroHeight": 0,
+    "autoExitVisible": true,
     "profile": true,
-    "visibleScreen": "settings"
+    "visibleScreen": "settings",
+    "openSettings": [
+      "calendar-sharing-settings"
+    ],
+    "inviteValidationVisible": true,
+    "sharingStatus": "Condivisione attiva",
+    "sharingInviteVisible": true,
+    "sharingPrivacyVisible": true,
+    "sharingPausedVisible": false,
+    "settingsValuesPreserved": true
   },
-  "pixel_diff_mobile_today": 0.0,
-  "pixel_diff_desktop_today": 0.0
+  "settings_sharing_off_mobile": {
+    "width": 390,
+    "viewport": 390,
+    "overflow": false,
+    "nav": [
+      "Oggi",
+      "Calendario",
+      "Riepilogo",
+      "Impostazioni"
+    ],
+    "hero": true,
+    "heroBackgroundImage": "linear-gradient(122deg, rgb(27, 51, 77), rgb(53, 106, 108))",
+    "heroDecoration": "\"\"",
+    "heroHeight": 0,
+    "autoExitVisible": true,
+    "profile": true,
+    "visibleScreen": "settings",
+    "openSettings": [
+      "calendar-sharing-settings"
+    ],
+    "inviteValidationVisible": false,
+    "sharingStatus": "Condivisione non attiva",
+    "sharingInviteVisible": false,
+    "sharingPrivacyVisible": false,
+    "sharingPausedVisible": true,
+    "settingsValuesPreserved": true
+  },
+  "home_theme_browser": {
+    "result": "passed"
+  },
+  "pixel_diff_mobile_today": 0.4543413537489367,
+  "pixel_diff_desktop_today": 0.24173194444444446
 }

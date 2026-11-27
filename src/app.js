@@ -974,7 +974,16 @@ async function ensureCalendarSharingSettingsView() {
       initialSection: "settings",
       allowSettings: true,
       embeddedSettings: true,
-      announce: (message, kind) => showToast(message, null, kind === "error")
+      announce: (message, kind) => showToast(message, null, kind === "error"),
+      onUpdate: (sharingState) => {
+        const dashboard = sharingState.dashboard || {};
+        const active = dashboard.space?.is_enabled === true;
+        const members = Array.isArray(dashboard.members) ? dashboard.members.length : 0;
+        const pending = Array.isArray(dashboard.invitations)
+          ? dashboard.invitations.filter((item) => item?.status === "pending").length
+          : 0;
+        setSettingsSummary("calendar-sharing-settings-summary", `${active ? "Condivisione attiva" : "Condivisione non attiva"} · ${members} access${members === 1 ? "o" : "i"} · ${pending} invit${pending === 1 ? "o" : "i"} in attesa`);
+      }
     });
     state.calendarSharingSettingsView = view;
     await view.init();
@@ -2731,12 +2740,13 @@ function setSettingsSummary(id, text) {
 function updateSettingsSummaries() {
   const hours = clampInt($("#target-hours")?.value, 1, 15, 7);
   const minutes = clampInt($("#target-minutes")?.value, 0, 59, 36);
-  setSettingsSummary("profile-settings-summary", `${hours}h ${String(minutes).padStart(2, "0")}m · soglia straordinario ${clampInt($("#overtime-threshold")?.value, 0, 240, 10)} min`);
+  setSettingsSummary("profile-settings-summary", `${hours}h ${String(minutes).padStart(2, "0")}m · pause ${clampInt($("#office-break")?.value, 0, 240, 30)}/${clampInt($("#smart-break")?.value, 0, 240, 60)}/${clampInt($("#travel-break")?.value, 0, 240, 30)} min`);
   const modeLabels = [["#mode-office", "Ufficio"], ["#mode-smart", "Smart"], ["#mode-travel", "Trasferta"], ["#mode-saturday", "Sabato"]]
     .filter(([selector]) => $(selector)?.checked).map(([, label]) => label);
-  setSettingsSummary("work-mode-settings-summary", modeLabels.length ? modeLabels.join(" · ") : "Nessuna modalità attiva");
+  const smartOvertime = $("#overtime-smart")?.checked ? "Smart con straordinario" : "Smart con uscita automatica";
+  setSettingsSummary("work-mode-settings-summary", `${modeLabels.length ? modeLabels.join(" · ") : "Nessuna modalità attiva"} · soglia ${clampInt($("#overtime-threshold")?.value, 0, 240, 10)} min · ${smartOvertime}`);
   const leaveYear = clampInt($("#leave-settings-year")?.value, 2000, 2100, new Date().getFullYear());
-  setSettingsSummary("leave-settings-summary", `${clampInt($("#leave-current-days")?.value, 0, 366, 20)} ferie · ${clampInt($("#leave-suppressed-days")?.value, 0, 366, 4)} festività soppresse · ${leaveYear}`);
+  const leaveSummaryBase = `${clampInt($("#leave-current-days")?.value, 0, 366, 20)} ferie · ${clampInt($("#leave-suppressed-days")?.value, 0, 366, 4)} festività soppresse · ${leaveYear}`;
   const ticketLabels = [
     ["#ticket-office", "Ufficio"], ["#ticket-smart", "Smart"], ["#ticket-travel", "Trasferta"]
   ].filter(([selector]) => $(selector)?.checked).map(([, label]) => label);
@@ -2764,6 +2774,7 @@ function updateSettingsSummaries() {
   const previewYear = clampInt($("#sunday-holiday-adjustment-year")?.value, 2000, 2100, new Date().getFullYear());
   const preview = sundayHolidayBalance(previewYear, settingsContractDraft());
   setSettingsSummary("holiday-settings-summary", `${ruleLabels[rule]} · ${preview.available} disponibili nel ${previewYear}`);
+  setSettingsSummary("leave-settings-summary", `${leaveSummaryBase} · ${ruleLabels[rule]}`);
 }
 
 function causeHasUsage(type) {
@@ -2970,6 +2981,62 @@ function showScreen(name) {
   }
   $("#main-content").focus({ preventScroll: true });
   window.scrollTo({ top: 0, behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+}
+
+function settingsAccordionSections() {
+  return $$("#settings-screen details.settings-disclosure[data-settings-section]");
+}
+
+function openSettingsSection(section, { focus = false, scroll = false } = {}) {
+  if (!section) return;
+  for (const candidate of settingsAccordionSections()) {
+    if (candidate !== section) candidate.open = false;
+  }
+  section.open = true;
+  const summary = section.querySelector(":scope > summary");
+  summary?.setAttribute("aria-expanded", "true");
+  if (!focus && !scroll) return;
+  window.requestAnimationFrame(() => {
+    if (scroll) {
+      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      summary?.scrollIntoView({ block: "start", behavior: reduced ? "auto" : "smooth" });
+    }
+    if (focus) summary?.focus({ preventScroll: true });
+  });
+}
+
+function revealInvalidSettingsControl(form) {
+  const invalid = [...form.elements].find((control) => typeof control.checkValidity === "function" && !control.checkValidity());
+  if (!invalid) return false;
+  openSettingsSection(invalid.closest("details[data-settings-section]"), { scroll: true });
+  window.requestAnimationFrame(() => {
+    invalid.focus({ preventScroll: true });
+    invalid.reportValidity?.();
+  });
+  return true;
+}
+
+function initSettingsAccordion() {
+  for (const section of settingsAccordionSections()) {
+    const summary = section.querySelector(":scope > summary");
+    if (!summary) continue;
+    const markUserActivation = () => { section.dataset.userAccordionAction = "true"; };
+    summary.addEventListener("pointerdown", markUserActivation);
+    summary.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") markUserActivation();
+    });
+    section.addEventListener("toggle", () => {
+      summary.setAttribute("aria-expanded", String(section.open));
+      if (!section.open) return;
+      for (const other of settingsAccordionSections()) {
+        if (other !== section) other.open = false;
+      }
+      if (section.dataset.userAccordionAction === "true") {
+        delete section.dataset.userAccordionAction;
+        openSettingsSection(section, { focus: true, scroll: true });
+      }
+    });
+  }
 }
 
 function offerLegacyMigration({ force = false } = {}) {
@@ -3201,7 +3268,7 @@ function registerServiceWorker() {
     window.location.reload();
   });
   navigator.serviceWorker
-    .register("./sw.v3.2.0.js", { updateViaCache: "none" })
+    .register("./sw.v3.2.1.js", { updateViaCache: "none" })
     .then((registration) => registration.update())
     .catch(() => {});
 }
@@ -3322,6 +3389,7 @@ function bindEvents() {
     details.addEventListener("toggle", updateExpanded);
     updateExpanded();
   });
+  initSettingsAccordion();
   $$(".location-option").forEach((button) => button.addEventListener("click", async () => {
     updateHeroMode(button.dataset.location);
     updateLocationChoice(button.dataset.location);
@@ -3647,6 +3715,7 @@ function bindEvents() {
 
   $("#settings-form").addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (revealInvalidSettingsControl(event.currentTarget)) return;
     if (!event.currentTarget.reportValidity()) return;
     const familySettings = normalizeFamilySettings(state.profile.family_settings);
     const invalidParentalChild = familySettings.children.find((child) => childInstituteEnabled(child, "parental_leave")
