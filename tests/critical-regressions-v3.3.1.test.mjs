@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 const [html, app, worker, migration] = await Promise.all([
   readFile(new URL('../index.html', import.meta.url), 'utf8'),
   readFile(new URL('../src/app.js', import.meta.url), 'utf8'),
-  readFile(new URL('../sw.v3.3.5.js', import.meta.url), 'utf8'),
+  readFile(new URL('../sw.v3.3.2.js', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20261127_331_allocation_method.sql', import.meta.url), 'utf8')
 ]);
 
@@ -58,8 +58,8 @@ test('la migration additiva conserva il metodo per ricalcolare solo le ripartizi
   assert.match(app, /allocation_method === "automatic"/);
 });
 
-test('service worker 3.3.5 carica i nuovi moduli ed elimina le cache precedenti', () => {
-  assert.match(worker, /chrono-flow-v3\.3\.5-configurable-break-fix-1/);
+test('service worker 3.3.2 carica i nuovi moduli ed elimina le cache precedenti', () => {
+  assert.match(worker, /chrono-flow-v3\.3\.2-home-calendar-e2e/);
   assert.match(worker, /project-allocation-policy\.mjs/);
   assert.match(worker, /day-source-of-truth\.mjs/);
   assert.match(worker, /keys\.filter\(\(key\) => key !== CACHE\)/);

@@ -1,14 +1,12 @@
-# Chrono Flow 3.3.5 — Commesse live, pausa configurabile e inviti persistenti
+# Chrono Flow 3.3.6 — compatibilità mobile e iPhone
 
-- `Registra attività` ricostruisce la selezione solo dalle allocazioni già salvate per la data, senza preferite o selezioni residue.
-- Ricerca multi-commessa con reset immediato, lista non filtrata e focus ripristinato dopo ogni selezione.
-- Editor dedicato alla singola allocazione: sola percentuale, sola durata manuale HH:MM oppure rimozione.
-- Percentuali persistenti e calcolate in tempo reale sul lavoro netto; ore manuali fisse al minuto.
-- Home, Calendario, Riepilogo e dettaglio giornata usano lo stesso valore dinamico.
-- Orario pausa automatica configurabile, fallback compatibile `13:00`, stop/ripresa del timer e blocco reale della seconda pausa manuale.
-- Inviti calendario persistenti con stati testuali `In attesa`, `Attivo`, `Rifiutato`, `Annullato`, `Scaduto` e deduplica per email.
-- Migration additiva per `allocation_percentage` e RPC inviti idempotente; nessuna modifica alle RLS o ai dati privati condivisi.
-- Verifica integrata in Chromium sul DOM reale della build, oltre alla suite completa.
+- Home mobile più compatta con selettore modalità su una riga.
+- Safe area iOS applicata a top bar, contenuto e bottom navigation.
+- Card timer ridimensionata per viewport da 320 a 430 px.
+- Campo Orario di inizio pausa conservato e collegato al motore di calcolo.
+- Pulsante pausa disabilitato durante e dopo la finestra automatica.
+- Service worker cache-safe aggiornato alla build 3.3.6.
+- Nessuna migrazione SQL.
 
 # Chrono Flow 3.2.1 — Home profonda e Impostazioni semplificate
 

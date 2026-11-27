@@ -29,18 +29,6 @@ function personName(calendar) {
   return calendar?.owner_display_name || calendar?.name || calendar?.owner_email_masked || 'Calendario condiviso';
 }
 
-const INVITATION_STATUS = Object.freeze({
-  pending: ['In attesa', 'pending'],
-  accepted: ['Attivo', 'active'],
-  rejected: ['Rifiutato', 'rejected'],
-  cancelled: ['Annullato', 'cancelled'],
-  expired: ['Scaduto', 'expired']
-});
-
-function invitationStatus(status) {
-  return INVITATION_STATUS[status] || [String(status || 'Sconosciuto'), 'unknown'];
-}
-
 function modeBadge(value) {
   const entry = normalizeCalendarRecord(value);
   const { mode: modeKey, generic_absence_label, absence_type } = entry;
@@ -288,16 +276,6 @@ export class CalendarSharingView {
     const members = dashboard.members || [];
     const invitations = dashboard.invitations || [];
     const enabled = dashboard.space?.is_enabled === true;
-    const peopleStatus = `
-      <section class="settings-card sharing-people-status" aria-labelledby="sharing-people-title">
-        <h2 id="sharing-people-title">Persone e inviti</h2>
-        ${members.length ? members.map((member) => `<div class="member-row"><div><strong>${esc(member.display_name || member.email_masked)}</strong><span class="sharing-status active">Attivo</span><small>Accesso in sola lettura</small></div><button class="danger secondary" data-revoke="${esc(member.id)}">Revoca accesso</button></div>`).join('') : ''}
-        ${invitations.length ? invitations.map((invite) => {
-          const [label, klass] = invitationStatus(invite.status);
-          return `<div class="member-row"><div><strong>${esc(invite.invitee_email)}</strong><span class="sharing-status ${esc(klass)}">${esc(label)}</span><small>${invite.status === 'pending' ? 'Invito inviato; in attesa della risposta.' : invite.status === 'accepted' ? 'Invito accettato.' : invite.status === 'rejected' ? 'Il destinatario ha rifiutato.' : invite.status === 'cancelled' ? 'Invito annullato.' : 'Invito non più valido.'}</small></div>${invite.status === 'pending' ? `<button class="secondary" data-cancel-invite="${esc(invite.id)}">Annulla invito</button>` : ''}</div>`;
-        }).join('') : ''}
-        ${!members.length && !invitations.length ? '<p class="muted">Nessuna persona invitata.</p>' : ''}
-      </section>`;
     const activeControls = enabled ? `
       <section class="settings-card"><h2>Invita una persona</h2><p>L’indirizzo deve corrispondere all’account Chrono Flow del destinatario.</p>
         <form id="invite-form" class="inline-form" novalidate><label class="sr-only" for="invite-email">Email</label><input id="invite-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="nome@esempio.it" aria-describedby="invite-email-error" required><button type="submit">Invita</button><p id="invite-email-error" class="form-error inline-form-error" role="alert" hidden></p></form>
@@ -305,12 +283,13 @@ export class CalendarSharingView {
       <form id="privacy-form" class="settings-card"><div class="card-heading"><div><h2>Informazioni condivise</h2><p>Solo la modalità di lavoro è attiva per default.</p></div><button type="submit">Salva</button></div>
         <div class="privacy-list">${Object.entries(SETTING_LABELS).map(([key, [label, hint, recommended]]) => `<label class="switch-row ${!recommended ? 'sensitive' : ''}"><span><strong>${esc(label)}</strong><small>${esc(hint)}</small></span><input type="checkbox" name="${key}" ${settings[key] ? 'checked' : ''}></label>`).join('')}</div>
       </form>
-      ${peopleStatus}` : `
+      <section class="settings-card"><h2>Accessi attivi</h2>${members.length ? members.map((member) => `<div class="member-row"><div><strong>${esc(member.display_name || member.email_masked)}</strong><small>Sola lettura</small></div><button class="danger secondary" data-revoke="${esc(member.id)}">Revoca</button></div>`).join('') : '<p class="muted">Nessuna persona ha accesso.</p>'}</section>
+      <section class="settings-card"><h2>Inviti inviati</h2>${invitations.length ? invitations.map((invite) => `<div class="member-row"><div><strong>${esc(invite.invitee_email)}</strong><small>${invite.status === 'pending' ? 'In attesa' : esc(invite.status)}</small></div>${invite.status === 'pending' ? `<button class="secondary" data-cancel-invite="${esc(invite.id)}">Annulla</button>` : ''}</div>`).join('') : '<p class="muted">Nessun invito.</p>'}</section>` : `
       <section class="settings-card sharing-paused" role="status">
         <h2>Inviti e permessi sospesi</h2>
         <p>Riattiva la condivisione per invitare persone o modificare i permessi. Gli accessi e gli inviti già registrati restano conservati.</p>
         <p class="muted">${members.length} access${members.length === 1 ? 'o' : 'i'} e ${invitations.length} invit${invitations.length === 1 ? 'o' : 'i'} conservati.</p>
-      </section>${peopleStatus}`;
+      </section>`;
     return `
       <div class="settings-header">${this.embeddedSettings ? '' : '<button class="back-button" data-section="mine">← Calendario</button>'}<p class="eyebrow">PRIVACY</p><h2>Condivisione calendario</h2><p>Accesso in sola lettura. Le informazioni non abilitate non sono restituite dal database.</p></div>
       <section class="settings-card emphasis">
@@ -367,12 +346,7 @@ export class CalendarSharingView {
       }
       input?.removeAttribute('aria-invalid');
       if (error) { error.hidden = true; error.textContent = ''; }
-      const duplicate = (this.state.dashboard?.invitations || []).find((item) => item.status === 'pending' && normalizeEmail(item.invitee_email) === email);
-      if (duplicate) {
-        this.announce('Esiste già un invito in attesa per questa email.');
-        return this.reloadData();
-      }
-      return this.run(async () => { await this.service.invite(email); this.announce('Invito inviato. Stato: In attesa.'); await this.reloadData(); });
+      return this.run(async () => { await this.service.invite(email); this.announce('Invito creato.'); await this.reloadData(); });
     }
     if (event.target.id === 'privacy-form') {
       event.preventDefault();

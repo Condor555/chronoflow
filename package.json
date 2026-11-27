@@ -1,11 +1,10 @@
 {
   "name": "chrono-flow",
-  "version": "3.3.5",
+  "version": "3.3.6",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check src/app.v3.3.5.mjs && node --check src/app.js && node --check src/calculations.mjs && node --check src/project-allocation-policy.mjs && node --check src/calendar-sharing-view.v3.0.5.mjs && node --check sw.v3.3.5.js && node --test tests/project-allocation-policy.test.mjs tests/day-source-of-truth.test.mjs tests/critical-regressions-v3.3.1.test.mjs tests/projects-feature.test.mjs tests/live-allocations-v3.3.5.test.mjs",
-    "test:e2e": "python3 tests/e2e-integrated-v3.3.5.py"
+    "check": "node --check src/app.v3.3.6.mjs && node --check src/app.js && node --check src/project-allocation-policy.mjs && node --check src/day-source-of-truth.mjs && node --check sw.v3.3.6.js && node --test tests/project-allocation-policy.test.mjs tests/day-source-of-truth.test.mjs tests/critical-regressions-v3.3.1.test.mjs tests/projects-feature.test.mjs tests/mobile-compatibility-v3.3.6.test.mjs"
   }
 }

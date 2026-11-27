@@ -24,10 +24,12 @@ export function homeModeForToday(savedDay) {
   const planned = validMode(savedDay.planned_type);
   const actual = validMode(savedDay.actual_type);
 
-  // La pianificazione del Calendario è la fonte primaria della modalità
-  // giornaliera. La scelta Home viene salvata sia come planned_type sia come
-  // actual_type, quindi resta persistente senza introdurre una seconda fonte.
-  return planned || actual || "office";
+  // Prima dell'ingresso la Home rappresenta la pianificazione odierna. Un
+  // vecchio actual_type non deve sovrascrivere una successiva pianificazione
+  // Smart/Trasferta dopo reload o riapertura PWA. Dopo la prima attività
+  // registrata, invece, l'effettivo torna prioritario.
+  if (!dayHasRecordedActivity(savedDay)) return planned || actual || "office";
+  return actual || planned || "office";
 }
 
 export function applyHomeModeToDay(day, date, mode) {

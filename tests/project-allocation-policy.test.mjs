@@ -1,14 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  buildAllocationDurations,
-  equalPercentages,
-  hoursToMinutes,
-  initialAllocationProjectIds,
-  minutesToPercentageInput,
-  percentageToMinutes,
-  splitEvenMinutes
-} from '../src/project-allocation-policy.mjs';
+import { buildAllocationDurations, equalPercentages, hoursToMinutes, splitEvenMinutes } from '../src/project-allocation-policy.mjs';
 
 test('una commessa senza ore riceve il 100% del lavorato', () => {
   assert.deepEqual(buildAllocationDurations({ mode: 'automatic', projectIds: ['a'], workedMinutes: 456 }), [
@@ -41,20 +33,4 @@ test('le ore manuali sono specifiche per ogni commessa', () => {
 
 test('l’automatico senza orario lavorato non crea allocazioni fittizie', () => {
   assert.throws(() => buildAllocationDurations({ mode: 'automatic', projectIds: ['a'], workedMinutes: 0 }), /orario lavorato/i);
-});
-
-
-test('una nuova registrazione non preseleziona la commessa usata in precedenza', () => {
-  assert.deepEqual(initialAllocationProjectIds([]), []);
-});
-
-test('la modifica conserva soltanto le commesse già salvate sulla giornata', () => {
-  assert.deepEqual(initialAllocationProjectIds(['esistente', 'esistente', 'altra']), ['esistente', 'altra']);
-});
-
-test('percentuale e minuti della singola allocazione sono convertiti in modo coerente', () => {
-  assert.equal(minutesToPercentageInput(228, 456), '50');
-  assert.equal(percentageToMinutes(456, '37,5'), 171);
-  assert.throws(() => percentageToMinutes(456, '0'), /percentuale/i);
-  assert.throws(() => percentageToMinutes(456, '101'), /100%/i);
 });

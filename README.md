@@ -1,3 +1,9 @@
+# Chrono Flow 3.3.6 — mobile/iPhone
+
+La build 3.3.6 aggiunge una Home compatta per smartphone, safe area iOS completa e mantiene la pausa automatica configurabile. Consulta `docs/NOTE_RILASCIO_3.3.6.md` per installazione e collaudo.
+
+---
+
 # Chrono Flow 3.2.1 — Home approvata e Impostazioni progressive
 
 La shell e il design system restano quelli ripristinati dalla 2.9.4, mentre la Home usa la superficie profonda già approvata: gradiente per modalità, decorazione circolare soft e nuova uscita Smart automatica integrata.

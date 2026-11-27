@@ -20,7 +20,6 @@ import {
   isWorkingSaturday,
   isoDateLocal,
   minutesToDuration,
-  normalizeBreakStartTime,
   maternityMandatoryEntitlement,
   parentalLeaveMonitoringQuota,
   paternityMandatoryEntitlement,
@@ -48,12 +47,10 @@ import {
   smartAutomaticExitEnabled
 } from "./smart-auto-exit.mjs";
 import {
-  automaticAllocationMinutes,
-  buildAllocationEntries,
+  buildAllocationDurations,
   equalPercentages,
-  manualDurationMinutes,
-  minutesToManualDuration,
-  normalizeAllocationPercentage
+  minutesToHoursInput,
+  splitEvenMinutes
 } from "./project-allocation-policy.mjs";
 import {
   applyHomeModeToDay,
@@ -65,7 +62,6 @@ import {
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
-const e2eHarness = globalThis.__CHRONO_FLOW_E2E__ || null;
 const configured = hasSupabaseConfig();
 
 const DEFAULT_PROFILE = {
@@ -90,6 +86,7 @@ const DEFAULT_PROFILE = {
       smart: false,
       travel: false
     },
+    pause_start_time: "13:00",
     projects_enabled: false,
     default_project_id: null,
     contract_settings: {
@@ -116,8 +113,7 @@ const state = {
   projectDataLoading: false,
   editingAllocationId: null,
   allocationSelectedProjects: new Set(),
-  allocationManualMinutes: new Map(),
-  liveAllocationSignature: "",
+  allocationManualHours: new Map(),
   todayRefreshPromise: null,
   authMode: "login",
   calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -210,10 +206,6 @@ function normalizeChildSettings(child) {
   };
 }
 
-function normalizeClockTime(value, fallback = "13:00") {
-  return normalizeBreakStartTime(value, fallback);
-}
-
 function normalizeFamilySettings(value) {
   const input = value && typeof value === "object" ? value : {};
   const contractInput = input.contract_settings && typeof input.contract_settings === "object"
@@ -256,7 +248,7 @@ function normalizeFamilySettings(value) {
       smart: input.overtime_settings?.smart === true,
       travel: input.overtime_settings?.travel === true
     },
-    automatic_break_time: normalizeClockTime(input.automatic_break_time),
+    pause_start_time: normalizePauseStartTime(input.pause_start_time) || "13:00",
     projects_enabled: input.projects_enabled === true,
     default_project_id: typeof input.default_project_id === "string" ? input.default_project_id : null,
     contract_settings: {
@@ -314,7 +306,6 @@ function normalizeProject(project) {
 }
 
 function normalizeAllocation(allocation) {
-  const percentage = Number(allocation.allocation_percentage);
   return {
     id: allocation.id,
     user_id: allocation.user_id || state.user?.id || null,
@@ -324,9 +315,6 @@ function normalizeAllocation(allocation) {
     end_time: allocation.end_time ? String(allocation.end_time).slice(0, 5) : null,
     duration_minutes: Math.max(1, Number(allocation.duration_minutes) || 0),
     allocation_method: allocation.allocation_method === "automatic" ? "automatic" : "hours",
-    allocation_percentage: allocation.allocation_method === "automatic" && Number.isFinite(percentage) && percentage > 0
-      ? Math.min(100, Math.round(percentage * 100) / 100)
-      : null,
     note: String(allocation.note || "").trim(),
     created_at: allocation.created_at || new Date().toISOString(),
     updated_at: allocation.updated_at || new Date().toISOString()
@@ -408,48 +396,27 @@ function projectLabel(project) {
   return `${project.code} · ${project.description}`;
 }
 
-function trackedResultForDate(date, now = null) {
+function allocationMinutesForDate(date) {
+  return allocationsForDate(date).reduce((total, allocation) => total + allocation.duration_minutes, 0);
+}
+
+function workedMinutesForDate(date) {
   const day = state.days.get(date);
-  if (!day) return null;
-  return calculateTrackedDay(day, now || calculationNow(day));
-}
-
-function workedMinutesForDate(date, now = null) {
-  return trackedResultForDate(date, now)?.ordinaryWorkedMinutes || 0;
-}
-
-function allocationPercentageForDate(allocation, date = allocation.work_date) {
-  if (allocation.allocation_method !== "automatic") return null;
-  if (Number(allocation.allocation_percentage) > 0) {
-    return normalizeAllocationPercentage(allocation.allocation_percentage);
-  }
-  const automatic = allocationsForDate(date).filter((item) => item.allocation_method === "automatic");
-  return automatic.length ? equalPercentages(automatic.length)[automatic.findIndex((item) => item.id === allocation.id)] || 100 : 100;
-}
-
-function effectiveAllocationMinutes(allocation, now = null) {
-  if (allocation.allocation_method !== "automatic") return allocation.duration_minutes;
-  const result = trackedResultForDate(allocation.work_date, now);
-  return automaticAllocationMinutes(result?.ordinaryWorkedSeconds || 0, allocationPercentageForDate(allocation));
-}
-
-function allocationMinutesForDate(date, now = null) {
-  return allocationsForDate(date).reduce((total, allocation) => total + effectiveAllocationMinutes(allocation, now), 0);
+  if (!day) return 0;
+  return calculateTrackedDay(day, calculationNow(day)).ordinaryWorkedMinutes;
 }
 
 async function recalculateAutomaticAllocationsForDay(date) {
   const allocations = allocationsForDate(date);
   const automatic = allocations.filter((item) => item.allocation_method === "automatic");
   if (!automatic.length) return allocations;
-  const result = trackedResultForDate(date);
+  const workedMinutes = workedMinutesForDate(date);
+  if (!workedMinutes) return allocations;
+  const durations = splitEvenMinutes(workedMinutes, automatic.length);
   const next = allocations.map((item) => {
     if (item.allocation_method !== "automatic") return item;
-    const percentage = allocationPercentageForDate(item, date);
-    return {
-      ...item,
-      allocation_percentage: percentage,
-      duration_minutes: Math.max(1, automaticAllocationMinutes(result?.ordinaryWorkedSeconds || 0, percentage))
-    };
+    const index = automatic.findIndex((candidate) => candidate.id === item.id);
+    return { ...item, duration_minutes: durations[index] };
   });
   await replaceDayAllocations(date, next);
   return next;
@@ -480,7 +447,7 @@ function setProjectFeatureVisibility() {
 }
 
 async function fetchProjectData({ start = null, end = null, includeProjects = true, force = false } = {}) {
-  if ((!projectsEnabled() && !force) || !state.supabase || !navigator.onLine || state.projectDataLoading) return;
+  if ((!projectsEnabled() && !force) || !state.supabase || state.projectDataLoading) return;
   state.projectDataLoading = true;
   try {
     if (includeProjects) {
@@ -629,8 +596,45 @@ function overtimeSettings() {
   return normalizeFamilySettings(state.profile.family_settings).overtime_settings;
 }
 
-function automaticBreakTime() {
-  return normalizeFamilySettings(state.profile.family_settings).automatic_break_time;
+function normalizePauseStartTime(value) {
+  const match = /^(\d{1,2})(?::(\d{1,2}))?$/.exec(String(value || "").trim());
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2] || 0);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function pauseStartTime() {
+  return normalizeFamilySettings(state.profile.family_settings).pause_start_time || "13:00";
+}
+
+function automaticBreakWindow(day, effectiveType, now = new Date()) {
+  const breakMinutes = breakForType(state.profile, effectiveType);
+  const events = (Array.isArray(day?.events) ? day.events : [])
+    .filter((event) => event && !event.superseded && event.at)
+    .sort((left, right) => new Date(left.at) - new Date(right.at));
+  const manual = events.some((event) => event.type === "pause" || event.type === "resume");
+  const entryEvent = events.find((event) => event.type === "entry");
+  const entry = entryEvent ? new Date(entryEvent.at) : null;
+  if (manual || !entry || Number.isNaN(entry.getTime()) || breakMinutes <= 0) return { status: manual ? "manual" : "none" };
+  const [hours, minutes] = pauseStartTime().split(":").map(Number);
+  const start = new Date(entry);
+  start.setHours(hours, minutes, 0, 0);
+  if (start <= entry) start.setTime(entry.getTime() + Math.max(1, Math.floor(state.profile.target_minutes / 2)) * 60000);
+  const end = new Date(start.getTime() + breakMinutes * 60000);
+  const current = now instanceof Date ? now : new Date(now);
+  return {
+    status: current < start ? "before" : current < end ? "during" : "after",
+    start,
+    end,
+    minutes: breakMinutes
+  };
+}
+
+function shortClock(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "—";
+  return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
 }
 
 function calculateTrackedDay(day, now = new Date()) {
@@ -643,7 +647,7 @@ function calculateTrackedDay(day, now = new Date()) {
     overtimeSettings(),
     breakForType(state.profile, effectiveType),
     now,
-    automaticBreakTime()
+    pauseStartTime()
   );
 }
 
@@ -1298,10 +1302,7 @@ async function ensureCalendarSharingView(section = "shared") {
 }
 
 async function ensureCalendarSharingSettingsView() {
-  if (state.calendarSharingSettingsView) {
-    await state.calendarSharingSettingsView.refresh();
-    return state.calendarSharingSettingsView;
-  }
+  if (state.calendarSharingSettingsView) return state.calendarSharingSettingsView;
   if (state.calendarSharingSettingsLoading) return state.calendarSharingSettingsLoading;
   const root = $("#calendar-sharing-settings-root");
   root.innerHTML = '<p class="calendar-status" role="status" aria-busy="true">Caricamento impostazioni di condivisione…</p>';
@@ -1575,16 +1576,7 @@ function updateHeroMode(effectiveType) {
   applyHomeModePresentation($("#work-timer-card"), $("#work-mode-label"), effectiveType, document);
 }
 
-function automaticPauseWindow(day, effectiveType) {
-  const [hours, minutes] = automaticBreakTime().split(":").map(Number);
-  const start = new Date(`${day.work_date}T00:00:00`);
-  start.setHours(hours, minutes, 0, 0);
-  const durationMinutes = breakForType(state.profile, effectiveType);
-  return { start, end: new Date(start.getTime() + durationMinutes * 60000), durationMinutes };
-}
-
 function updateTodayLiveDisplay(day, effectiveType, result, forecast) {
-  const now = new Date();
   const isLive = ["working", "paused"].includes(result.state);
   const autoExit = smartAutoExitPolicy(day);
   const displayedWorkedSeconds = result.ordinaryWorkedSeconds;
@@ -1601,13 +1593,8 @@ function updateTodayLiveDisplay(day, effectiveType, result, forecast) {
   const primary = $("#primary-action");
   const exit = $("#exit-action");
   const autoExitNote = $("#smart-auto-exit-note");
-  const pauseWindow = automaticPauseWindow(day, effectiveType);
-  const manualPauseRecorded = result.breakSource === "manual";
-  const automaticPauseStarted = !manualPauseRecorded && pauseWindow.durationMinutes > 0 && now >= pauseWindow.start;
-  const automaticPauseElapsed = automaticPauseStarted && now >= pauseWindow.end;
-  const manualPauseUnavailable = result.state === "working" && automaticPauseStarted;
-  const manualPauseCompleted = manualPauseRecorded && result.state === "working";
-  primary.disabled = effectiveType === "absence" || manualPauseUnavailable || manualPauseCompleted;
+  const automaticBreak = automaticBreakWindow(day, effectiveType, new Date());
+  primary.disabled = effectiveType === "absence";
   exit.hidden = !isLive || effectiveType === "absence" || autoExit.automatic;
   autoExitNote.hidden = !autoExit.automatic || !autoExit.autoExitAt;
   if (!autoExitNote.hidden) {
@@ -1626,35 +1613,30 @@ function updateTodayLiveDisplay(day, effectiveType, result, forecast) {
     $("#work-main-value").textContent = "—";
     $("#work-main-caption").textContent = "Registra l’entrata quando inizi.";
     primary.textContent = "Registra entrata";
+    primary.disabled = false;
   } else if (result.state === "working") {
-    $("#work-state-label").textContent = result.automaticPauseActive
-      ? "Pausa automatica"
+    const automaticBreakLocked = automaticBreak.status === "during" || automaticBreak.status === "after";
+    $("#work-state-label").textContent = automaticBreak.status === "during"
+      ? "Pausa automatica in corso"
       : scheduleComplete
       ? "Orario completato"
-      : manualPauseCompleted
-        ? "Pausa registrata"
-        : automaticPauseElapsed ? "Pausa standard applicata" : "Stai lavorando";
+      : automaticBreak.status === "after" || result.defaultBreakAppliedSeconds > 0 ? "Pausa standard applicata" : "Stai lavorando";
     $("#work-main-value").textContent = secondsToDuration(displayedWorkedSeconds);
-    $("#work-main-caption").textContent = result.automaticPauseActive
-      ? `Il conteggio è sospeso. Riprenderà automaticamente alle ${formatTime(pauseWindow.end)}.`
-      : scheduleComplete
+    $("#work-main-caption").textContent = scheduleComplete
       ? result.overtimeSeconds > 0
         ? `Monte ore completato · straordinario +${secondsToDuration(result.overtimeSeconds)}.`
         : autoExit.automatic
           ? "Monte ore completato. La giornata viene chiusa automaticamente."
           : "Hai completato il monte ore previsto."
-      : manualPauseCompleted
-        ? `Pausa già registrata. Restano ${secondsToDuration(result.remainingSeconds)} di lavoro.`
-        : automaticPauseElapsed
-        ? `Pausa standard già applicata. Restano ${secondsToDuration(result.remainingSeconds)} di lavoro.`
+      : automaticBreak.status === "during"
+        ? `Riprende alle ${shortClock(automaticBreak.end)}. Restano ${secondsToDuration(result.remainingSeconds)} di lavoro.`
+      : result.defaultBreakAppliedSeconds > 0
+        ? `Pausa standard applicata. Restano ${secondsToDuration(result.remainingSeconds)} di lavoro.`
         : `Restano ${secondsToDuration(result.remainingSeconds)} di lavoro.`;
-    primary.textContent = result.automaticPauseActive
+    primary.textContent = automaticBreak.status === "during"
       ? "Pausa automatica in corso"
-      : manualPauseCompleted
-        ? "Pausa già registrata"
-        : automaticPauseElapsed
-        ? "Pausa standard già applicata"
-        : "Inizia pausa";
+      : automaticBreak.status === "after" ? "Pausa già applicata" : "Inizia pausa";
+    primary.disabled = automaticBreakLocked;
   } else if (result.state === "paused") {
     $("#work-state-label").textContent = "Pausa in corso";
     $("#work-main-value").textContent = secondsToDuration(result.pausedSeconds);
@@ -1662,6 +1644,7 @@ function updateTodayLiveDisplay(day, effectiveType, result, forecast) {
       ? `Monte ore completato · lavorate ${secondsToDuration(displayedWorkedSeconds)}.`
       : `Lavorate ${secondsToDuration(displayedWorkedSeconds)} · restano ${secondsToDuration(result.remainingSeconds)}.`;
     primary.textContent = "Termina pausa";
+    primary.disabled = false;
   } else {
     $("#work-state-label").textContent = "Giornata conclusa";
     $("#work-main-value").textContent = formatTime(result.lastExit);
@@ -1672,7 +1655,7 @@ function updateTodayLiveDisplay(day, effectiveType, result, forecast) {
 }
 
 function renderTodayTick() {
-  if (!state.user || document.hidden) return;
+  if (!state.user || $("#today-screen").hidden || document.hidden) return;
   const now = new Date();
   const date = isoDateLocal(now);
   const savedDay = state.days.get(date) || null;
@@ -1681,20 +1664,11 @@ function renderTodayTick() {
   const effectiveType = homeModeForToday(savedDay);
   const result = calculateTrackedDay(day, now);
   const forecast = forecastExit(day.events, state.profile.target_minutes, breakForType(state.profile, effectiveType), now);
-  if (!$("#today-screen").hidden) updateTodayLiveDisplay(day, effectiveType, result, forecast);
-  const signature = `${date}|${result.ordinaryWorkedMinutes}|${result.automaticPauseActive}|${allocationMinutesForDate(date, now)}`;
-  if (signature !== state.liveAllocationSignature) {
-    state.liveAllocationSignature = signature;
-    if (!$("#today-screen").hidden) renderTodayProjects();
-    if (!$("#calendar-screen").hidden && state.calendarScope === "mine") renderCalendar();
-    if (!$("#summary-screen").hidden) renderSummary();
-    if ($("#day-dialog")?.open && $("#day-date").value === date) renderDayProjects(date);
-  }
+  updateTodayLiveDisplay(day, effectiveType, result, forecast);
 }
 
 function syncHomeClock() {
-  const liveScreen = !$("#today-screen").hidden || !$("#calendar-screen").hidden || !$("#summary-screen").hidden;
-  if (state.user && !document.hidden && liveScreen) homeClock.resume();
+  if (state.user && !document.hidden && !$("#today-screen").hidden) homeClock.resume();
   else homeClock.stop();
 }
 
@@ -1752,11 +1726,9 @@ function allocationRow(allocation, { editable = true } = {}) {
   const name = document.createElement("strong");
   name.textContent = projectLabel(project);
   const meta = document.createElement("span");
-  const displayedMinutes = effectiveAllocationMinutes(allocation);
-  const percentage = allocationPercentageForDate(allocation);
-  meta.textContent = allocation.allocation_method === "automatic"
-    ? `${String(percentage).replace(".", ",")}% · ${minutesToDuration(displayedMinutes)}`
-    : `Ore manuali · ${minutesToDuration(displayedMinutes)}`;
+  meta.textContent = allocation.start_time && allocation.end_time
+    ? `${allocation.start_time}–${allocation.end_time} · ${minutesToDuration(allocation.duration_minutes)}`
+    : minutesToDuration(allocation.duration_minutes);
   copy.append(name, meta);
   if (allocation.note) {
     const note = document.createElement("small");
@@ -1770,7 +1742,7 @@ function allocationRow(allocation, { editable = true } = {}) {
     edit.className = "button ghost allocation-edit";
     edit.textContent = "Modifica";
     edit.setAttribute("aria-label", `Modifica attività ${projectLabel(project)}`);
-    edit.addEventListener("click", () => openAllocationEditDialog(allocation.work_date, allocation.id));
+    edit.addEventListener("click", () => openAllocationDialog(allocation.work_date, allocation.id));
     row.append(edit);
   }
   return row;
@@ -1853,8 +1825,7 @@ function renderAllocationHoursEditor() {
   if (!root) return;
   const date = $("#allocation-date").value;
   const selectedIds = allocationSelectedProjectIds();
-  const workedResult = trackedResultForDate(date);
-  const workedMinutes = workedResult?.ordinaryWorkedMinutes || 0;
+  const workedMinutes = workedMinutesForDate(date);
   const automatic = allocationMethod() === "automatic";
   const percentages = selectedIds.length ? equalPercentages(selectedIds.length) : [];
   $("#allocation-worked-summary").textContent = automatic
@@ -1871,39 +1842,27 @@ function renderAllocationHoursEditor() {
     label.textContent = projectLabel(project);
     if (automatic) {
       const copy = document.createElement("strong");
-      const previewMinutes = automaticAllocationMinutes(workedResult?.ordinaryWorkedSeconds || 0, percentages[index]);
+      const previewMinutes = workedMinutes && selectedIds.length
+        ? Math.floor(workedMinutes / selectedIds.length) + (index < workedMinutes % selectedIds.length ? 1 : 0)
+        : 0;
       copy.textContent = `${String(percentages[index]).replace(".", ",")}% · ${minutesToDuration(previewMinutes)}`;
       row.append(label, copy);
     } else {
       const inputShell = document.createElement("div");
-      inputShell.className = "manual-duration-inputs compact";
-      const parts = state.allocationManualMinutes.get(id) || { hours: 0, minutes: 0 };
-      const hoursField = document.createElement("label");
-      hoursField.textContent = "Ore";
-      const hoursInput = document.createElement("input");
-      hoursInput.id = `allocation-hours-${id}`;
-      hoursInput.type = "number";
-      hoursInput.min = "0";
-      hoursInput.max = "24";
-      hoursInput.step = "1";
-      hoursInput.inputMode = "numeric";
-      hoursInput.value = String(parts.hours ?? 0);
-      const minutesField = document.createElement("label");
-      minutesField.textContent = "Minuti";
-      const minutesInput = document.createElement("input");
-      minutesInput.id = `allocation-minutes-${id}`;
-      minutesInput.type = "number";
-      minutesInput.min = "0";
-      minutesInput.max = "59";
-      minutesInput.step = "1";
-      minutesInput.inputMode = "numeric";
-      minutesInput.value = String(parts.minutes ?? 0);
-      const update = () => state.allocationManualMinutes.set(id, { hours: hoursInput.value, minutes: minutesInput.value });
-      hoursInput.addEventListener("input", update);
-      minutesInput.addEventListener("input", update);
-      hoursField.append(hoursInput);
-      minutesField.append(minutesInput);
-      inputShell.append(hoursField, minutesField);
+      inputShell.className = "allocation-hours-input";
+      const input = document.createElement("input");
+      input.id = `allocation-hours-${id}`;
+      input.type = "number";
+      input.min = "0.01";
+      input.max = "24";
+      input.step = "0.01";
+      input.inputMode = "decimal";
+      input.required = true;
+      input.value = state.allocationManualHours.get(id) || "";
+      input.addEventListener("input", () => state.allocationManualHours.set(id, input.value));
+      const unit = document.createElement("span");
+      unit.textContent = "ore";
+      inputShell.append(input, unit);
       row.append(label, inputShell);
     }
     return row;
@@ -1933,15 +1892,9 @@ function renderAllocationProjectPicker() {
     description.textContent = `${project.description}${project.is_active ? "" : " · archiviata"}`;
     copy.append(code, description);
     input.addEventListener("change", () => {
-      if (input.checked) {
-        state.allocationSelectedProjects.add(project.id);
-        $("#allocation-project-search").value = "";
-        renderAllocationProjectPicker();
-        window.requestAnimationFrame(() => $("#allocation-project-search").focus());
-      } else {
-        state.allocationSelectedProjects.delete(project.id);
-        renderAllocationHoursEditor();
-      }
+      if (input.checked) state.allocationSelectedProjects.add(project.id);
+      else state.allocationSelectedProjects.delete(project.id);
+      renderAllocationHoursEditor();
     });
     label.append(input, copy);
     return label;
@@ -1949,51 +1902,35 @@ function renderAllocationProjectPicker() {
   renderAllocationHoursEditor();
 }
 
-function openAllocationDialog(date) {
+function openAllocationDialog(date, allocationId = null) {
   if (!projectsEnabled()) return;
+  const activeProjects = [...state.projects.values()].filter((project) => project.is_active);
+  if (!activeProjects.length && !allocationId) {
+    showToast("Aggiungi prima una commessa attiva nelle Impostazioni.");
+    showScreen("settings");
+    openSettingsSection($("#project-settings"), { focus: true, scroll: true });
+    return;
+  }
+  const allocation = allocationId ? allAllocations().find((item) => item.id === allocationId) : null;
   const existing = allocationsForDate(date);
-  state.editingAllocationId = null;
-  // Ogni apertura ricostruisce la selezione soltanto dai dati salvati per la
-  // data corrente: nessuna preferita, recente o selezione rimasta nel dialogo.
+  state.editingAllocationId = allocation?.id || null;
   state.allocationSelectedProjects = new Set(existing.map((item) => item.project_id));
-  state.allocationManualMinutes = new Map(existing.map((item) => [item.project_id, minutesToManualDuration(item.duration_minutes)]));
+  if (!state.allocationSelectedProjects.size && preferredProjectId()) state.allocationSelectedProjects.add(preferredProjectId());
+  state.allocationManualHours = new Map(existing.map((item) => [item.project_id, minutesToHoursInput(item.duration_minutes)]));
+  $("#allocation-id").value = allocation?.id || "";
   $("#allocation-date").value = date;
-  $("#allocation-dialog-title").textContent = "Registra attività";
+  $("#allocation-dialog-title").textContent = existing.length ? "Modifica attività" : "Registra attività";
   $("#allocation-dialog-description").textContent = `${new Intl.DateTimeFormat("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${date}T12:00:00`))}. Se non indichi ore, Chrono Flow divide automaticamente l’orario lavorato.`;
   $("#allocation-project-search").value = "";
   const method = existing.length && existing.every((item) => item.allocation_method === "automatic") ? "automatic" : existing.length ? "hours" : "automatic";
   const methodControl = $(`input[name="allocation-method"][value="${method}"]`);
   if (methodControl) methodControl.checked = true;
-  $("#allocation-note").value = "";
+  $("#allocation-note").value = allocation?.note || "";
   $("#allocation-error").hidden = true;
+  $("#delete-allocation").hidden = !allocation;
   renderAllocationProjectPicker();
   $("#allocation-dialog").showModal();
   window.requestAnimationFrame(() => $("#allocation-project-search").focus());
-}
-
-function openAllocationEditDialog(date, allocationId) {
-  const allocation = allocationsForDate(date).find((item) => item.id === allocationId);
-  if (!allocation) return;
-  state.editingAllocationId = allocation.id;
-  $("#allocation-edit-id").value = allocation.id;
-  $("#allocation-edit-date").value = date;
-  $("#allocation-edit-project").textContent = projectLabel(state.projects.get(allocation.project_id));
-  const automatic = allocation.allocation_method === "automatic";
-  $("#allocation-edit-percentage-field").hidden = !automatic;
-  $("#allocation-edit-duration-field").hidden = automatic;
-  if (automatic) {
-    $("#allocation-edit-percentage").value = String(allocationPercentageForDate(allocation));
-  } else {
-    const parts = minutesToManualDuration(allocation.duration_minutes);
-    $("#allocation-edit-hours").value = String(parts.hours);
-    $("#allocation-edit-minutes").value = String(parts.minutes);
-  }
-  $("#allocation-edit-preview").textContent = automatic
-    ? `${minutesToDuration(effectiveAllocationMinutes(allocation))} calcolate sul tempo lavorato netto della giornata.`
-    : `${minutesToDuration(allocation.duration_minutes)} manuali, fisse anche mentre il timer avanza.`;
-  $("#allocation-edit-error").hidden = true;
-  $("#allocation-edit-dialog").showModal();
-  window.requestAnimationFrame(() => (automatic ? $("#allocation-edit-percentage") : $("#allocation-edit-hours")).focus());
 }
 
 function minutesFromTimeRange(start, end) {
@@ -2090,24 +2027,9 @@ async function deleteAllocation(id, date) {
 
 async function recordAction(type) {
   if (state.busy) return;
+  state.busy = true;
   const date = isoDateLocal();
   const existing = state.days.get(date);
-  if (type === "pause") {
-    const manualPauseRecorded = existing?.events?.some((event) => event?.type === "pause" || event?.type === "resume");
-    if (manualPauseRecorded) {
-      showToast("Pausa già registrata: non puoi avviarne una seconda.");
-      return;
-    }
-    const effectiveType = homeModeForToday(existing);
-    const pauseWindow = automaticPauseWindow(existing || defaultDay(date), effectiveType);
-    if (pauseWindow.durationMinutes > 0 && new Date() >= pauseWindow.start) {
-      showToast(new Date() < pauseWindow.end
-        ? `Pausa automatica in corso fino alle ${formatTime(pauseWindow.end)}.`
-        : "Pausa standard già applicata: non puoi avviarne una seconda.");
-      return;
-    }
-  }
-  state.busy = true;
   const before = existing ? structuredClone(existing) : null;
   const day = normalizeDay(existing || defaultDay(date));
   day.actual_type = day.actual_type || day.planned_type || "office";
@@ -2154,7 +2076,7 @@ function renderCalendar() {
     if (key === isoDateLocal()) button.classList.add("today");
     if (holiday) button.classList.add("recognized-holiday");
     const dayAllocations = projectsEnabled() ? allocationsForDate(key) : [];
-    const allocatedMinutes = dayAllocations.reduce((total, allocation) => total + effectiveAllocationMinutes(allocation), 0);
+    const allocatedMinutes = dayAllocations.reduce((total, allocation) => total + allocation.duration_minutes, 0);
     const label = `${formatLongDate(date)}${holiday ? `, ${holiday.name}` : ""}${info ? `, ${info.label}` : ", nessuna pianificazione"}${day?.events?.length ? ", orari registrati" : ""}${allocatedMinutes ? `, ${minutesToDuration(allocatedMinutes)} allocate a ${dayAllocations.length} commess${dayAllocations.length === 1 ? "a" : "e"}` : ""}`;
     button.setAttribute("aria-label", label);
 
@@ -3183,7 +3105,7 @@ function renderProjectSummary(selectedYear, start, end) {
   disclosure.hidden = !projectsEnabled();
   if (disclosure.hidden) return;
   const monthAllocations = allAllocations().filter((allocation) => allocation.work_date >= start && allocation.work_date <= end);
-  const monthTotal = monthAllocations.reduce((total, allocation) => total + effectiveAllocationMinutes(allocation), 0);
+  const monthTotal = monthAllocations.reduce((total, allocation) => total + allocation.duration_minutes, 0);
   $("#summary-projects-total").textContent = minutesToDuration(monthTotal);
   const worked = [...state.days.values()]
     .filter((day) => day.work_date >= start && day.work_date <= end)
@@ -3192,7 +3114,7 @@ function renderProjectSummary(selectedYear, start, end) {
   $("#summary-projects-caption").textContent = `${minutesToDuration(monthTotal)} allocate su ${minutesToDuration(worked)} lavorate · ${balance.label}.`;
 
   const byProject = new Map();
-  monthAllocations.forEach((allocation) => byProject.set(allocation.project_id, (byProject.get(allocation.project_id) || 0) + effectiveAllocationMinutes(allocation)));
+  monthAllocations.forEach((allocation) => byProject.set(allocation.project_id, (byProject.get(allocation.project_id) || 0) + allocation.duration_minutes));
   const projectRows = [...byProject.entries()].sort((a, b) => b[1] - a[1]).map(([projectId, minutes]) => {
     const row = document.createElement("div");
     row.className = "project-hours-row";
@@ -3214,7 +3136,7 @@ function renderProjectSummary(selectedYear, start, end) {
   const monthTotals = Array.from({ length: 12 }, () => 0);
   allAllocations().forEach((allocation) => {
     if (!allocation.work_date.startsWith(`${selectedYear}-`)) return;
-    monthTotals[Number(allocation.work_date.slice(5, 7)) - 1] += effectiveAllocationMinutes(allocation);
+    monthTotals[Number(allocation.work_date.slice(5, 7)) - 1] += allocation.duration_minutes;
   });
   const maximum = Math.max(1, ...monthTotals);
   $("#summary-project-trend").replaceChildren(...monthTotals.map((minutes, month) => {
@@ -3232,7 +3154,7 @@ function renderProjectSummary(selectedYear, start, end) {
   }));
 
   const byDate = new Map();
-  monthAllocations.forEach((allocation) => byDate.set(allocation.work_date, (byDate.get(allocation.work_date) || 0) + effectiveAllocationMinutes(allocation)));
+  monthAllocations.forEach((allocation) => byDate.set(allocation.work_date, (byDate.get(allocation.work_date) || 0) + allocation.duration_minutes));
   const dayLinks = [...byDate.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([date, minutes]) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -3669,7 +3591,8 @@ function setSettingsSummary(id, text) {
 function updateSettingsSummaries() {
   const hours = clampInt($("#target-hours")?.value, 1, 15, 7);
   const minutes = clampInt($("#target-minutes")?.value, 0, 59, 36);
-  setSettingsSummary("profile-settings-summary", `${hours}h ${String(minutes).padStart(2, "0")}m · pausa automatica ${normalizeClockTime($("#automatic-break-time")?.value)} · durate ${clampInt($("#office-break")?.value, 0, 240, 30)}/${clampInt($("#smart-break")?.value, 0, 240, 60)}/${clampInt($("#travel-break")?.value, 0, 240, 30)} min`);
+  const configuredPauseStart = normalizePauseStartTime($("#pause-start-time")?.value) || pauseStartTime();
+  setSettingsSummary("profile-settings-summary", `${hours}h ${String(minutes).padStart(2, "0")}m · pausa automatica ${configuredPauseStart} · durate ${clampInt($("#office-break")?.value, 0, 240, 30)}/${clampInt($("#smart-break")?.value, 0, 240, 60)}/${clampInt($("#travel-break")?.value, 0, 240, 30)} min`);
   const modeLabels = [["#mode-office", "Ufficio"], ["#mode-smart", "Smart"], ["#mode-travel", "Trasferta"], ["#mode-saturday", "Sabato"]]
     .filter(([selector]) => $(selector)?.checked).map(([, label]) => label);
   const smartOvertime = $("#overtime-smart")?.checked ? "Smart con straordinario" : "Smart con uscita automatica";
@@ -3905,9 +3828,9 @@ async function setProjectActive(projectId, active) {
 function renderSettings() {
   const profile = state.profile;
   $("#settings-name").value = profile.display_name || "";
+  $("#pause-start-time").value = pauseStartTime();
   $("#target-hours").value = Math.floor(profile.target_minutes / 60);
   $("#target-minutes").value = profile.target_minutes % 60;
-  $("#automatic-break-time").value = automaticBreakTime();
   $("#office-break").value = profile.office_break_minutes;
   $("#smart-break").value = profile.smart_break_minutes;
   $("#travel-break").value = profile.travel_break_minutes;
@@ -4344,51 +4267,13 @@ function registerServiceWorker() {
     window.location.reload();
   });
   navigator.serviceWorker
-    .register("./sw.v3.3.5.js", { updateViaCache: "none" })
+    .register("./sw.v3.3.6.js", { updateViaCache: "none" })
     .then((registration) => registration.update())
     .catch(() => {});
 }
 
-function loadE2EHarness(seed) {
-  state.user = seed.user || { id: "e2e-user", email: "e2e@example.test", user_metadata: { display_name: "E2E" } };
-  state.supabase = e2eHarness.supabase || null;
-  state.profile = {
-    ...structuredClone(DEFAULT_PROFILE),
-    ...(seed.profile || {}),
-    family_settings: normalizeFamilySettings({
-      ...DEFAULT_PROFILE.family_settings,
-      ...(seed.profile?.family_settings || {}),
-      projects_enabled: seed.profile?.family_settings?.projects_enabled !== false
-    })
-  };
-  state.days.clear();
-  (seed.days || []).map(normalizeDay).forEach((day) => state.days.set(day.work_date, day));
-  state.projects.clear();
-  (seed.projects || []).map(normalizeProject).forEach((project) => state.projects.set(project.id, project));
-  state.allocations.clear();
-  (seed.allocations || []).map(normalizeAllocation).forEach(setAllocationInState);
-  state.projectDataLoaded = true;
-  state.summaryYearDays = [...state.days.values()];
-  state.summaryYearLoaded = state.summaryMonth.getFullYear();
-  $("#loading-view").hidden = true;
-  $("#auth-view").hidden = true;
-  $("#configuration-view").hidden = true;
-  $("#app-shell").hidden = false;
-  renderMonthSelector("calendar", state.calendarMonth);
-  renderMonthSelector("summary", state.summaryMonth);
-  renderAccount();
-  state.calendarScope = "mine";
-  showScreen("today");
-  e2eHarness.api = { state, renderCurrentViews, renderTodayTick, showScreen };
-  e2eHarness.ready = true;
-}
-
 async function initialize() {
   bindEvents();
-  if (e2eHarness?.seed) {
-    loadE2EHarness(e2eHarness.seed);
-    return;
-  }
   setupInstallExperience();
   if (!configured || !supabase) {
     $("#loading-view").hidden = true;
@@ -4432,7 +4317,6 @@ async function initialize() {
   window.addEventListener("focus", () => {
     syncHomeClock();
     void refreshTodayFromCloud().catch(() => {});
-    if ($("#calendar-sharing-settings")?.open) void state.calendarSharingSettingsView?.refresh();
   });
   window.addEventListener("pagehide", () => homeClock.stop());
 }
@@ -4546,8 +4430,6 @@ function bindEvents() {
   $("#add-day-allocation").addEventListener("click", () => openAllocationDialog($("#day-date").value));
   $("#close-allocation-dialog").addEventListener("click", () => $("#allocation-dialog").close());
   $("#allocation-dialog").addEventListener("cancel", () => { state.editingAllocationId = null; });
-  $("#close-allocation-edit-dialog").addEventListener("click", () => $("#allocation-edit-dialog").close());
-  $("#allocation-edit-dialog").addEventListener("cancel", () => { state.editingAllocationId = null; });
   $("#allocation-project-search").addEventListener("input", renderAllocationProjectPicker);
   $$('input[name="allocation-method"]').forEach((control) => control.addEventListener("change", renderAllocationHoursEditor));
   $("#allocation-form").addEventListener("submit", async (event) => {
@@ -4558,15 +4440,16 @@ function bindEvents() {
       const date = $("#allocation-date").value;
       const projectIds = allocationSelectedProjectIds();
       const existingByProject = new Map(allocationsForDate(date).map((item) => [item.project_id, item]));
-      const entries = buildAllocationEntries({
+      const manualHours = Object.fromEntries(state.allocationManualHours);
+      const durations = buildAllocationDurations({
         mode: allocationMethod(),
         projectIds,
-        workedSeconds: trackedResultForDate(date)?.ordinaryWorkedSeconds || 0,
-        manualMinutes: Object.fromEntries(state.allocationManualMinutes)
+        workedMinutes: workedMinutesForDate(date),
+        manualHours
       });
       const note = $("#allocation-note").value.trim();
       const method = allocationMethod();
-      await replaceDayAllocations(date, entries.map(({ projectId, durationMinutes, allocationPercentage }) => ({
+      await replaceDayAllocations(date, durations.map(({ projectId, durationMinutes }) => ({
         id: existingByProject.get(projectId)?.id || crypto.randomUUID(),
         user_id: state.user.id,
         project_id: projectId,
@@ -4575,7 +4458,6 @@ function bindEvents() {
         end_time: null,
         duration_minutes: durationMinutes,
         allocation_method: method,
-        allocation_percentage: allocationPercentage,
         note: note || existingByProject.get(projectId)?.note || ""
       })));
       $("#allocation-dialog").close();
@@ -4587,39 +4469,12 @@ function bindEvents() {
       errorBox.focus();
     }
   });
-  $("#allocation-edit-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const errorBox = $("#allocation-edit-error");
-    errorBox.hidden = true;
-    try {
-      const id = $("#allocation-edit-id").value;
-      const date = $("#allocation-edit-date").value;
-      const allocation = allocationsForDate(date).find((item) => item.id === id);
-      if (!allocation) throw new Error("Allocazione non disponibile.");
-      let durationMinutes = allocation.duration_minutes;
-      let allocationPercentage = null;
-      if (allocation.allocation_method === "automatic") {
-        allocationPercentage = normalizeAllocationPercentage($("#allocation-edit-percentage").value, allocationPercentageForDate(allocation));
-        durationMinutes = Math.max(1, automaticAllocationMinutes(trackedResultForDate(date)?.ordinaryWorkedSeconds || 0, allocationPercentage));
-      } else {
-        durationMinutes = manualDurationMinutes($("#allocation-edit-hours").value, $("#allocation-edit-minutes").value);
-      }
-      await saveAllocation({ ...allocation, duration_minutes: durationMinutes, allocation_percentage: allocationPercentage });
-      $("#allocation-edit-dialog").close();
-      state.editingAllocationId = null;
-      showToast("Allocazione aggiornata.");
-    } catch (error) {
-      errorBox.textContent = friendlyError(error);
-      errorBox.hidden = false;
-      errorBox.focus();
-    }
-  });
   $("#delete-allocation").addEventListener("click", async () => {
-    const id = $("#allocation-edit-id").value;
-    const date = $("#allocation-edit-date").value;
+    const id = $("#allocation-id").value;
+    const date = $("#allocation-date").value;
     if (!id) return;
     await deleteAllocation(id, date);
-    $("#allocation-edit-dialog").close();
+    $("#allocation-dialog").close();
     state.editingAllocationId = null;
     showToast("Attività eliminata.");
   });
@@ -4636,7 +4491,12 @@ function bindEvents() {
     const day = state.days.get(isoDateLocal()) || defaultDay(isoDateLocal());
     const result = calculateTrackedDay(day, new Date());
     if (result.state === "not_started") recordAction("entry");
-    else if (result.state === "working") recordAction("pause");
+    else if (result.state === "working") {
+      const effectiveType = day.actual_type || day.planned_type || "office";
+      const automaticBreak = automaticBreakWindow(day, effectiveType, new Date());
+      if (automaticBreak.status === "during" || automaticBreak.status === "after") return;
+      recordAction("pause");
+    }
     else if (result.state === "paused") recordAction("resume");
   });
   $("#exit-action").addEventListener("click", () => recordAction("exit"));
@@ -4881,21 +4741,6 @@ function bindEvents() {
       updateSettingsSummaries();
     }
   });
-  $("#automatic-break-time").addEventListener("input", (event) => {
-    event.currentTarget.setCustomValidity("");
-  });
-  $("#automatic-break-time").addEventListener("blur", (event) => {
-    const field = event.currentTarget;
-    const normalized = normalizeClockTime(field.value, "");
-    if (normalized) {
-      field.value = normalized;
-      field.setCustomValidity("");
-      updateSettingsSummaries();
-      return;
-    }
-    field.setCustomValidity("Inserisci un orario valido, ad esempio 13, 13:00 o 14.");
-    field.reportValidity();
-  });
   $("#settings-form").addEventListener("change", (event) => {
     if (event.target.matches("[name='sunday-holiday-rule'], #local-holiday-month")) previewSundayHolidaySettings();
     else updateSettingsSummaries();
@@ -4905,6 +4750,14 @@ function bindEvents() {
     event.preventDefault();
     if (revealInvalidSettingsControl(event.currentTarget)) return;
     if (!event.currentTarget.reportValidity()) return;
+    const normalizedPauseStart = normalizePauseStartTime($("#pause-start-time").value);
+    if (!normalizedPauseStart) {
+      $("#pause-start-time").setAttribute("aria-invalid", "true");
+      $("#pause-start-time").focus();
+      showToast("Inserisci un orario pausa valido, per esempio 13, 13:00 oppure 9:30.");
+      return;
+    }
+    $("#pause-start-time").removeAttribute("aria-invalid");
     const familySettings = normalizeFamilySettings(state.profile.family_settings);
     const invalidParentalChild = familySettings.children.find((child) => childInstituteEnabled(child, "parental_leave")
       && !parentalQuotaForChild(child).valid);
@@ -4952,7 +4805,6 @@ function bindEvents() {
       show_distribution: $("#summary-show-distribution").checked,
       show_annual_table: $("#summary-show-annual-table").checked
     };
-    familySettings.automatic_break_time = normalizeClockTime($("#automatic-break-time").value);
     familySettings.projects_enabled = $("#projects-enabled").checked;
     familySettings.default_project_id = familySettings.projects_enabled && $("#default-project").value
       ? $("#default-project").value
@@ -4968,6 +4820,7 @@ function bindEvents() {
       smart: $("#overtime-smart").checked,
       travel: $("#overtime-travel").checked
     };
+    familySettings.pause_start_time = normalizedPauseStart;
     delete familySettings.contract_settings.sunday_holiday_allowance;
     saveNotificationPreferences({
       enabled: $("#exit-notification-enabled").checked && "Notification" in window && Notification.permission === "granted",
