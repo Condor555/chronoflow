@@ -133,3 +133,12 @@ main { width: min(100%, 1080px); margin: 0 auto; padding: 1rem 1rem 6rem; }
 }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+
+/* Stable asynchronous states and small-screen navigation. */
+.calendar-status { margin: .75rem 0; padding: .75rem 1rem; border-radius: 12px; background: var(--teal-soft); color: var(--ink); font-weight: 700; }
+.calendar-shell[aria-busy='true'] .calendar-content { opacity: .72; }
+@media (max-width: 480px) {
+  .app-header { flex-wrap: wrap; gap: .55rem; }
+  .header-actions { width: 100%; }
+  .header-actions button { flex: 1 1 0; padding-inline: .55rem; }
+}

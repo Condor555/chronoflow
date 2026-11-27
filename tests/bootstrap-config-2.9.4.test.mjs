@@ -120,22 +120,22 @@ test('normalization accepts surrounding whitespace and one trailing slash', asyn
   }
 });
 
-test('bootstrap and cache manifest use only the immutable 3.0.3 client URL', async () => {
+test('bootstrap and cache manifest use only immutable application and client URLs', async () => {
   const [indexSource, appSource, workerSource, legacySource] = await Promise.all([
     readProjectFile('index.html'),
-    readProjectFile('src/app.mjs'),
-    readProjectFile('sw.js'),
+    readProjectFile('src/app.v3.0.5.mjs'),
+    readProjectFile('sw.v3.0.5.js'),
     readProjectFile('src/supabase-client.mjs')
   ]);
 
-  assert.match(indexSource, /src=["']src\/app\.mjs\?v=3\.0\.4["']/);
+  assert.match(indexSource, /src=["']src\/app\.v3\.0\.5\.mjs["']/);
   assert.match(appSource, /from\s+['"]\.\/supabase-client\.v3\.0\.3\.mjs['"]/);
   assert.doesNotMatch(appSource, /from\s+['"]\.\/supabase-client\.mjs['"]/);
   assert.match(workerSource, /\.\/src\/supabase-client\.v3\.0\.3\.mjs/);
   assert.doesNotMatch(workerSource, /['"]\.\/src\/(?:config\/)?supabase-client\.mjs['"]/);
   assert.match(legacySource, /from\s+['"]\.\/supabase-client\.v3\.0\.3\.mjs['"]/);
 
-  const graph = await collectStaticGraph('src/app.mjs');
+  const graph = await collectStaticGraph('src/app.v3.0.5.mjs');
   const clientReferences = [];
   for (const [relativePath, source] of graph) {
     assert.doesNotMatch(
