@@ -1,23 +1,14 @@
-# Chrono Flow 3.3.4 — Registrazione e modifica puntuale delle commesse
+# Chrono Flow 3.3.5 — Commesse live, pausa configurabile e inviti persistenti
 
-- Le nuove registrazioni non preselezionano più commesse usate in passato o preferite.
-- Dopo ogni selezione la ricerca viene svuotata, l’elenco torna completo e il focus ritorna nel campo senza perdere le selezioni già effettuate.
-- Le commesse già presenti nella giornata non vengono duplicate dal flusso di nuova registrazione.
-- Il pulsante **Modifica** apre un dialogo dedicato alla sola allocazione selezionata, senza ricerca o aggiunta di altre commesse.
-- La singola voce può essere eliminata oppure aggiornata nella percentuale automatica o nelle ore manuali.
-- Home, Calendario, dettaglio giornata e Riepilogo vengono aggiornati immediatamente dopo salvataggio o eliminazione.
-- Entry point e service worker immutabili 3.3.4 per forzare l’aggiornamento della PWA.
-- 220 test automatici superati; nessuna nuova migration Supabase.
-
-# Chrono Flow 3.3.3 — Flussi Home, Calendario, Commesse e pausa automatica
-
-- Pausa automatica delle 13:00 calcolata dagli orari reali: il conteggio si ferma, la Home mostra `Pausa automatica` e riprende alla fine della durata configurata anche dopo chiusura o riapertura della PWA.
-- Modalità giornaliera resa deterministica: la pianificazione del Calendario ha priorità; la prima scelta Home viene salvata con upsert sulla stessa data e resta disponibile dopo refresh e sincronizzazione.
-- Calendario personale confermato editabile su tutta la cella giornaliera; modalità, orari, pausa, assenza e commesse restano nello stesso record. Calendario condiviso invariato e in sola lettura.
-- `Registra attività` apre sempre il dialogo quando la funzione Commesse è attiva, supporta ricerca per codice/descrizione, selezione multipla e ripartizione automatica o manuale.
-- Entry point e service worker immutabili 3.3.3 per evitare shell stale nella PWA.
-- 211 test automatici superati, inclusi quattro flussi completi di regressione.
-- Nessuna nuova migration Supabase e nessuna modifica a schema, RLS o dati.
+- `Registra attività` ricostruisce la selezione solo dalle allocazioni già salvate per la data, senza preferite o selezioni residue.
+- Ricerca multi-commessa con reset immediato, lista non filtrata e focus ripristinato dopo ogni selezione.
+- Editor dedicato alla singola allocazione: sola percentuale, sola durata manuale HH:MM oppure rimozione.
+- Percentuali persistenti e calcolate in tempo reale sul lavoro netto; ore manuali fisse al minuto.
+- Home, Calendario, Riepilogo e dettaglio giornata usano lo stesso valore dinamico.
+- Orario pausa automatica configurabile, fallback compatibile `13:00`, stop/ripresa del timer e blocco reale della seconda pausa manuale.
+- Inviti calendario persistenti con stati testuali `In attesa`, `Attivo`, `Rifiutato`, `Annullato`, `Scaduto` e deduplica per email.
+- Migration additiva per `allocation_percentage` e RPC inviti idempotente; nessuna modifica alle RLS o ai dati privati condivisi.
+- Verifica integrata in Chromium sul DOM reale della build, oltre alla suite completa.
 
 # Chrono Flow 3.2.1 — Home profonda e Impostazioni semplificate
 

@@ -8,7 +8,7 @@ const [html, app, css, sql, methodSql, worker, pkg] = await Promise.all([
   readFile(new URL('../styles.css', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20261127_330_projects_allocations.sql', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20261127_331_allocation_method.sql', import.meta.url), 'utf8'),
-  readFile(new URL('../sw.v3.3.4.js', import.meta.url), 'utf8'),
+  readFile(new URL('../sw.v3.3.5.js', import.meta.url), 'utf8'),
   readFile(new URL('../package.json', import.meta.url), 'utf8')
 ]);
 
@@ -34,7 +34,7 @@ test('Registra attività supporta ricerca, selezione multipla e percentuali oppu
   assert.doesNotMatch(html, /Intervallo della giornata/);
   assert.doesNotMatch(html, /id="allocation-start"|id="allocation-end"/);
   assert.match(app, /allocationSelectedProjects: new Set\(\)/);
-  assert.match(app, /buildAllocationDurations/);
+  assert.match(app, /buildAllocationEntries/);
   assert.match(app, /replaceDayAllocations/);
 });
 
@@ -46,25 +46,24 @@ test('il modello dati resta separato e la migration 3.3.1 è solo additiva', () 
   assert.doesNotMatch(methodSql, /drop table|truncate|delete from/i);
 });
 
-test('nuove commesse e modifica singola non duplicano le allocazioni già presenti', () => {
-  assert.match(app, /existingProjectIds = new Set\(allocationsForDate/);
-  assert.match(app, /project\.is_active && !existingProjectIds\.has\(project\.id\)/);
-  assert.match(app, /id: crypto\.randomUUID\(\)/);
-  assert.match(app, /saveAllocation\(\{ \.\.\.allocation, duration_minutes: durationMinutes \}\)/);
+test('salvataggio multiplo evita duplicati logici per commessa e giornata', () => {
+  assert.match(app, /const existingByProject = new Map\(allocationsForDate\(date\)\.map/);
+  assert.match(app, /existingByProject\.get\(projectId\)\?\.id \|\| crypto\.randomUUID\(\)/);
+  assert.match(app, /state\.allocations\.set\(date, normalized\)/);
 });
 
 test('le allocazioni automatiche vengono ricalcolate dopo modifiche di orari o modalità', () => {
   assert.match(app, /function recalculateAutomaticAllocationsForDay/);
-  assert.match(app, /splitEvenMinutes\(workedMinutes, automatic\.length\)/);
+  assert.match(app, /automaticAllocationMinutes\(result\?\.ordinaryWorkedSeconds \|\| 0, percentage\)/);
   assert.ok((app.match(/recalculateAutomaticAllocationsForDay\(date\)/g) || []).length >= 4);
 });
 
 test('backup, offline queue e cache-safe worker includono le nuove entità e policy', () => {
   assert.match(app, /projectQueueKey/);
   assert.match(app, /flushProjectQueue/);
-  assert.match(worker, /chrono-flow-v3\.3\.4-complete-flows/);
-  assert.match(worker, /app\.v3\.3\.4\.mjs/);
-  assert.equal(JSON.parse(pkg).version, '3.3.4');
+  assert.match(worker, /chrono-flow-v3\.3\.5-live-allocations-invitations/);
+  assert.match(worker, /app\.v3\.3\.5\.mjs/);
+  assert.equal(JSON.parse(pkg).version, '3.3.5');
 });
 
 test('stili mobile-first e focus/accessibilità sono presenti', () => {

@@ -277,62 +277,34 @@ function manualPauseWasRecorded(events = []) {
   return events.some((event) => event?.type === "pause" || event?.type === "resume");
 }
 
-function automaticBreakBounds(firstEntry, defaultBreakMinutes) {
+function parsedBreakStart(value) {
+  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ""));
+  if (!match) return { hours: 13, minutes: 0 };
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59
+    ? { hours, minutes }
+    : { hours: 13, minutes: 0 };
+}
+
+function automaticBreakWindow(events, result, defaultBreakMinutes, now, automaticBreakTime) {
   const configuredSeconds = Math.max(0, Number(defaultBreakMinutes) || 0) * 60;
-  if (!firstEntry || !configuredSeconds) return { start: null, end: null, configuredSeconds: 0 };
-  const start = new Date(firstEntry);
-  start.setHours(13, 0, 0, 0);
-  const end = new Date(start.getTime() + configuredSeconds * 1000);
-  return { start, end, configuredSeconds };
-}
+  if (!configuredSeconds || !result.firstEntry || manualPauseWasRecorded(events)) return null;
 
-function workingOverlapSeconds(events, rangeStart, rangeEnd, now) {
-  if (!rangeStart || !rangeEnd || rangeEnd <= rangeStart) return 0;
-  const ordered = [...events]
-    .filter((event) => event && !event.superseded && event.type && event.at)
-    .sort((left, right) => new Date(left.at) - new Date(right.at));
   const current = now instanceof Date ? now : new Date(now);
-  let workingSince = null;
-  let overlapMs = 0;
-  const closeInterval = (at) => {
-    if (!workingSince) return;
-    const start = Math.max(workingSince.getTime(), rangeStart.getTime());
-    const end = Math.min(at.getTime(), rangeEnd.getTime());
-    if (end > start) overlapMs += end - start;
-    workingSince = null;
-  };
-
-  for (const event of ordered) {
-    const at = new Date(event.at);
-    if (Number.isNaN(at.getTime())) continue;
-    if ((event.type === "entry" || event.type === "resume") && !workingSince) workingSince = at;
-    else if ((event.type === "pause" || event.type === "exit") && workingSince) closeInterval(at);
-  }
-  if (workingSince) closeInterval(current);
-  return Math.max(0, Math.floor(overlapMs / 1000));
-}
-
-export function automaticBreakStatus(events = [], defaultBreakMinutes = 30, now = new Date()) {
-  const raw = calculateDay(events, 0, 0, now);
-  const { start, end, configuredSeconds } = automaticBreakBounds(raw.firstEntry, defaultBreakMinutes);
-  const current = now instanceof Date ? now : new Date(now);
-  const disabled = !configuredSeconds || !raw.firstEntry || manualPauseWasRecorded(events);
-  const entryBeforeEnd = raw.firstEntry && end && raw.firstEntry < end;
-  const appliedSeconds = disabled || !entryBeforeEnd
-    ? 0
-    : Math.min(configuredSeconds, workingOverlapSeconds(events, start, end, current));
-  const active = !disabled
-    && entryBeforeEnd
-    && raw.state === "working"
-    && current >= start
-    && current < end;
+  const scheduled = new Date(result.firstEntry);
+  const start = parsedBreakStart(automaticBreakTime);
+  scheduled.setHours(start.hours, start.minutes, 0, 0);
+  const end = new Date(scheduled.getTime() + configuredSeconds * 1000);
+  const effectiveNow = result.state === "finished" && result.lastExit ? result.lastExit : current;
+  const effectiveStart = new Date(Math.max(scheduled.getTime(), result.firstEntry.getTime()));
+  const applicableSeconds = Math.max(0, Math.floor((end - effectiveStart) / 1000));
+  const appliedSeconds = Math.max(0, Math.min(applicableSeconds, Math.floor((effectiveNow - effectiveStart) / 1000)));
   return {
-    active,
-    appliedSeconds,
-    remainingSeconds: active ? Math.max(0, Math.ceil((end - current) / 1000)) : 0,
-    start,
+    start: scheduled,
     end,
-    configuredSeconds
+    appliedSeconds,
+    active: result.state === "working" && current >= effectiveStart && current < end
   };
 }
 
@@ -341,11 +313,12 @@ export function calculateDayWithBreakPolicy(
   targetMinutes = 456,
   overtimeThreshold = 10,
   defaultBreakMinutes = 30,
-  now = new Date()
+  now = new Date(),
+  automaticBreakTime = "13:00"
 ) {
   const raw = calculateDay(events, targetMinutes, overtimeThreshold, now);
-  const automaticBreak = automaticBreakStatus(events, defaultBreakMinutes, now);
-  const defaultBreakSeconds = automaticBreak.appliedSeconds;
+  const automaticBreak = automaticBreakWindow(events, raw, defaultBreakMinutes, now, automaticBreakTime);
+  const defaultBreakSeconds = automaticBreak?.appliedSeconds || 0;
   const workedSeconds = Math.max(0, raw.workedSeconds - defaultBreakSeconds);
   const pausedSeconds = raw.pausedSeconds + defaultBreakSeconds;
   const workedMinutes = Math.floor(workedSeconds / 60);
@@ -366,10 +339,9 @@ export function calculateDayWithBreakPolicy(
     remainingSeconds: Math.max(0, targetMinutes * 60 - workedSeconds),
     breakSource: manualPauseWasRecorded(events) ? "manual" : "default",
     defaultBreakAppliedSeconds: defaultBreakSeconds,
-    automaticBreakActive: automaticBreak.active,
-    automaticBreakStart: automaticBreak.start,
-    automaticBreakEnd: automaticBreak.end,
-    automaticBreakRemainingSeconds: automaticBreak.remainingSeconds
+    automaticPauseActive: automaticBreak?.active === true,
+    automaticPauseStart: automaticBreak?.start || null,
+    automaticPauseEnd: automaticBreak?.end || null
   };
 }
 
@@ -380,14 +352,16 @@ export function calculateDayWithPolicies(
   type = "office",
   settings = {},
   defaultBreakMinutes = 30,
-  now = new Date()
+  now = new Date(),
+  automaticBreakTime = "13:00"
 ) {
   const result = calculateDayWithBreakPolicy(
     events,
     targetMinutes,
     overtimeThreshold,
     defaultBreakMinutes,
-    now
+    now,
+    automaticBreakTime
   );
   const policyResult = overtimeEnabledForType(type, settings)
     ? result
@@ -403,11 +377,9 @@ export function calculateDayWithPolicies(
 export function forecastExit(events = [], targetMinutes = 456, plannedBreakMinutes = 30, now = new Date()) {
   const result = calculateDay(events, targetMinutes, 0, now);
   if (!result.firstEntry || result.state === "finished") return result.lastExit;
-  const bounds = automaticBreakBounds(result.firstEntry, plannedBreakMinutes);
-  const scheduledBreakSeconds = bounds.end && result.firstEntry < bounds.end
-    ? Math.max(0, Math.floor((bounds.end - new Date(Math.max(result.firstEntry, bounds.start))) / 1000))
-    : 0;
-  const breakSeconds = manualPauseWasRecorded(events) ? result.pausedSeconds : scheduledBreakSeconds;
+  const breakSeconds = manualPauseWasRecorded(events)
+    ? result.pausedSeconds
+    : Math.max(0, Number(plannedBreakMinutes) || 0) * 60;
   return new Date(result.firstEntry.getTime() + targetMinutes * 60000 + breakSeconds * 1000);
 }
 

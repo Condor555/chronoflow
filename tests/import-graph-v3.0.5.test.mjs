@@ -29,11 +29,11 @@ async function graph(entry) {
 
 test('bootstrap ripristinato usa app 3.3 e mantiene il grafo Calendar stabile e lazy', async () => {
   const index = await readFile(join(root, 'index.html'), 'utf8');
-  const worker = await readFile(join(root, 'sw.v3.3.4.js'), 'utf8');
-  assert.match(index, /src=["']src\/app\.v3\.3\.4\.mjs["']/);
+  const worker = await readFile(join(root, 'sw.v3.3.5.js'), 'utf8');
+  assert.match(index, /src=["']src\/app\.v3\.3\.5\.mjs["']/);
   assert.doesNotMatch(index, /src\/app\.mjs/);
   for (const path of [
-    'app.v3.3.4.mjs', 'calendar-record.v3.0.5.mjs', 'calendar-privacy.v3.0.5.mjs',
+    'app.v3.3.5.mjs', 'calendar-record.v3.0.5.mjs', 'calendar-privacy.v3.0.5.mjs',
     'calendar-sharing.v3.0.5.mjs', 'calendar-sharing-view.v3.0.5.mjs', 'smart-auto-exit.mjs'
   ]) assert.match(worker, new RegExp(path.replaceAll('.', '\\.').replace('?', '\\?')));
   assert.doesNotMatch(worker, /src\/calendar-sharing-view\.mjs['"]/);
