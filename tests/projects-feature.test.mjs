@@ -61,7 +61,7 @@ test('le allocazioni automatiche vengono ricalcolate dopo modifiche di orari o m
 test('backup, offline queue e cache-safe worker includono le nuove entità e policy', () => {
   assert.match(app, /projectQueueKey/);
   assert.match(app, /flushProjectQueue/);
-  assert.match(worker, /chrono-flow-v3\.3\.5-live-allocations-invitations/);
+  assert.match(worker, /chrono-flow-v3\.3\.5-configurable-break-fix-1/);
   assert.match(worker, /app\.v3\.3\.5\.mjs/);
   assert.equal(JSON.parse(pkg).version, '3.3.5');
 });

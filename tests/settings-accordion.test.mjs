@@ -51,7 +51,7 @@ test('single-open accordion conserva ARIA, focus e scroll mobile', () => {
 test('il refactor non perde o duplica alcun controllo dati della build corrente', () => {
   assert.deepEqual(byId(currentControls), byId(expectedControls));
   assert.equal(new Set(currentControls.map((item) => item.id)).size, currentControls.length);
-  assert.equal(currentControls.length, 56);
+  assert.equal(currentControls.length, 57);
 });
 
 test('validazione apre la macro corretta prima di focalizzare un controllo invalido', () => {
@@ -93,3 +93,4 @@ test('Condivisione OFF cambia label e nasconde inviti e permessi senza cancellar
   assert.match(sharingView, /space\?\.is_enabled !== true/);
   assert.doesNotMatch(sharingView, /deleteInvitation|deleteMember|clearInvitations/);
 });
+

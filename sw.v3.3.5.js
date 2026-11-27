@@ -1,14 +1,14 @@
-const CACHE = 'chrono-flow-v3.3.5-live-allocations-invitations';
+const CACHE = 'chrono-flow-v3.3.5-configurable-break-fix-1';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=3.3.5',
+  './styles.css?v=3.3.5-break-fix-1',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './src/app.v3.3.5.mjs',
-  './src/app.js?v=3.3.5',
+  './src/app.js?v=3.3.5-break-fix-1',
   './src/config.js?v=3.0.3',
   './src/supabase-client.v3.0.3.mjs',
   './src/calculations.mjs',

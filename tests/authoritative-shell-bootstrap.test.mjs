@@ -23,14 +23,14 @@ test('shell 3.0.x già in cache viene portata alla shell autorevole con navigazi
   assert.match(recovery, /location\.replace/);
   assert.match(recovery, /searchParams\.set\('ui', TARGET_BUILD\)/);
   assert.match(oldWorker, /importScripts\('\.\/sw\.v3\.2\.1\.js'\)/);
-  assert.match(workerCompat, /importScripts\('\.\/sw\.v3\.3\.5\.js'\)/);
+  assert.match(workerCompat, /importScripts\('\.\/sw\.v3\.3\.5\.js\?hotfix=break-fix-1'\)/);
 });
 
 test('worker autorevole mantiene stabilità 3.0.5 e asset visuali 2.9.4', () => {
   assert.match(sw, /navigationPreload\.disable/);
   assert.match(sw, /await event\.preloadResponse/);
   assert.match(sw, /networkFirst/);
-  for (const asset of ['styles.css?v=3.3.5','src/app.v3.3.5.mjs','src/app.js?v=3.3.5','src/smart-auto-exit.mjs','src/calendar-sharing-view.v3.0.5.mjs','icons/icon.svg']) {
+  for (const asset of ['styles.css?v=3.3.5-break-fix-1','src/app.v3.3.5.mjs','src/app.js?v=3.3.5-break-fix-1','src/smart-auto-exit.mjs','src/calendar-sharing-view.v3.0.5.mjs','icons/icon.svg']) {
     assert.match(sw, new RegExp(asset.replaceAll('.', '\\.').replaceAll('?', '\\?')));
   }
 });

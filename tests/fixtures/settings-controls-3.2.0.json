@@ -6,6 +6,12 @@
     "name": ""
   },
   {
+    "id": "automatic-break-time",
+    "tag": "input",
+    "type": "text",
+    "name": ""
+  },
+  {
     "id": "target-hours",
     "tag": "input",
     "type": "number",
@@ -336,3 +342,4 @@
     "name": ""
   }
 ]
+

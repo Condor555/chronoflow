@@ -95,6 +95,7 @@ input:disabled, select:disabled, textarea:disabled { color: #647285; background:
 .button.danger:hover { background: #ffe3e0; border-color: var(--danger); }
 .button:active:not(:disabled), .icon-button:active:not(:disabled) { transform: translateY(1px); }
 .button:disabled, .icon-button:disabled { opacity: .55; cursor: not-allowed; }
+#primary-action:disabled { opacity: .46; filter: grayscale(1); box-shadow: none; pointer-events: none; }
 .button.text-button { width: 100%; margin-top: 12px; color: var(--primary); background: transparent; text-decoration: underline; }
 .button.full { width: 100%; }
 .action-button { width: 100%; min-height: 54px; font-size: 1.02rem; }

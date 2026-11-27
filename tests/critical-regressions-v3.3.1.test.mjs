@@ -59,7 +59,7 @@ test('la migration additiva conserva il metodo per ricalcolare solo le ripartizi
 });
 
 test('service worker 3.3.5 carica i nuovi moduli ed elimina le cache precedenti', () => {
-  assert.match(worker, /chrono-flow-v3\.3\.5-live-allocations-invitations/);
+  assert.match(worker, /chrono-flow-v3\.3\.5-configurable-break-fix-1/);
   assert.match(worker, /project-allocation-policy\.mjs/);
   assert.match(worker, /day-source-of-truth\.mjs/);
   assert.match(worker, /keys\.filter\(\(key\) => key !== CACHE\)/);

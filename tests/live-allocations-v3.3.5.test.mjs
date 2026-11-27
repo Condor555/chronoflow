@@ -8,7 +8,7 @@ import {
   minutesToManualDuration,
   normalizeAllocationPercentage
 } from '../src/project-allocation-policy.mjs';
-import { calculateDayWithBreakPolicy } from '../src/calculations.mjs';
+import { calculateDayWithBreakPolicy, normalizeBreakStartTime } from '../src/calculations.mjs';
 
 process.env.TZ = 'Europe/Rome';
 
@@ -57,6 +57,16 @@ test('pausa configurata 12:45-13:15 sospende il netto e poi lo fa ripartire', ()
   assert.equal(end.automaticPauseActive, false);
 });
 
+test('orario pausa accetta ore intere e HH:MM normalizzandole', () => {
+  assert.equal(normalizeBreakStartTime('13'), '13:00');
+  assert.equal(normalizeBreakStartTime('13:00'), '13:00');
+  assert.equal(normalizeBreakStartTime('14'), '14:00');
+  assert.equal(normalizeBreakStartTime('9'), '09:00');
+  assert.equal(normalizeBreakStartTime('9:30'), '09:30');
+  assert.equal(normalizeBreakStartTime('24'), '13:00');
+  assert.equal(normalizeBreakStartTime('13:60'), '13:00');
+});
+
 test('pausa manuale sostituisce quella automatica senza doppio conteggio', () => {
   const events = [
     { type: 'entry', at: at('08:43') },
@@ -78,10 +88,14 @@ test('DOM integrato separa Registra attività dall editor della singola allocazi
 });
 
 test('Impostazioni espone orario pausa con fallback e microcopy accessibile', () => {
-  assert.match(html, /id="automatic-break-time" type="time" required aria-describedby="automatic-break-policy-hint"/);
+  assert.equal((html.match(/id="automatic-break-time"/g) || []).length, 1);
+  assert.match(html, /id="automatic-break-time" type="text" inputmode="numeric"[\s\S]*pattern="\(\?:\[01\]\?\[0-9\]\|2\[0-3\]\)\(\?::\[0-5\]\[0-9\]\)\?"/);
+  assert.match(html, /Puoi scrivere[\s\S]*13[\s\S]*13:00[\s\S]*14/);
   assert.match(app, /normalizeClockTime\(value, fallback = "13:00"\)/);
+  assert.match(app, /addEventListener\("blur"[\s\S]*field\.value = normalized/);
   assert.match(app, /familySettings\.automatic_break_time = normalizeClockTime/);
-  assert.match(html, /Terminata questa finestra, il pulsante per avviare manualmente la pausa non sarà più disponibile/);
+  assert.match(html, /pulsante pausa resta oscurato, disabilitato e non cliccabile/);
+  assert.match(app, /primary\.disabled = effectiveType === "absence" \|\| manualPauseUnavailable \|\| manualPauseCompleted/);
 });
 
 test('inviti hanno stati testuali, azioni coerenti e deduplica backend', () => {

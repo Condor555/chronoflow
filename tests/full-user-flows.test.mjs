@@ -10,8 +10,7 @@ import {
   homeModeForToday
 } from '../src/day-source-of-truth.mjs';
 import {
-  buildAllocationDurations,
-  searchProjects
+  buildAllocationEntries
 } from '../src/project-allocation-policy.mjs';
 
 process.env.TZ = 'Europe/Rome';
@@ -128,8 +127,8 @@ test('flusso completo Home → Registra attività → ricerca multipla → salva
     { id: 'p2', code: 'SAL-REG', description: 'Salerno Reggio Calabria', is_active: true },
     { id: 'p3', code: 'ARCH', description: 'Commessa archiviata', is_active: false }
   ];
-  assert.deepEqual(searchProjects(projects, 'ritm').map((project) => project.id), ['p1']);
-  assert.deepEqual(searchProjects(projects, 'reggio').map((project) => project.id), ['p2']);
+  assert.deepEqual(projects.filter((project) => `${project.code} ${project.description}`.toLowerCase().includes('ritm')).map((project) => project.id), ['p1']);
+  assert.deepEqual(projects.filter((project) => `${project.code} ${project.description}`.toLowerCase().includes('reggio')).map((project) => project.id), ['p2']);
 
   const store = new SyncedFlowStore([{
     work_date: DATE,
@@ -141,7 +140,7 @@ test('flusso completo Home → Registra attività → ricerca multipla → salva
   const workedMinutes = tracked(store.localDays.get(DATE), new Date('2026-11-27T16:06:00+01:00')).ordinaryWorkedMinutes;
   assert.equal(workedMinutes, 456);
 
-  const automatic = buildAllocationDurations({ mode: 'automatic', projectIds: ['p1', 'p2'], workedMinutes });
+  const automatic = buildAllocationEntries({ mode: 'automatic', projectIds: ['p1', 'p2'], workedSeconds: workedMinutes * 60 });
   const saved = store.replaceAllocations(DATE, automatic.map((item) => ({
     project_id: item.projectId,
     duration_minutes: item.durationMinutes,
@@ -156,7 +155,12 @@ test('flusso completo Home → Registra attività → ricerca multipla → salva
   assert.equal(calendarProjects, 2, 'Calendario mostra entrambe le commesse');
   assert.deepEqual(summaryByProject, { p1: 228, p2: 228 }, 'Riepilogo usa gli stessi dati salvati');
 
-  const manual = buildAllocationDurations({ mode: 'hours', projectIds: ['p1', 'p2'], workedMinutes, manualHours: { p1: '5', p2: '2,6' } });
+  const manual = buildAllocationEntries({
+    mode: 'hours',
+    projectIds: ['p1', 'p2'],
+    workedSeconds: workedMinutes * 60,
+    manualMinutes: { p1: { hours: 5, minutes: 0 }, p2: { hours: 2, minutes: 36 } }
+  });
   const updated = store.replaceAllocations(DATE, manual.map((item) => ({
     project_id: item.projectId,
     duration_minutes: item.durationMinutes,
@@ -177,8 +181,8 @@ test('flusso completo 13:00 → pausa automatica → chiusura/riapertura → rip
   const before = tracked(originalDay, new Date('2026-11-27T12:59:59+01:00'));
   const start = tracked(originalDay, new Date('2026-11-27T13:00:00+01:00'));
   const during = tracked(originalDay, new Date('2026-11-27T13:15:00+01:00'));
-  assert.equal(start.automaticBreakActive, true);
-  assert.equal(during.automaticBreakActive, true);
+  assert.equal(start.automaticPauseActive, true);
+  assert.equal(during.automaticPauseActive, true);
   assert.equal(during.workedSeconds, start.workedSeconds, 'il lavoro resta fermo durante la pausa');
   assert.equal(during.pausedSeconds, 900);
   assert.equal(before.workedSeconds + 1, start.workedSeconds);
@@ -186,10 +190,10 @@ test('flusso completo 13:00 → pausa automatica → chiusura/riapertura → rip
   const reopenedDay = JSON.parse(JSON.stringify(originalDay));
   const reopenedDuring = tracked(reopenedDay, new Date('2026-11-27T13:20:00+01:00'));
   assert.equal(reopenedDuring.workedSeconds, start.workedSeconds, 'la riapertura ricalcola dagli orari reali senza timer in background');
-  assert.equal(reopenedDuring.automaticBreakRemainingSeconds, 600);
+  assert.equal(Math.floor((reopenedDuring.automaticPauseEnd - new Date('2026-11-27T13:20:00+01:00')) / 1000), 600);
 
   const resumed = tracked(reopenedDay, new Date('2026-11-27T13:30:01+01:00'));
-  assert.equal(resumed.automaticBreakActive, false);
+  assert.equal(resumed.automaticPauseActive, false);
   assert.equal(resumed.workedSeconds, start.workedSeconds + 1, 'alle 13:30 il conteggio riparte automaticamente');
   assert.equal(resumed.defaultBreakAppliedSeconds, 1800);
 });

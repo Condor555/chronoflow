@@ -277,14 +277,17 @@ function manualPauseWasRecorded(events = []) {
   return events.some((event) => event?.type === "pause" || event?.type === "resume");
 }
 
+export function normalizeBreakStartTime(value, fallback = "13:00") {
+  const text = String(value ?? "").trim();
+  const match = /^(?:([01]?\d|2[0-3])(?::([0-5]\d))?)$/.exec(text);
+  if (!match) return fallback;
+  return `${String(Number(match[1])).padStart(2, "0")}:${match[2] || "00"}`;
+}
+
 function parsedBreakStart(value) {
-  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ""));
-  if (!match) return { hours: 13, minutes: 0 };
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59
-    ? { hours, minutes }
-    : { hours: 13, minutes: 0 };
+  const normalized = normalizeBreakStartTime(value);
+  const [hours, minutes] = normalized.split(":").map(Number);
+  return { hours, minutes };
 }
 
 function automaticBreakWindow(events, result, defaultBreakMinutes, now, automaticBreakTime) {

@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css?v=3.3.5">
+  <link rel="stylesheet" href="styles.css?v=3.3.5-break-fix-1">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Vai al contenuto</a>
@@ -177,11 +177,7 @@
         <details class="details-card standard-disclosure" data-disclosure>
           <summary aria-expanded="false" aria-controls="today-details-form"><span>Dettagli e correzioni</span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
           <form id="today-details-form">
-            <div class="field-grid">
-               <div class="field">
-                 <label for="automatic-break-time">Orario pausa automatica</label>
-                 <input id="automatic-break-time" type="time" required aria-describedby="automatic-break-policy-hint">
-               </div>
+              <div class="field-grid">
               <div class="field">
                 <label for="today-planned-type">Pianificato</label>
                 <select id="today-planned-type" name="planned-type">
@@ -558,6 +554,11 @@
               <label for="settings-name">Nome visualizzato</label>
               <input id="settings-name" maxlength="80" autocomplete="name">
             </div>
+            <div class="field">
+              <label for="automatic-break-time">Orario di inizio pausa</label>
+              <input id="automatic-break-time" type="text" inputmode="numeric" autocomplete="off" placeholder="13:00" pattern="(?:[01]?[0-9]|2[0-3])(?::[0-5][0-9])?" required aria-describedby="automatic-break-time-hint automatic-break-policy-hint">
+              <p id="automatic-break-time-hint" class="field-hint">Puoi scrivere, ad esempio, <strong>13</strong>, <strong>13:00</strong> oppure <strong>14</strong>. Al salvataggio l’orario viene normalizzato nel formato HH:MM.</p>
+            </div>
             <div class="field-grid">
               <div class="field">
                 <label for="target-hours">Ore giornaliere</label>
@@ -581,8 +582,8 @@
                 <label for="travel-break">Pausa trasferta (minuti)</label>
                  <input id="travel-break" type="number" min="0" max="240" required aria-describedby="automatic-break-policy-hint">
               </div>
-             <p id="automatic-break-policy-hint" class="field-hint">Chrono Flow applica automaticamente la pausa all’orario scelto per la durata impostata. Terminata questa finestra, il pulsante per avviare manualmente la pausa non sarà più disponibile per quella giornata.</p>
             </div>
+            <p id="automatic-break-policy-hint" class="field-hint">Chrono Flow applica automaticamente la pausa all’orario scelto per la durata impostata, salvo che tu abbia già premuto <strong>Inizia pausa</strong>. Durante la finestra automatica il conteggio si ferma; al termine riprende e il pulsante pausa resta oscurato, disabilitato e non cliccabile per quella giornata.</p>
             </div>
           </details>
 

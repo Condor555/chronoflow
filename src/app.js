@@ -20,6 +20,7 @@ import {
   isWorkingSaturday,
   isoDateLocal,
   minutesToDuration,
+  normalizeBreakStartTime,
   maternityMandatoryEntitlement,
   parentalLeaveMonitoringQuota,
   paternityMandatoryEntitlement,
@@ -210,11 +211,7 @@ function normalizeChildSettings(child) {
 }
 
 function normalizeClockTime(value, fallback = "13:00") {
-  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ""));
-  if (!match) return fallback;
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59 ? `${match[1]}:${match[2]}` : fallback;
+  return normalizeBreakStartTime(value, fallback);
 }
 
 function normalizeFamilySettings(value) {
@@ -1605,10 +1602,12 @@ function updateTodayLiveDisplay(day, effectiveType, result, forecast) {
   const exit = $("#exit-action");
   const autoExitNote = $("#smart-auto-exit-note");
   const pauseWindow = automaticPauseWindow(day, effectiveType);
-  const automaticPauseStarted = pauseWindow.durationMinutes > 0 && now >= pauseWindow.start;
+  const manualPauseRecorded = result.breakSource === "manual";
+  const automaticPauseStarted = !manualPauseRecorded && pauseWindow.durationMinutes > 0 && now >= pauseWindow.start;
   const automaticPauseElapsed = automaticPauseStarted && now >= pauseWindow.end;
   const manualPauseUnavailable = result.state === "working" && automaticPauseStarted;
-  primary.disabled = effectiveType === "absence" || manualPauseUnavailable;
+  const manualPauseCompleted = manualPauseRecorded && result.state === "working";
+  primary.disabled = effectiveType === "absence" || manualPauseUnavailable || manualPauseCompleted;
   exit.hidden = !isLive || effectiveType === "absence" || autoExit.automatic;
   autoExitNote.hidden = !autoExit.automatic || !autoExit.autoExitAt;
   if (!autoExitNote.hidden) {
@@ -1632,7 +1631,9 @@ function updateTodayLiveDisplay(day, effectiveType, result, forecast) {
       ? "Pausa automatica"
       : scheduleComplete
       ? "Orario completato"
-      : automaticPauseElapsed ? "Pausa standard applicata" : "Stai lavorando";
+      : manualPauseCompleted
+        ? "Pausa registrata"
+        : automaticPauseElapsed ? "Pausa standard applicata" : "Stai lavorando";
     $("#work-main-value").textContent = secondsToDuration(displayedWorkedSeconds);
     $("#work-main-caption").textContent = result.automaticPauseActive
       ? `Il conteggio è sospeso. Riprenderà automaticamente alle ${formatTime(pauseWindow.end)}.`
@@ -1642,12 +1643,16 @@ function updateTodayLiveDisplay(day, effectiveType, result, forecast) {
         : autoExit.automatic
           ? "Monte ore completato. La giornata viene chiusa automaticamente."
           : "Hai completato il monte ore previsto."
-      : automaticPauseElapsed
+      : manualPauseCompleted
+        ? `Pausa già registrata. Restano ${secondsToDuration(result.remainingSeconds)} di lavoro.`
+        : automaticPauseElapsed
         ? `Pausa standard già applicata. Restano ${secondsToDuration(result.remainingSeconds)} di lavoro.`
         : `Restano ${secondsToDuration(result.remainingSeconds)} di lavoro.`;
     primary.textContent = result.automaticPauseActive
       ? "Pausa automatica in corso"
-      : automaticPauseElapsed
+      : manualPauseCompleted
+        ? "Pausa già registrata"
+        : automaticPauseElapsed
         ? "Pausa standard già applicata"
         : "Inizia pausa";
   } else if (result.state === "paused") {
@@ -2088,6 +2093,11 @@ async function recordAction(type) {
   const date = isoDateLocal();
   const existing = state.days.get(date);
   if (type === "pause") {
+    const manualPauseRecorded = existing?.events?.some((event) => event?.type === "pause" || event?.type === "resume");
+    if (manualPauseRecorded) {
+      showToast("Pausa già registrata: non puoi avviarne una seconda.");
+      return;
+    }
     const effectiveType = homeModeForToday(existing);
     const pauseWindow = automaticPauseWindow(existing || defaultDay(date), effectiveType);
     if (pauseWindow.durationMinutes > 0 && new Date() >= pauseWindow.start) {
@@ -4870,6 +4880,21 @@ function bindEvents() {
     } else {
       updateSettingsSummaries();
     }
+  });
+  $("#automatic-break-time").addEventListener("input", (event) => {
+    event.currentTarget.setCustomValidity("");
+  });
+  $("#automatic-break-time").addEventListener("blur", (event) => {
+    const field = event.currentTarget;
+    const normalized = normalizeClockTime(field.value, "");
+    if (normalized) {
+      field.value = normalized;
+      field.setCustomValidity("");
+      updateSettingsSummaries();
+      return;
+    }
+    field.setCustomValidity("Inserisci un orario valido, ad esempio 13, 13:00 o 14.");
+    field.reportValidity();
   });
   $("#settings-form").addEventListener("change", (event) => {
     if (event.target.matches("[name='sunday-holiday-rule'], #local-holiday-month")) previewSundayHolidaySettings();
