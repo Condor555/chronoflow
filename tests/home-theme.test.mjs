@@ -52,3 +52,15 @@ test('il test browser copre gradienti, decorazione e contrasto WCAG per ogni mod
   assert.match(browserTest, /contrastRatio/);
   assert.match(browserTest, />= 4\.5/);
 });
+
+
+test('pill esterna e pill interna usano gradienti coerenti ma non piatti', () => {
+  assert.match(css, /\.type-badge \{[^}]*background:\s*linear-gradient/s);
+  assert.match(css, /\.type-badge\.smart \{[^}]*background:\s*linear-gradient/s);
+  assert.match(css, /\.type-badge\.travel \{[^}]*background:\s*linear-gradient/s);
+  for (const mode of ['office','smart','travel']) {
+    assert.match(css, new RegExp(`--home-${mode}-pill-from:`));
+    assert.match(css, new RegExp(`--home-${mode}-pill-to:`));
+  }
+  assert.match(css, /\.hero-card \.hero-mode-label,[\s\S]*background:\s*linear-gradient/s);
+});

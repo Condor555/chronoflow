@@ -2987,14 +2987,22 @@ function settingsAccordionSections() {
   return $$("#settings-screen details.settings-disclosure[data-settings-section]");
 }
 
+function enforceSingleOpenSettingsSection(activeSection = null) {
+  const sections = settingsAccordionSections();
+  const openSection = activeSection?.open ? activeSection : sections.find((section) => section.open) || null;
+  for (const section of sections) {
+    const shouldOpen = section === openSection;
+    if (section.open !== shouldOpen) section.open = shouldOpen;
+    section.querySelector(":scope > summary")?.setAttribute("aria-expanded", String(shouldOpen));
+  }
+  return openSection;
+}
+
 function openSettingsSection(section, { focus = false, scroll = false } = {}) {
   if (!section) return;
-  for (const candidate of settingsAccordionSections()) {
-    if (candidate !== section) candidate.open = false;
-  }
   section.open = true;
+  enforceSingleOpenSettingsSection(section);
   const summary = section.querySelector(":scope > summary");
-  summary?.setAttribute("aria-expanded", "true");
   if (!focus && !scroll) return;
   window.requestAnimationFrame(() => {
     if (scroll) {
@@ -3017,7 +3025,9 @@ function revealInvalidSettingsControl(form) {
 }
 
 function initSettingsAccordion() {
-  for (const section of settingsAccordionSections()) {
+  const sections = settingsAccordionSections();
+  enforceSingleOpenSettingsSection(sections.find((section) => section.open) || sections[0]);
+  for (const section of sections) {
     const summary = section.querySelector(":scope > summary");
     if (!summary) continue;
     const markUserActivation = () => { section.dataset.userAccordionAction = "true"; };
@@ -3026,14 +3036,19 @@ function initSettingsAccordion() {
       if (event.key === "Enter" || event.key === " ") markUserActivation();
     });
     section.addEventListener("toggle", () => {
-      summary.setAttribute("aria-expanded", String(section.open));
-      if (!section.open) return;
-      for (const other of settingsAccordionSections()) {
-        if (other !== section) other.open = false;
+      if (!section.open) {
+        summary.setAttribute("aria-expanded", "false");
+        delete section.dataset.userAccordionAction;
+        return;
       }
+      enforceSingleOpenSettingsSection(section);
       if (section.dataset.userAccordionAction === "true") {
         delete section.dataset.userAccordionAction;
-        openSettingsSection(section, { focus: true, scroll: true });
+        const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        window.requestAnimationFrame(() => {
+          summary.scrollIntoView({ block: "start", behavior: reduced ? "auto" : "smooth" });
+          summary.focus({ preventScroll: true });
+        });
       }
     });
   }
@@ -3268,7 +3283,7 @@ function registerServiceWorker() {
     window.location.reload();
   });
   navigator.serviceWorker
-    .register("./sw.v3.2.1.js", { updateViaCache: "none" })
+    .register("./sw.v3.2.2.js", { updateViaCache: "none" })
     .then((registration) => registration.update())
     .catch(() => {});
 }

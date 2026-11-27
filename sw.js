@@ -1,2 +1,2 @@
-// Compatibility entry for a cached earlier worker.
-importScripts('./sw.v3.2.1.js');
+// Compatibility worker: immediately load the 3.2.2 cache-safe worker.
+importScripts('./sw.v3.2.2.js');

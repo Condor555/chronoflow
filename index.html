@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css?v=3.2.1">
+  <link rel="stylesheet" href="styles.css?v=3.2.2">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Vai al contenuto</a>
@@ -512,7 +512,7 @@
           </div>
         </div>
         <form id="settings-form" class="settings-accordion" data-settings-accordion novalidate>
-<details id="profile-settings" class="details-card settings-disclosure" data-settings-section data-disclosure open>
+<details id="profile-settings" class="details-card settings-disclosure" data-settings-section name="chrono-settings" data-disclosure open>
             <summary aria-expanded="true" aria-controls="profile-settings-panel">
               <span class="settings-summary-copy"><strong>Giornata di lavoro</strong><small id="profile-settings-summary">Durata, pause e profilo della giornata</small></span>
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
@@ -549,7 +549,7 @@
             </div>
           </details>
 
-<details id="work-mode-settings" class="details-card settings-disclosure" data-settings-section data-disclosure>
+<details id="work-mode-settings" class="details-card settings-disclosure" data-settings-section name="chrono-settings" data-disclosure>
             <summary aria-expanded="false" aria-controls="work-mode-settings-panel">
               <span class="settings-summary-copy"><strong>Modalità e straordinari</strong><small id="work-mode-settings-summary">Ufficio, Smart, Trasferta e soglie</small></span>
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
@@ -600,7 +600,7 @@
 </div>
           </details>
 
-<details id="ticket-settings" class="details-card settings-disclosure" data-settings-section data-disclosure>
+<details id="ticket-settings" class="details-card settings-disclosure" data-settings-section name="chrono-settings" data-disclosure>
             <summary aria-expanded="false" aria-controls="ticket-settings-panel">
               <span class="settings-summary-copy"><strong>Buoni pasto</strong><small id="ticket-settings-summary">Regole automatiche per luogo</small></span>
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
@@ -614,7 +614,7 @@
             </div>
           </details>
 
-<details id="leave-settings" class="details-card settings-disclosure" data-settings-section data-disclosure>
+<details id="leave-settings" class="details-card settings-disclosure" data-settings-section name="chrono-settings" data-disclosure>
             <summary aria-expanded="false" aria-controls="leave-settings-panel">
               <span class="settings-summary-copy"><strong>Ferie, festività e recuperi</strong><small id="leave-settings-summary">Spettanze annuali, riporto automatico e recuperi</small></span>
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
@@ -738,7 +738,7 @@
 </div>
           </details>
 
-<details id="family-settings" class="details-card settings-disclosure" data-settings-section data-disclosure>
+<details id="family-settings" class="details-card settings-disclosure" data-settings-section name="chrono-settings" data-disclosure>
             <summary aria-expanded="false" aria-controls="family-settings-panel">
               <span class="settings-summary-copy"><strong>Famiglia e congedi</strong><small id="family-settings-summary">Profilo genitoriale, figli e istituti attivi</small></span>
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
@@ -807,7 +807,7 @@
             </div>
           </details>
 
-<details id="notification-settings" class="details-card settings-disclosure" data-settings-section data-disclosure>
+<details id="notification-settings" class="details-card settings-disclosure" data-settings-section name="chrono-settings" data-disclosure>
             <summary aria-expanded="false" aria-controls="notification-settings-panel">
               <span class="settings-summary-copy"><strong>Notifiche</strong><small id="notification-settings-summary">Stato notifiche del dispositivo</small></span>
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
@@ -841,7 +841,7 @@
 
         
         <div class="settings-accordion settings-accordion-secondary" data-settings-accordion>
-<details id="calendar-sharing-settings" class="details-card settings-disclosure" data-settings-section data-disclosure>
+<details id="calendar-sharing-settings" class="details-card settings-disclosure" data-settings-section name="chrono-settings" data-disclosure>
             <summary aria-expanded="false" aria-controls="calendar-sharing-settings-panel">
               <span class="settings-summary-copy"><strong>Condivisione calendario</strong><small id="calendar-sharing-settings-summary">Inviti, accessi e privacy in sola lettura</small></span>
               <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
@@ -851,7 +851,7 @@
               <div id="calendar-sharing-settings-root" class="sharing-settings-native shared-calendar-pane"><p class="field-hint">Apri questa sezione per caricare inviti, accessi e preferenze privacy.</p></div>
             </div>
           </details>
-<details id="account-data-settings" class="details-card settings-disclosure" data-settings-section data-disclosure>
+<details id="account-data-settings" class="details-card settings-disclosure" data-settings-section name="chrono-settings" data-disclosure>
           <summary aria-expanded="false" aria-controls="account-data-settings-panel">
             <span class="settings-summary-copy"><strong>Account e dati</strong><small id="account-data-settings-summary">Password, backup e dati locali</small></span>
             <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
@@ -1061,6 +1061,6 @@
   </div>
   <div id="live-region" class="sr-only" aria-live="polite"></div>
 
-  <script type="module" src="src/app.v3.2.1.mjs"></script>
+  <script type="module" src="src/app.v3.2.2.mjs"></script>
 </body>
 </html>

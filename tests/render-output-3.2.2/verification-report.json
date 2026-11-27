@@ -1,0 +1,117 @@
+{
+  "accordion": [
+    {
+      "initial": [
+        "profile-settings"
+      ]
+    },
+    {
+      "clicked": "work-mode-settings",
+      "open": [
+        "work-mode-settings"
+      ]
+    },
+    {
+      "clicked": "ticket-settings",
+      "open": [
+        "ticket-settings"
+      ]
+    },
+    {
+      "clicked": "leave-settings",
+      "open": [
+        "leave-settings"
+      ]
+    },
+    {
+      "clicked": "family-settings",
+      "open": [
+        "family-settings"
+      ]
+    },
+    {
+      "clicked": "notification-settings",
+      "open": [
+        "notification-settings"
+      ]
+    },
+    {
+      "clicked": "calendar-sharing-settings",
+      "open": [
+        "calendar-sharing-settings"
+      ]
+    },
+    {
+      "clicked": "account-data-settings",
+      "open": [
+        "account-data-settings"
+      ]
+    },
+    {
+      "clicked": "profile-settings",
+      "open": [
+        "profile-settings"
+      ]
+    }
+  ],
+  "themes": {
+    "office": "linear-gradient(145deg, rgba(255, 255, 255, 0.075) 0%, rgba(255, 255, 255, 0) 38%), linear-gradient(122deg, rgb(36, 54, 78) 0%, rgb(54, 86, 106) 100%)",
+    "smart": "linear-gradient(145deg, rgba(255, 255, 255, 0.075) 0%, rgba(255, 255, 255, 0) 38%), linear-gradient(122deg, rgb(27, 51, 77) 0%, rgb(53, 106, 108) 100%)",
+    "travel": "linear-gradient(145deg, rgba(255, 255, 255, 0.075) 0%, rgba(255, 255, 255, 0) 38%), linear-gradient(122deg, rgb(52, 44, 80) 0%, rgb(102, 80, 131) 100%)"
+  },
+  "accordionKeyboard": [
+    "work-mode-settings"
+  ],
+  "home-card-mobile-390": {
+    "viewport": [
+      390,
+      844
+    ],
+    "heroBox": {
+      "x": 12,
+      "y": 370.375,
+      "width": 366,
+      "height": 355.703125
+    },
+    "backgroundImage": "linear-gradient(145deg, rgba(255, 255, 255, 0.075) 0%, rgba(255, 255, 255, 0) 38%), linear-gradient(122deg, rgb(27, 51, 77) 0%, rgb(53, 106, 108) 100%)",
+    "decorationContent": "\"\"",
+    "pillBackground": "linear-gradient(135deg, rgb(233, 250, 244), rgb(201, 239, 223))",
+    "overflow": false
+  },
+  "contrast": {
+    "office": {
+      "from": "#24364e",
+      "to": "#36566a",
+      "contrastFrom": 12.261399157985016,
+      "contrastTo": 7.789055003600252
+    },
+    "smart": {
+      "from": "#1b334d",
+      "to": "#356a6c",
+      "contrastFrom": 12.904833114426047,
+      "contrastTo": 6.1232837911700555
+    },
+    "travel": {
+      "from": "#342c50",
+      "to": "#665083",
+      "contrastFrom": 12.945996362119189,
+      "contrastTo": 6.907533149355051
+    }
+  },
+  "home-card-desktop-1440": {
+    "viewport": [
+      1440,
+      1000
+    ],
+    "heroBox": {
+      "x": 296,
+      "y": 296.9375,
+      "width": 848,
+      "height": 395.90625
+    },
+    "backgroundImage": "linear-gradient(145deg, rgba(255, 255, 255, 0.075) 0%, rgba(255, 255, 255, 0) 38%), linear-gradient(122deg, rgb(27, 51, 77) 0%, rgb(53, 106, 108) 100%)",
+    "decorationContent": "\"\"",
+    "pillBackground": "linear-gradient(135deg, rgb(233, 250, 244), rgb(201, 239, 223))",
+    "overflow": false
+  }
+}

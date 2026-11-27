@@ -35,13 +35,14 @@ test('Impostazioni espone soltanto le otto macro-sezioni concordate', () => {
 
 test('single-open accordion conserva ARIA, focus e scroll mobile', () => {
   assert.match(app, /function initSettingsAccordion\(\)/);
-  assert.match(app, /if \(other !== section\) other\.open = false/);
-  assert.match(app, /summary\.setAttribute\("aria-expanded", String\(section\.open\)\)/);
-  assert.match(app, /summary\?\.scrollIntoView\(\{ block: "start"/);
-  assert.match(app, /summary\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(app, /function enforceSingleOpenSettingsSection\(activeSection = null\)/);
+  assert.match(app, /if \(section\.open !== shouldOpen\) section\.open = shouldOpen/);
+  assert.match(app, /setAttribute\("aria-expanded", String\(shouldOpen\)\)/);
+  assert.match(app, /summary\.scrollIntoView\(\{ block: "start"/);
+  assert.match(app, /summary\.focus\(\{ preventScroll: true \}\)/);
   assert.equal((settings.match(/data-settings-section[^>]*data-disclosure open/g) || []).length, 1);
   for (const id of macroIds) {
-    assert.match(settings, new RegExp(`<details id="${id}"[\\s\\S]*?<summary[^>]*aria-controls="${id}-panel"`));
+    assert.match(settings, new RegExp(`<details id="${id}"[^>]*name="chrono-settings"[\\s\\S]*?<summary[^>]*aria-controls="${id}-panel"`));
     assert.match(settings, new RegExp(`id="${id}-panel"`));
   }
 });

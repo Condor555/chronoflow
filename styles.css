@@ -136,9 +136,9 @@ main { width: min(100%, 880px); margin: 0 auto; padding: 24px 16px calc(98px + v
 .screen-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
 .screen-heading h1 { margin: 0; font-size: clamp(1.8rem, 8vw, 2.55rem); line-height: 1.1; }
 .screen-heading .supporting { margin: 4px 0 0; }
-.type-badge { display: inline-flex; align-items: center; min-height: 38px; padding: 7px 11px; color: var(--office-ink); background: var(--office); border-radius: 999px; font-weight: 800; white-space: nowrap; }
-.type-badge.smart { color: var(--smart-ink); background: var(--smart); }
-.type-badge.travel { color: var(--travel-ink); background: var(--travel); }
+.type-badge { display: inline-flex; align-items: center; min-height: 38px; padding: 7px 11px; color: var(--office-ink); background: linear-gradient(135deg, #e8f5ff, #c7e6ff); border: 1px solid #a8d3f3; border-radius: 999px; box-shadow: inset 0 1px rgba(255,255,255,.78), 0 4px 12px rgba(18,77,123,.08); font-weight: 800; white-space: nowrap; }
+.type-badge.smart { color: var(--smart-ink); background: linear-gradient(135deg, #e9faf4, #c9efdf); border-color: #a7dbc9; box-shadow: inset 0 1px rgba(255,255,255,.78), 0 4px 12px rgba(18,98,78,.08); }
+.type-badge.travel { color: var(--travel-ink); background: linear-gradient(135deg, #f4efff, #dfd3ff); border-color: #c7b6ef; box-shadow: inset 0 1px rgba(255,255,255,.78), 0 4px 12px rgba(86,56,154,.08); }
 .type-badge.absence { color: var(--absence-ink); background: var(--absence); }
 .type-badge.saturday { box-shadow: inset 0 0 0 2px var(--accent); }
 
@@ -624,7 +624,7 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
 .shared-calendar-pane button.danger { color: var(--danger) !important; background: var(--danger-bg) !important; border-color: #e0a8a4 !important; }
 
 
-/* Chrono Flow 3.2.1 — approved deep Home card treatment.
+/* Chrono Flow 3.2.2 — cache-safe approved deep Home card treatment.
    The surrounding shell remains the 2.9.4 design system; only the Home hero
    receives the previously approved tonal surface and soft corner decoration. */
 :root {
@@ -634,6 +634,12 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
   --home-smart-deep-to: #356a6c;
   --home-travel-deep-from: #342c50;
   --home-travel-deep-to: #665083;
+  --home-office-pill-from: rgba(187, 225, 255, .25);
+  --home-office-pill-to: rgba(118, 186, 225, .12);
+  --home-smart-pill-from: rgba(166, 238, 217, .23);
+  --home-smart-pill-to: rgba(91, 190, 178, .12);
+  --home-travel-pill-from: rgba(224, 202, 255, .24);
+  --home-travel-pill-to: rgba(166, 128, 218, .13);
   --home-deep-foreground: #ffffff;
 }
 
@@ -642,20 +648,26 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
   color: var(--home-deep-foreground);
   border-color: color-mix(in srgb, var(--home-mode-deep-to) 72%, white);
   background-color: var(--home-mode-deep-from);
-  background-image: linear-gradient(122deg, var(--home-mode-deep-from), var(--home-mode-deep-to));
-  box-shadow: 0 18px 42px rgba(16, 42, 67, .2);
+  background-image: linear-gradient(145deg, rgba(255,255,255,.075) 0%, rgba(255,255,255,0) 38%), linear-gradient(122deg, var(--home-mode-deep-from) 0%, var(--home-mode-deep-to) 100%);
+  box-shadow: 0 20px 46px rgba(16, 42, 67, .24), inset 0 1px rgba(255,255,255,.12);
 }
 .hero-card.mode-office {
   --home-mode-deep-from: var(--home-office-deep-from);
   --home-mode-deep-to: var(--home-office-deep-to);
+  --home-mode-pill-from: var(--home-office-pill-from);
+  --home-mode-pill-to: var(--home-office-pill-to);
 }
 .hero-card.mode-smart {
   --home-mode-deep-from: var(--home-smart-deep-from);
   --home-mode-deep-to: var(--home-smart-deep-to);
+  --home-mode-pill-from: var(--home-smart-pill-from);
+  --home-mode-pill-to: var(--home-smart-pill-to);
 }
 .hero-card.mode-travel {
   --home-mode-deep-from: var(--home-travel-deep-from);
   --home-mode-deep-to: var(--home-travel-deep-to);
+  --home-mode-pill-from: var(--home-travel-pill-from);
+  --home-mode-pill-to: var(--home-travel-pill-to);
 }
 .hero-card::after {
   position: absolute;
@@ -672,9 +684,10 @@ dialog::backdrop { background: rgba(10, 23, 38, .58); }
 .hero-card .hero-mode-label,
 .hero-card .auto-exit-note {
   color: #fff;
-  background: rgba(255, 255, 255, .08);
-  border-color: rgba(255, 255, 255, .58);
-  backdrop-filter: blur(7px);
+  background: linear-gradient(135deg, var(--home-mode-pill-from), var(--home-mode-pill-to));
+  border-color: rgba(255, 255, 255, .62);
+  box-shadow: inset 0 1px rgba(255,255,255,.14), 0 7px 18px rgba(8,24,39,.12);
+  backdrop-filter: blur(8px);
 }
 .hero-card .supporting { color: rgba(255, 255, 255, .88); }
 .hero-card .action-stack { position: relative; z-index: 1; }

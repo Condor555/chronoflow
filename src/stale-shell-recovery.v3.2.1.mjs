@@ -1,4 +1,4 @@
-const TARGET_BUILD = '3.2.1';
+const TARGET_BUILD = '3.2.2';
 const marker = 'chronoFlowUiRecovery';
 function targetUrl() {
   const url = new URL('./', window.location.href);
