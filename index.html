@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-chrono-flow-ui="2.9.4-restored" data-build="3.2.1">
+<html lang="it" data-chrono-flow-ui="2.9.4-restored" data-build="3.3.0">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css?v=3.2.2">
+  <link rel="stylesheet" href="styles.css?v=3.3.0">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Vai al contenuto</a>
@@ -134,6 +134,25 @@
             <button id="exit-action" class="button secondary action-button" type="button" hidden>Registra uscita</button>
           </div>
         </article>
+
+        <section id="today-projects" class="project-day-card" data-project-feature hidden aria-labelledby="today-projects-title">
+          <div class="project-day-heading">
+            <div>
+              <p class="eyebrow">Attività</p>
+              <h2 id="today-projects-title">Commesse di oggi</h2>
+            </div>
+            <button id="add-today-allocation" class="button secondary" type="button">Registra attività</button>
+          </div>
+          <div class="allocation-progress-copy">
+            <span id="today-allocation-copy">0:00 allocate / 0:00 lavorate</span>
+            <strong id="today-allocation-balance">Da associare 0:00</strong>
+          </div>
+          <div class="allocation-progress-track" role="progressbar" aria-label="Ore di oggi allocate alle commesse" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+            <div id="today-allocation-progress" class="allocation-progress-fill"></div>
+          </div>
+          <p id="today-allocation-warning" class="allocation-warning" role="status" hidden></p>
+          <div id="today-allocation-list" class="allocation-list"></div>
+        </section>
 
         <div class="metrics-grid" aria-label="Riepilogo di oggi">
           <article class="metric-card">
@@ -406,6 +425,19 @@
             </div>
             <p class="section-caption">Apri solo ciò che vuoi verificare: i dati restano completi, ma non affollano la lettura principale.</p>
           </div>
+
+          <details id="summary-projects" class="details-card summary-disclosure project-summary-disclosure" data-project-feature data-disclosure hidden>
+            <summary aria-expanded="false" aria-controls="summary-projects-panel"><span>Commesse<small>Ore allocate e andamento mensile</small></span><span class="summary-disclosure-value" id="summary-projects-total">0:00</span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
+            <div id="summary-projects-panel" class="summary-disclosure-body" aria-labelledby="summary-projects-title">
+              <h3 id="summary-projects-title" class="sr-only">Dettaglio commesse</h3>
+              <p id="summary-projects-caption" class="supporting"></p>
+              <div id="summary-project-hours" class="project-hours-list"></div>
+              <h4>Andamento mensile</h4>
+              <div id="summary-project-trend" class="project-trend" aria-label="Ore allocate per mese"></div>
+              <h4>Giornate del mese</h4>
+              <div id="summary-project-days" class="project-day-links"></div>
+            </div>
+          </details>
 
           <details id="summary-overtime" class="details-card summary-disclosure featured-disclosure" data-disclosure>
             <summary aria-expanded="false" aria-controls="summary-overtime-panel"><span>Straordinario<small>Maturato, compensato e residuo</small></span><span class="summary-disclosure-value" id="summary-overtime-residual">0:00</span><svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary>
@@ -807,6 +839,40 @@
             </div>
           </details>
 
+<details id="project-settings" class="details-card settings-disclosure" data-settings-section name="chrono-settings" data-disclosure>
+            <summary aria-expanded="false" aria-controls="project-settings-panel">
+              <span class="settings-summary-copy"><strong>Commesse</strong><small id="project-settings-summary">Funzione disattivata</small></span>
+              <svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div id="project-settings-panel" class="settings-disclosure-body">
+              <label class="feature-toggle-row"><input id="projects-enabled" type="checkbox"> <span><strong>Attiva la gestione commesse</strong><small>Se disattivata, Home, Calendario e Riepilogo restano identici alla versione 3.2.2.</small></span></label>
+              <div id="project-settings-content" hidden>
+                <p class="supporting">Aggiungi le commesse che usi. Puoi archiviarle senza perdere lo storico e scegliere una proposta predefinita per le nuove attività.</p>
+                <div id="project-list" class="project-admin-list"></div>
+                <div class="project-create-panel" aria-labelledby="project-create-title">
+                  <h3 id="project-create-title">Aggiungi commessa</h3>
+                  <div class="field-grid">
+                    <div class="field">
+                      <label for="project-code">Codice</label>
+                      <input id="project-code" maxlength="40" autocomplete="off" placeholder="Es. C1234">
+                    </div>
+                    <div class="field">
+                      <label for="project-description">Descrizione breve</label>
+                      <input id="project-description" maxlength="120" autocomplete="off" placeholder="Es. Salerno–Reggio Calabria">
+                    </div>
+                  </div>
+                  <button id="add-project" class="button secondary" type="button">Aggiungi commessa</button>
+                </div>
+                <div class="field project-default-field">
+                  <label for="default-project">Commessa predefinita</label>
+                  <select id="default-project"><option value="">Nessuna</option></select>
+                  <p class="field-hint">Viene proposta quando registri una nuova attività; puoi sempre cambiarla.</p>
+                </div>
+                <p id="project-settings-status" class="field-hint" role="status"></p>
+              </div>
+            </div>
+          </details>
+
 <details id="notification-settings" class="details-card settings-disclosure" data-settings-section name="chrono-settings" data-disclosure>
             <summary aria-expanded="false" aria-controls="notification-settings-panel">
               <span class="settings-summary-copy"><strong>Notifiche</strong><small id="notification-settings-summary">Stato notifiche del dispositivo</small></span>
@@ -989,6 +1055,15 @@
         </select>
         <p id="day-saturday-note" class="field-hint" hidden>Sabato lavorativo: nessun buono automatico; puoi applicare soltanto una forzatura esplicita.</p>
       </div>
+      <fieldset id="day-projects-field" class="day-projects-field" data-project-feature hidden>
+        <legend>Commesse</legend>
+        <div class="allocation-day-summary">
+          <span id="day-allocation-copy">0:00 allocate / 0:00 lavorate</span>
+          <button id="add-day-allocation" class="button secondary" type="button">Registra attività</button>
+        </div>
+        <p id="day-allocation-warning" class="allocation-warning" role="status" hidden></p>
+        <div id="day-allocation-list" class="allocation-list compact"></div>
+      </fieldset>
       <div class="field">
         <label for="day-notes">Note</label>
         <textarea id="day-notes" rows="4" maxlength="1000"></textarea>
@@ -996,6 +1071,56 @@
       <div class="dialog-actions">
         <button id="delete-day" class="button danger" type="button">Elimina questa giornata</button>
         <button class="button primary" value="save" type="submit">Salva la giornata</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="allocation-dialog" class="allocation-dialog" aria-labelledby="allocation-dialog-title" aria-describedby="allocation-dialog-description">
+    <form id="allocation-form">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">Commessa</p>
+          <h2 id="allocation-dialog-title">Registra attività</h2>
+        </div>
+        <button id="close-allocation-dialog" class="icon-button ghost" type="button" aria-label="Chiudi senza salvare"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      </div>
+      <p id="allocation-dialog-description" class="supporting">Associa un intervallo oppure una durata alla giornata selezionata.</p>
+      <input id="allocation-id" type="hidden">
+      <input id="allocation-date" type="hidden">
+      <div class="field">
+        <label for="allocation-project">Commessa</label>
+        <select id="allocation-project" required></select>
+      </div>
+      <div id="allocation-recent" class="recent-projects" aria-label="Commesse recenti"></div>
+      <fieldset class="allocation-time-fields">
+        <legend>Intervallo della giornata</legend>
+        <div class="field-grid">
+          <div class="field"><label for="allocation-start">Dalle</label><input id="allocation-start" type="time"></div>
+          <div class="field"><label for="allocation-end">Alle</label><input id="allocation-end" type="time"></div>
+        </div>
+        <p class="field-hint">Compila entrambi gli orari; la durata viene calcolata automaticamente.</p>
+      </fieldset>
+      <div class="allocation-duration-divider"><span>oppure</span></div>
+      <div class="field">
+        <label for="allocation-duration">Durata</label>
+        <div class="duration-input-row">
+          <input id="allocation-duration" type="number" min="1" max="1440" inputmode="numeric" aria-describedby="allocation-duration-help">
+          <span>minuti</span>
+        </div>
+        <p id="allocation-duration-help" class="field-hint">Per un inserimento rapido puoi aggiungere 30 minuti o 1 ora.</p>
+      </div>
+      <div class="quick-duration-row" aria-label="Inserimento rapido">
+        <button class="button secondary" type="button" data-quick-minutes="30">+ 30 min</button>
+        <button class="button secondary" type="button" data-quick-minutes="60">+ 1 ora</button>
+      </div>
+      <div class="field">
+        <label for="allocation-note">Nota <span class="optional-label">facoltativa</span></label>
+        <input id="allocation-note" maxlength="240">
+      </div>
+      <p id="allocation-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button id="delete-allocation" class="button danger" type="button" hidden>Elimina</button>
+        <button class="button primary" type="submit">Salva attività</button>
       </div>
     </form>
   </dialog>
@@ -1061,6 +1186,6 @@
   </div>
   <div id="live-region" class="sr-only" aria-live="polite"></div>
 
-  <script type="module" src="src/app.v3.2.2.mjs"></script>
+  <script type="module" src="src/app.v3.3.0.mjs"></script>
 </body>
 </html>

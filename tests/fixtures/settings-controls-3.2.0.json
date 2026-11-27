@@ -310,5 +310,29 @@
     "tag": "input",
     "type": "file",
     "name": ""
+  },
+  {
+    "id": "projects-enabled",
+    "tag": "input",
+    "type": "checkbox",
+    "name": ""
+  },
+  {
+    "id": "project-code",
+    "tag": "input",
+    "type": "",
+    "name": ""
+  },
+  {
+    "id": "project-description",
+    "tag": "input",
+    "type": "",
+    "name": ""
+  },
+  {
+    "id": "default-project",
+    "tag": "select",
+    "type": "",
+    "name": ""
   }
 ]

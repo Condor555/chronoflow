@@ -8,7 +8,7 @@ const [html, css, app, liveClock, sw, homeDisplay] = await Promise.all([
   readFile(new URL("styles.css", root), "utf8"),
   readFile(new URL("src/app.js", root), "utf8"),
   readFile(new URL("src/live-clock.mjs", root), "utf8"),
-  readFile(new URL("sw.v3.2.1.js", root), "utf8"),
+  readFile(new URL("sw.v3.3.0.js", root), "utf8"),
   readFile(new URL("src/home-display.mjs", root), "utf8")
 ]);
 
@@ -25,7 +25,7 @@ test("MonthSelector Chrono Flow sostituisce i controlli month nativi", () => {
 test("tutte le card Impostazioni usano progressive disclosure con riepilogo", () => {
   const macros = [
     "profile-settings", "work-mode-settings", "ticket-settings", "leave-settings",
-    "family-settings", "notification-settings", "calendar-sharing-settings", "account-data-settings"
+    "family-settings", "project-settings", "notification-settings", "calendar-sharing-settings", "account-data-settings"
   ];
   for (const id of macros) {
     assert.match(html, new RegExp(`<details id=["']${id}["'][^>]*settings-disclosure[^>]*data-settings-section`));

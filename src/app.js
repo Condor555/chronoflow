@@ -73,6 +73,8 @@ const DEFAULT_PROFILE = {
       smart: false,
       travel: false
     },
+    projects_enabled: false,
+    default_project_id: null,
     contract_settings: {
       sunday_holiday_rule: "none",
       sunday_holiday_adjustments: {},
@@ -91,6 +93,11 @@ const state = {
   user: null,
   profile: structuredClone(DEFAULT_PROFILE),
   days: new Map(),
+  projects: new Map(),
+  allocations: new Map(),
+  projectDataLoaded: false,
+  projectDataLoading: false,
+  editingAllocationId: null,
   authMode: "login",
   calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   summaryMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -224,6 +231,8 @@ function normalizeFamilySettings(value) {
       smart: input.overtime_settings?.smart === true,
       travel: input.overtime_settings?.travel === true
     },
+    projects_enabled: input.projects_enabled === true,
+    default_project_id: typeof input.default_project_id === "string" ? input.default_project_id : null,
     contract_settings: {
       ...contractInput,
       sunday_holiday_rule: normalizedRule,
@@ -252,6 +261,216 @@ function applicabilitySettings() {
 function workModeEnabled(type) {
   const modes = applicabilitySettings().work_modes;
   return type === "office" ? modes.office : type === "smart" ? modes.smart : type === "travel" ? modes.travel : true;
+}
+
+function projectsEnabled() {
+  return normalizeFamilySettings(state.profile.family_settings).projects_enabled === true;
+}
+
+function projectCacheKey() {
+  return `chrono-flow:v3:projects:${state.user?.id || "anonymous"}`;
+}
+
+function projectQueueKey() {
+  return `chrono-flow:v3:project-queue:${state.user?.id || "anonymous"}`;
+}
+
+function normalizeProject(project) {
+  return {
+    id: project.id,
+    user_id: project.user_id || state.user?.id || null,
+    code: String(project.code || "").trim(),
+    description: String(project.description || "").trim(),
+    is_active: project.is_active !== false,
+    created_at: project.created_at || new Date().toISOString(),
+    updated_at: project.updated_at || new Date().toISOString()
+  };
+}
+
+function normalizeAllocation(allocation) {
+  return {
+    id: allocation.id,
+    user_id: allocation.user_id || state.user?.id || null,
+    project_id: allocation.project_id,
+    work_date: allocation.work_date,
+    start_time: allocation.start_time ? String(allocation.start_time).slice(0, 5) : null,
+    end_time: allocation.end_time ? String(allocation.end_time).slice(0, 5) : null,
+    duration_minutes: Math.max(1, Number(allocation.duration_minutes) || 0),
+    note: String(allocation.note || "").trim(),
+    created_at: allocation.created_at || new Date().toISOString(),
+    updated_at: allocation.updated_at || new Date().toISOString()
+  };
+}
+
+function allAllocations() {
+  return [...state.allocations.values()].flat();
+}
+
+function allocationsForDate(date) {
+  return [...(state.allocations.get(date) || [])].sort((left, right) => {
+    if (left.start_time && right.start_time) return left.start_time.localeCompare(right.start_time);
+    if (left.start_time) return -1;
+    if (right.start_time) return 1;
+    return String(left.created_at || left.id).localeCompare(String(right.created_at || right.id));
+  });
+}
+
+function setAllocationInState(allocation) {
+  const normalized = normalizeAllocation(allocation);
+  const rows = (state.allocations.get(normalized.work_date) || []).filter((item) => item.id !== normalized.id);
+  rows.push(normalized);
+  state.allocations.set(normalized.work_date, rows);
+  return normalized;
+}
+
+function removeAllocationFromState(id, date = null) {
+  const dates = date ? [date] : [...state.allocations.keys()];
+  for (const key of dates) {
+    const rows = (state.allocations.get(key) || []).filter((item) => item.id !== id);
+    if (rows.length) state.allocations.set(key, rows);
+    else state.allocations.delete(key);
+  }
+}
+
+function persistProjectCache() {
+  if (!state.user) return;
+  localStorage.setItem(projectCacheKey(), JSON.stringify({
+    projects: [...state.projects.values()],
+    allocations: allAllocations()
+  }));
+}
+
+function loadProjectCache() {
+  if (!state.user) return;
+  try {
+    const cached = JSON.parse(localStorage.getItem(projectCacheKey()) || "{}");
+    if (Array.isArray(cached.projects)) cached.projects.forEach((project) => state.projects.set(project.id, normalizeProject(project)));
+    if (Array.isArray(cached.allocations)) cached.allocations.forEach(setAllocationInState);
+  } catch {
+    localStorage.removeItem(projectCacheKey());
+  }
+}
+
+function getProjectQueue() {
+  try {
+    const queue = JSON.parse(localStorage.getItem(projectQueueKey()) || "[]");
+    return Array.isArray(queue) ? queue : [];
+  } catch {
+    return [];
+  }
+}
+
+function setProjectQueue(queue) {
+  localStorage.setItem(projectQueueKey(), JSON.stringify(queue));
+  updateSyncStatus();
+}
+
+function queueProjectOperation(operation) {
+  const key = `${operation.entity}:${operation.id}`;
+  const queue = getProjectQueue().filter((item) => `${item.entity}:${item.id}` !== key);
+  queue.push(operation);
+  setProjectQueue(queue);
+}
+
+function projectLabel(project) {
+  if (!project) return "Commessa non disponibile";
+  return `${project.code} · ${project.description}`;
+}
+
+function allocationMinutesForDate(date) {
+  return allocationsForDate(date).reduce((total, allocation) => total + allocation.duration_minutes, 0);
+}
+
+function workedMinutesForDate(date) {
+  const day = state.days.get(date);
+  if (!day) return 0;
+  return calculateTrackedDay(day, lastEventTime(day)).ordinaryWorkedMinutes;
+}
+
+function preferredProjectId() {
+  const settings = normalizeFamilySettings(state.profile.family_settings);
+  const defaultProject = state.projects.get(settings.default_project_id);
+  if (defaultProject?.is_active) return defaultProject.id;
+  return recentProjectIds().find((id) => state.projects.get(id)?.is_active) || "";
+}
+
+function recentProjectIds(limit = 4) {
+  const latest = new Map();
+  for (const allocation of allAllocations()) {
+    const stamp = `${allocation.work_date}T${allocation.start_time || "23:59"}`;
+    if (!latest.has(allocation.project_id) || latest.get(allocation.project_id) < stamp) latest.set(allocation.project_id, stamp);
+  }
+  return [...latest.entries()].sort((a, b) => b[1].localeCompare(a[1])).slice(0, limit).map(([id]) => id);
+}
+
+function setProjectFeatureVisibility() {
+  const enabled = projectsEnabled();
+  $$('[data-project-feature]').forEach((element) => { element.hidden = !enabled; });
+  const settingsContent = $("#project-settings-content");
+  if (settingsContent) settingsContent.hidden = !$("#projects-enabled")?.checked;
+  return enabled;
+}
+
+async function fetchProjectData({ start = null, end = null, includeProjects = true, force = false } = {}) {
+  if ((!projectsEnabled() && !force) || !state.supabase || state.projectDataLoading) return;
+  state.projectDataLoading = true;
+  try {
+    if (includeProjects) {
+      const projectResult = await state.supabase.from("work_projects").select("*").order("is_active", { ascending: false }).order("code");
+      if (projectResult.error) throw projectResult.error;
+      state.projects.clear();
+      (projectResult.data || []).forEach((project) => state.projects.set(project.id, normalizeProject(project)));
+    }
+    let query = state.supabase.from("work_allocations").select("*").order("work_date").order("start_time");
+    if (start) query = query.gte("work_date", start);
+    if (end) query = query.lte("work_date", end);
+    const allocationResult = await query;
+    if (allocationResult.error) throw allocationResult.error;
+    if (start && end) {
+      for (const date of [...state.allocations.keys()]) {
+        if (date >= start && date <= end) state.allocations.delete(date);
+      }
+    } else {
+      state.allocations.clear();
+    }
+    (allocationResult.data || []).forEach(setAllocationInState);
+    state.projectDataLoaded = true;
+    persistProjectCache();
+  } finally {
+    state.projectDataLoading = false;
+  }
+}
+
+async function fetchProjectRangeForMonth(date, options = {}) {
+  if (!projectsEnabled()) return;
+  const { start, end } = monthBounds(date);
+  await fetchProjectData({ start, end, includeProjects: options.includeProjects !== false });
+}
+
+async function flushProjectQueue() {
+  if (!navigator.onLine || !state.supabase || !state.user || !projectsEnabled()) return;
+  const queue = getProjectQueue();
+  if (!queue.length) return;
+  const remaining = [];
+  for (const operation of queue) {
+    try {
+      let result;
+      if (operation.entity === "project") {
+        result = operation.op === "delete"
+          ? await state.supabase.from("work_projects").delete().eq("id", operation.id).eq("user_id", state.user.id)
+          : await state.supabase.from("work_projects").upsert(operation.payload, { onConflict: "id" });
+      } else {
+        result = operation.op === "delete"
+          ? await state.supabase.from("work_allocations").delete().eq("id", operation.id).eq("user_id", state.user.id)
+          : await state.supabase.from("work_allocations").upsert(operation.payload, { onConflict: "id" });
+      }
+      if (result.error) remaining.push(operation);
+    } catch {
+      remaining.push(operation);
+    }
+  }
+  setProjectQueue(remaining);
+  if (!remaining.length) fetchProjectData().then(renderCurrentViews).catch(() => {});
 }
 
 function childInstitutes(child) {
@@ -527,7 +746,7 @@ function updateSyncStatus(text) {
   if (text) element.textContent = text;
   else if (!navigator.onLine) element.textContent = "Offline · dati sul dispositivo";
   else {
-    const count = getQueue().length;
+    const count = getQueue().length + getProjectQueue().length;
     element.textContent = count ? `${count} modifiche da sincronizzare` : "Sincronizzato";
   }
 }
@@ -613,7 +832,10 @@ async function selectMonth(scope, date) {
   if (scope === "calendar") {
     state.calendarMonth = normalized;
     renderMonthSelector("calendar", normalized);
-    await fetchMonth(normalized).catch((error) => showToast(`Mese non caricato: ${friendlyError(error)}`));
+    await Promise.all([
+      fetchMonth(normalized),
+      fetchProjectRangeForMonth(normalized, { includeProjects: !state.projectDataLoaded })
+    ]).catch((error) => showToast(`Mese non caricato: ${friendlyError(error)}`));
     renderCalendar();
     return;
   }
@@ -621,7 +843,12 @@ async function selectMonth(scope, date) {
   renderMonthSelector("summary", normalized);
   await Promise.all([
     fetchMonth(normalized),
-    fetchSummaryYear(normalized.getFullYear())
+    fetchSummaryYear(normalized.getFullYear()),
+    projectsEnabled() ? fetchProjectData({
+      start: `${normalized.getFullYear()}-01-01`,
+      end: `${normalized.getFullYear()}-12-31`,
+      includeProjects: !state.projectDataLoaded
+    }) : Promise.resolve()
   ]).catch((error) => showToast(`Riepilogo non caricato: ${friendlyError(error)}`));
   renderSummary();
 }
@@ -860,7 +1087,9 @@ async function saveDay(day, { silent = false, skipAutoExitReconcile = false } = 
 }
 
 async function deleteDay(date, { silent = false } = {}) {
+  const linkedAllocations = projectsEnabled() ? allocationsForDate(date) : [];
   state.days.delete(date);
+  if (linkedAllocations.length) state.allocations.delete(date);
   if (state.summaryYearLoaded === Number(date.slice(0, 4))) {
     state.summaryYearDays = state.summaryYearDays.filter((item) => item.work_date !== date);
   } else if (state.summaryYearLoaded === Number(date.slice(0, 4)) + 1) {
@@ -873,6 +1102,8 @@ async function deleteDay(date, { silent = false } = {}) {
 
   if (!navigator.onLine) {
     queueOperation({ op: "delete", work_date: date });
+    linkedAllocations.forEach((allocation) => queueProjectOperation({ entity: "allocation", op: "delete", id: allocation.id }));
+    persistProjectCache();
     if (!silent) showToast("Eliminata sul dispositivo. La modifica verrà sincronizzata online.");
     return;
   }
@@ -880,6 +1111,11 @@ async function deleteDay(date, { silent = false } = {}) {
   const { error } = await state.supabase.from("work_days").delete().eq("user_id", state.user.id).eq("work_date", date);
   if (error) queueOperation({ op: "delete", work_date: date });
   else deleteProjectionForDay(date).catch((caught) => console.warn("[Chrono Flow] proiezione calendario non eliminata", caught));
+  if (linkedAllocations.length) {
+    const allocationResult = await state.supabase.from("work_allocations").delete().eq("user_id", state.user.id).eq("work_date", date);
+    if (allocationResult.error) linkedAllocations.forEach((allocation) => queueProjectOperation({ entity: "allocation", op: "delete", id: allocation.id }));
+    persistProjectCache();
+  }
   updateSyncStatus();
 }
 
@@ -1352,6 +1588,219 @@ function renderToday() {
   $("#today-ticket").value = day.ticket_override === true ? "yes" : day.ticket_override === false ? "no" : "auto";
   $("#today-notes").value = day.notes || "";
   toggleAbsenceFields("today");
+  renderTodayProjects();
+}
+
+function allocationBalanceCopy(allocated, worked) {
+  const difference = worked - allocated;
+  if (difference > 0) return { label: `Da associare ${minutesToDuration(difference)}`, warning: `Mancano ${minutesToDuration(difference)} da associare a una commessa. Puoi completare la giornata comunque.` };
+  if (difference < 0) return { label: `${minutesToDuration(Math.abs(difference))} oltre il lavorato`, warning: `Le ore allocate superano di ${minutesToDuration(Math.abs(difference))} le ore lavorate. Controlla gli intervalli senza bloccare la giornata.` };
+  return { label: "Ore completamente associate", warning: "" };
+}
+
+function allocationRow(allocation, { editable = true } = {}) {
+  const project = state.projects.get(allocation.project_id);
+  const row = document.createElement("div");
+  row.className = "allocation-row";
+  const copy = document.createElement("div");
+  copy.className = "allocation-row-copy";
+  const name = document.createElement("strong");
+  name.textContent = projectLabel(project);
+  const meta = document.createElement("span");
+  meta.textContent = allocation.start_time && allocation.end_time
+    ? `${allocation.start_time}–${allocation.end_time} · ${minutesToDuration(allocation.duration_minutes)}`
+    : minutesToDuration(allocation.duration_minutes);
+  copy.append(name, meta);
+  if (allocation.note) {
+    const note = document.createElement("small");
+    note.textContent = allocation.note;
+    copy.append(note);
+  }
+  row.append(copy);
+  if (editable) {
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "button ghost allocation-edit";
+    edit.textContent = "Modifica";
+    edit.setAttribute("aria-label", `Modifica attività ${projectLabel(project)}`);
+    edit.addEventListener("click", () => openAllocationDialog(allocation.work_date, allocation.id));
+    row.append(edit);
+  }
+  return row;
+}
+
+function renderAllocationList(container, date, options = {}) {
+  if (!container) return;
+  const allocations = allocationsForDate(date);
+  if (!allocations.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-allocation-copy";
+    empty.textContent = "Nessuna attività associata.";
+    container.replaceChildren(empty);
+    return;
+  }
+  container.replaceChildren(...allocations.map((allocation) => allocationRow(allocation, options)));
+}
+
+function renderTodayProjects() {
+  const section = $("#today-projects");
+  if (!section) return;
+  const enabled = setProjectFeatureVisibility();
+  if (!enabled) return;
+  const date = isoDateLocal();
+  const allocated = allocationMinutesForDate(date);
+  const worked = workedMinutesForDate(date);
+  const balance = allocationBalanceCopy(allocated, worked);
+  $("#today-allocation-copy").textContent = `${minutesToDuration(allocated)} allocate / ${minutesToDuration(worked)} lavorate`;
+  $("#today-allocation-balance").textContent = balance.label;
+  const progress = $("#today-allocation-progress");
+  const percentage = worked ? Math.min(100, (allocated / worked) * 100) : 0;
+  progress.style.width = `${percentage}%`;
+  const track = progress.parentElement;
+  track.setAttribute("aria-valuemax", String(Math.max(worked, allocated, 1)));
+  track.setAttribute("aria-valuenow", String(allocated));
+  track.setAttribute("aria-label", `${minutesToDuration(allocated)} allocate su ${minutesToDuration(worked)} lavorate`);
+  const warning = $("#today-allocation-warning");
+  warning.hidden = !balance.warning || (!worked && !allocated);
+  warning.textContent = warning.hidden ? "" : balance.warning;
+  renderAllocationList($("#today-allocation-list"), date);
+}
+
+function renderDayProjects(date) {
+  const field = $("#day-projects-field");
+  if (!field) return;
+  field.hidden = !projectsEnabled();
+  if (field.hidden) return;
+  const allocated = allocationMinutesForDate(date);
+  const worked = workedMinutesForDate(date);
+  const balance = allocationBalanceCopy(allocated, worked);
+  $("#day-allocation-copy").textContent = `${minutesToDuration(allocated)} allocate / ${minutesToDuration(worked)} lavorate`;
+  const warning = $("#day-allocation-warning");
+  warning.hidden = !balance.warning || (!worked && !allocated);
+  warning.textContent = warning.hidden ? "" : balance.warning;
+  renderAllocationList($("#day-allocation-list"), date);
+}
+
+function allocationProjectOptions(selectedId = "") {
+  const active = [...state.projects.values()].filter((project) => project.is_active);
+  const selected = state.projects.get(selectedId);
+  if (selected && !selected.is_active && !active.some((project) => project.id === selected.id)) active.push(selected);
+  return active.sort((left, right) => left.code.localeCompare(right.code, "it", { numeric: true })).map((project) => {
+    const option = document.createElement("option");
+    option.value = project.id;
+    option.textContent = `${projectLabel(project)}${project.is_active ? "" : " · archiviata"}`;
+    return option;
+  });
+}
+
+function renderRecentProjects(selectedId = "") {
+  const root = $("#allocation-recent");
+  const ids = recentProjectIds().filter((id) => state.projects.get(id)?.is_active);
+  const preferred = preferredProjectId();
+  if (preferred && !ids.includes(preferred)) ids.unshift(preferred);
+  if (!ids.length) {
+    root.replaceChildren();
+    return;
+  }
+  const label = document.createElement("span");
+  label.className = "recent-projects-label";
+  label.textContent = "Recenti";
+  const buttons = ids.slice(0, 4).map((id) => {
+    const project = state.projects.get(id);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "project-chip";
+    button.textContent = project.code;
+    button.title = project.description;
+    button.setAttribute("aria-pressed", String(id === selectedId));
+    button.addEventListener("click", () => {
+      $("#allocation-project").value = id;
+      renderRecentProjects(id);
+    });
+    return button;
+  });
+  root.replaceChildren(label, ...buttons);
+}
+
+function openAllocationDialog(date, allocationId = null) {
+  if (!projectsEnabled()) return;
+  const activeProjects = [...state.projects.values()].filter((project) => project.is_active);
+  if (!activeProjects.length && !allocationId) {
+    showToast("Aggiungi prima una commessa attiva nelle Impostazioni.");
+    showScreen("settings");
+    openSettingsSection($("#project-settings"), { focus: true, scroll: true });
+    return;
+  }
+  const allocation = allocationId ? allAllocations().find((item) => item.id === allocationId) : null;
+  state.editingAllocationId = allocation?.id || null;
+  $("#allocation-id").value = allocation?.id || "";
+  $("#allocation-date").value = date;
+  $("#allocation-dialog-title").textContent = allocation ? "Modifica attività" : "Registra attività";
+  $("#allocation-dialog-description").textContent = new Intl.DateTimeFormat("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${date}T12:00:00`));
+  const select = $("#allocation-project");
+  select.replaceChildren(...allocationProjectOptions(allocation?.project_id));
+  select.value = allocation?.project_id || preferredProjectId();
+  $("#allocation-start").value = allocation?.start_time || "";
+  $("#allocation-end").value = allocation?.end_time || "";
+  $("#allocation-duration").value = allocation && !allocation.start_time ? String(allocation.duration_minutes) : "";
+  $("#allocation-note").value = allocation?.note || "";
+  $("#allocation-error").hidden = true;
+  $("#delete-allocation").hidden = !allocation;
+  renderRecentProjects(select.value);
+  $("#allocation-dialog").showModal();
+  window.requestAnimationFrame(() => select.focus());
+}
+
+function minutesFromTimeRange(start, end) {
+  if (!start && !end) return null;
+  if (!start || !end) throw new Error("Compila sia l’orario iniziale sia quello finale.");
+  const [startHour, startMinute] = start.split(":").map(Number);
+  const [endHour, endMinute] = end.split(":").map(Number);
+  const minutes = endHour * 60 + endMinute - (startHour * 60 + startMinute);
+  if (minutes <= 0) throw new Error("L’orario finale deve essere successivo a quello iniziale.");
+  return minutes;
+}
+
+function intervalsOverlap(date, start, end, ignoredId = null) {
+  if (!start || !end) return false;
+  return allocationsForDate(date).some((allocation) => allocation.id !== ignoredId && allocation.start_time && allocation.end_time
+    && start < allocation.end_time && end > allocation.start_time);
+}
+
+async function saveAllocation(payload) {
+  const normalized = setAllocationInState(payload);
+  persistProjectCache();
+  renderCurrentViews();
+  if ($("#day-dialog")?.open && $("#day-date").value === normalized.work_date) renderDayProjects(normalized.work_date);
+  if (!navigator.onLine) {
+    queueProjectOperation({ entity: "allocation", op: "upsert", id: normalized.id, payload: normalized });
+    showToast("Attività salvata sul dispositivo; sincronizzazione in attesa.");
+    return normalized;
+  }
+  const { data, error } = await state.supabase.from("work_allocations").upsert(normalized, { onConflict: "id" }).select().single();
+  if (error) {
+    queueProjectOperation({ entity: "allocation", op: "upsert", id: normalized.id, payload: normalized });
+    showToast("Attività salvata sul dispositivo; sincronizzazione in attesa.");
+    return normalized;
+  }
+  const saved = setAllocationInState(data);
+  persistProjectCache();
+  updateSyncStatus();
+  return saved;
+}
+
+async function deleteAllocation(id, date) {
+  removeAllocationFromState(id, date);
+  persistProjectCache();
+  renderCurrentViews();
+  if ($("#day-dialog")?.open && $("#day-date").value === date) renderDayProjects(date);
+  if (!navigator.onLine) {
+    queueProjectOperation({ entity: "allocation", op: "delete", id });
+    return;
+  }
+  const { error } = await state.supabase.from("work_allocations").delete().eq("id", id).eq("user_id", state.user.id);
+  if (error) queueProjectOperation({ entity: "allocation", op: "delete", id });
+  updateSyncStatus();
 }
 
 async function recordAction(type) {
@@ -1402,7 +1851,9 @@ function renderCalendar() {
     if (date.getMonth() !== month.getMonth()) button.classList.add("outside");
     if (key === isoDateLocal()) button.classList.add("today");
     if (holiday) button.classList.add("recognized-holiday");
-    const label = `${formatLongDate(date)}${holiday ? `, ${holiday.name}` : ""}${info ? `, ${info.label}` : ", nessuna pianificazione"}${day?.events?.length ? ", orari registrati" : ""}`;
+    const dayAllocations = projectsEnabled() ? allocationsForDate(key) : [];
+    const allocatedMinutes = dayAllocations.reduce((total, allocation) => total + allocation.duration_minutes, 0);
+    const label = `${formatLongDate(date)}${holiday ? `, ${holiday.name}` : ""}${info ? `, ${info.label}` : ", nessuna pianificazione"}${day?.events?.length ? ", orari registrati" : ""}${allocatedMinutes ? `, ${minutesToDuration(allocatedMinutes)} allocate a ${dayAllocations.length} commess${dayAllocations.length === 1 ? "a" : "e"}` : ""}`;
     button.setAttribute("aria-label", label);
 
     const number = document.createElement("span");
@@ -1421,6 +1872,13 @@ function renderCalendar() {
       dot.className = "day-dot";
       dot.setAttribute("aria-hidden", "true");
       button.append(dot);
+    }
+    if (allocatedMinutes) {
+      const projectDot = document.createElement("span");
+      projectDot.className = "project-dot";
+      projectDot.textContent = minutesToDuration(allocatedMinutes);
+      projectDot.setAttribute("aria-hidden", "true");
+      button.append(projectDot);
     }
     if (holiday) {
       const mark = document.createElement("span");
@@ -1500,6 +1958,7 @@ function openDayDialog(date) {
   $("#day-saturday-note").hidden = !isWorkingSaturday(day);
   $("#delete-day").hidden = !state.days.has(date);
   toggleAbsenceFields("day");
+  renderDayProjects(date);
   $("#day-dialog").showModal();
 }
 
@@ -2322,6 +2781,79 @@ function renderTraceabilityLedger(yearDays, year) {
   renderHistoricalUnclassified(yearDays);
 }
 
+function renderProjectSummary(selectedYear, start, end) {
+  const disclosure = $("#summary-projects");
+  if (!disclosure) return;
+  disclosure.hidden = !projectsEnabled();
+  if (disclosure.hidden) return;
+  const monthAllocations = allAllocations().filter((allocation) => allocation.work_date >= start && allocation.work_date <= end);
+  const monthTotal = monthAllocations.reduce((total, allocation) => total + allocation.duration_minutes, 0);
+  $("#summary-projects-total").textContent = minutesToDuration(monthTotal);
+  const worked = [...state.days.values()]
+    .filter((day) => day.work_date >= start && day.work_date <= end)
+    .reduce((total, day) => total + calculateTrackedDay(day, lastEventTime(day)).ordinaryWorkedMinutes, 0);
+  const balance = allocationBalanceCopy(monthTotal, worked);
+  $("#summary-projects-caption").textContent = `${minutesToDuration(monthTotal)} allocate su ${minutesToDuration(worked)} lavorate · ${balance.label}.`;
+
+  const byProject = new Map();
+  monthAllocations.forEach((allocation) => byProject.set(allocation.project_id, (byProject.get(allocation.project_id) || 0) + allocation.duration_minutes));
+  const projectRows = [...byProject.entries()].sort((a, b) => b[1] - a[1]).map(([projectId, minutes]) => {
+    const row = document.createElement("div");
+    row.className = "project-hours-row";
+    const name = document.createElement("span");
+    name.textContent = projectLabel(state.projects.get(projectId));
+    const value = document.createElement("strong");
+    value.textContent = minutesToDuration(minutes);
+    row.append(name, value);
+    return row;
+  });
+  if (!projectRows.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-allocation-copy";
+    empty.textContent = "Nessuna ora allocata nel mese selezionato.";
+    projectRows.push(empty);
+  }
+  $("#summary-project-hours").replaceChildren(...projectRows);
+
+  const monthTotals = Array.from({ length: 12 }, () => 0);
+  allAllocations().forEach((allocation) => {
+    if (!allocation.work_date.startsWith(`${selectedYear}-`)) return;
+    monthTotals[Number(allocation.work_date.slice(5, 7)) - 1] += allocation.duration_minutes;
+  });
+  const maximum = Math.max(1, ...monthTotals);
+  $("#summary-project-trend").replaceChildren(...monthTotals.map((minutes, month) => {
+    const bar = document.createElement("div");
+    bar.className = "project-trend-item";
+    bar.setAttribute("aria-label", `${MONTH_NAMES[month]}: ${minutesToDuration(minutes)}`);
+    const value = document.createElement("span");
+    value.className = "project-trend-value";
+    value.style.height = `${Math.max(minutes ? 8 : 2, (minutes / maximum) * 88)}px`;
+    value.title = minutesToDuration(minutes);
+    const label = document.createElement("small");
+    label.textContent = MONTH_NAMES[month].slice(0, 3);
+    bar.append(value, label);
+    return bar;
+  }));
+
+  const byDate = new Map();
+  monthAllocations.forEach((allocation) => byDate.set(allocation.work_date, (byDate.get(allocation.work_date) || 0) + allocation.duration_minutes));
+  const dayLinks = [...byDate.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([date, minutes]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "project-day-link";
+    button.innerHTML = `<span>${shortDate(date)}</span><strong>${minutesToDuration(minutes)}</strong>`;
+    button.addEventListener("click", () => openDayDialog(date));
+    return button;
+  });
+  if (!dayLinks.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-allocation-copy";
+    empty.textContent = "Nessuna giornata da aprire.";
+    dayLinks.push(empty);
+  }
+  $("#summary-project-days").replaceChildren(...dayLinks);
+}
+
 function renderSummary() {
   if (!state.user) return;
   renderMonthSelector("summary", state.summaryMonth);
@@ -2373,6 +2905,7 @@ function renderSummary() {
   renderMonthDetail(selected, rows);
   renderReconciliationDetails(selected, days);
   renderFamilyLimits(selectedYear);
+  renderProjectSummary(selectedYear, start, end);
 
   const maximum = Math.max(1, totals.office, totals.smart, totals.travel, totals.absence, totals.saturday);
   const distributionRows = [
@@ -2754,6 +3287,11 @@ function updateSettingsSummaries() {
   setSettingsSummary("notification-settings-summary", $("#exit-notification-enabled")?.checked
     ? `Attiva · ${$("#exit-notification-lead")?.selectedOptions?.[0]?.textContent || "orario previsto"}`
     : "Disattivata");
+  const projectsOn = $("#projects-enabled")?.checked;
+  const activeProjects = [...state.projects.values()].filter((project) => project.is_active).length;
+  setSettingsSummary("project-settings-summary", projectsOn
+    ? `${activeProjects} commess${activeProjects === 1 ? "a attiva" : "e attive"}`
+    : "Funzione disattivata");
   const childCount = familyChildren().length;
   const roleLabels = { father: "Padre", mother: "Madre", custom: "Personalizzato", unspecified: "Da configurare" };
   setSettingsSummary("family-settings-summary", `${roleLabels[$("#parental-role")?.value || parentalRole()]} · ${childCount} event${childCount === 1 ? "o" : "i"}`);
@@ -2828,6 +3366,7 @@ function updateNewChildParentalSettings() {
 }
 
 function applyApplicabilityToUi() {
+  setProjectFeatureVisibility();
   const locationButtons = $$(".location-option");
   locationButtons.forEach((button) => {
     const enabled = workModeEnabled(button.dataset.location);
@@ -2870,6 +3409,101 @@ function applyApplicabilityToUi() {
   if ($("#today-overtime-card")) $("#today-overtime-card").hidden = !overtimeRelevant;
   const ticketRelevant = state.profile.ticket_office || state.profile.ticket_smart || state.profile.ticket_travel;
   if ($("#today-ticket-card")) $("#today-ticket-card").hidden = !ticketRelevant;
+}
+
+function renderProjectSettings(enabledOverride = null) {
+  const enabled = enabledOverride === null ? projectsEnabled() : enabledOverride;
+  const draftDefaultProjectId = enabledOverride === null ? "" : $("#default-project")?.value || "";
+  $("#projects-enabled").checked = enabled;
+  $("#project-settings-content").hidden = !enabled;
+  const list = $("#project-list");
+  const projects = [...state.projects.values()].sort((left, right) => {
+    if (left.is_active !== right.is_active) return left.is_active ? -1 : 1;
+    return left.code.localeCompare(right.code, "it", { numeric: true });
+  });
+  if (!projects.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state compact project-empty-state";
+    empty.innerHTML = '<strong>Nessuna commessa configurata</strong><span>Aggiungi codice e descrizione breve per iniziare.</span>';
+    list.replaceChildren(empty);
+  } else {
+    list.replaceChildren(...projects.map((project) => {
+      const row = document.createElement("div");
+      row.className = `project-admin-row${project.is_active ? "" : " archived"}`;
+      const copy = document.createElement("div");
+      copy.className = "project-admin-copy";
+      const title = document.createElement("strong");
+      title.textContent = project.code;
+      const description = document.createElement("span");
+      description.textContent = project.description;
+      const status = document.createElement("small");
+      status.textContent = project.is_active ? "Attiva" : "Archiviata · storico conservato";
+      copy.append(title, description, status);
+      const action = document.createElement("button");
+      action.type = "button";
+      action.className = "button secondary project-status-action";
+      action.textContent = project.is_active ? "Archivia" : "Riattiva";
+      action.setAttribute("aria-label", `${project.is_active ? "Archivia" : "Riattiva"} ${projectLabel(project)}`);
+      action.addEventListener("click", () => setProjectActive(project.id, !project.is_active));
+      row.append(copy, action);
+      return row;
+    }));
+  }
+  const defaultSelect = $("#default-project");
+  const current = draftDefaultProjectId || normalizeFamilySettings(state.profile.family_settings).default_project_id || "";
+  const emptyOption = document.createElement("option");
+  emptyOption.value = "";
+  emptyOption.textContent = "Nessuna";
+  const options = projects.filter((project) => project.is_active).map((project) => {
+    const option = document.createElement("option");
+    option.value = project.id;
+    option.textContent = projectLabel(project);
+    return option;
+  });
+  defaultSelect.replaceChildren(emptyOption, ...options);
+  defaultSelect.value = options.some((option) => option.value === current) ? current : "";
+  updateSettingsSummaries();
+}
+
+async function upsertProject(project) {
+  const normalized = normalizeProject(project);
+  const previous = state.projects.get(normalized.id) || null;
+  state.projects.set(normalized.id, normalized);
+  persistProjectCache();
+  renderProjectSettings($("#projects-enabled")?.checked ?? projectsEnabled());
+  setProjectFeatureVisibility();
+  if (!navigator.onLine) {
+    queueProjectOperation({ entity: "project", op: "upsert", id: normalized.id, payload: normalized });
+    showToast("Commessa salvata sul dispositivo; sincronizzazione in attesa.");
+    return normalized;
+  }
+  const { data, error } = await state.supabase.from("work_projects").upsert(normalized, { onConflict: "id" }).select().single();
+  if (error) {
+    if (previous) state.projects.set(previous.id, previous);
+    else state.projects.delete(normalized.id);
+    persistProjectCache();
+    renderProjectSettings($("#projects-enabled")?.checked ?? projectsEnabled());
+    throw error;
+  }
+  const saved = normalizeProject(data);
+  state.projects.set(saved.id, saved);
+  persistProjectCache();
+  renderProjectSettings($("#projects-enabled")?.checked ?? projectsEnabled());
+  return saved;
+}
+
+async function setProjectActive(projectId, active) {
+  const project = state.projects.get(projectId);
+  if (!project) return;
+  try {
+    await upsertProject({ ...project, is_active: active, updated_at: new Date().toISOString() });
+    if (!active && $("#default-project").value === projectId) $("#default-project").value = "";
+    renderProjectSettings($("#projects-enabled")?.checked ?? projectsEnabled());
+    renderCurrentViews();
+    showToast(active ? "Commessa riattivata." : "Commessa archiviata. Lo storico resta disponibile.");
+  } catch (error) {
+    showToast(`Commessa non aggiornata: ${friendlyError(error)}`);
+  }
 }
 
 function renderSettings() {
@@ -2918,6 +3552,7 @@ function renderSettings() {
   renderNotificationPermissionStatus();
   updateParentalRoleUi();
   renderChildren();
+  renderProjectSettings();
   applyApplicabilityToUi();
   updateSettingsSummaries();
 }
@@ -2967,7 +3602,14 @@ function showScreen(name) {
   syncHomeClock();
   if (name === "summary") {
     renderSummary();
-    fetchSummaryYear(state.summaryMonth.getFullYear())
+    Promise.all([
+      fetchSummaryYear(state.summaryMonth.getFullYear()),
+      projectsEnabled() ? fetchProjectData({
+        start: `${state.summaryMonth.getFullYear()}-01-01`,
+        end: `${state.summaryMonth.getFullYear()}-12-31`,
+        includeProjects: !state.projectDataLoaded
+      }) : Promise.resolve()
+    ])
       .then(renderSummary)
       .catch((error) => showToast(`Riepilogo annuale non disponibile: ${friendlyError(error)}`));
   }
@@ -2978,6 +3620,11 @@ function showScreen(name) {
     fetchSummaryYear(settingsYear)
       .then(updateLeaveSettingsPreview)
       .catch(() => { $("#leave-carryover-preview").textContent = "Non disponibile offline"; });
+    if (projectsEnabled() && !state.projectDataLoaded) {
+      fetchProjectData().then(() => renderProjectSettings()).catch((error) => {
+        $("#project-settings-status").textContent = `Commesse non caricate: ${friendlyError(error)}. Verifica di aver eseguito la migration 3.3.0.`;
+      });
+    }
   }
   $("#main-content").focus({ preventScroll: true });
   window.scrollTo({ top: 0, behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
@@ -3162,17 +3809,25 @@ function ignoreLegacyMigration() {
 async function loadApplication(user) {
   state.user = user;
   state.days.clear();
+  state.projects.clear();
+  state.allocations.clear();
+  state.projectDataLoaded = false;
   state.summaryYearDays = [];
   state.summaryPreviousYearDays = [];
   state.summaryYearLoaded = null;
   state.summaryYearLoading = false;
   loadLocalCache();
+  loadProjectCache();
   try {
+    await fetchProfile();
     await Promise.all([
-      fetchProfile(),
       fetchMonth(state.calendarMonth),
       fetchChildSicknessUsage(),
-      fetchSundayHolidayRecoveryUsage()
+      fetchSundayHolidayRecoveryUsage(),
+      projectsEnabled() ? fetchProjectData({
+        start: `${state.calendarMonth.getFullYear()}-01-01`,
+        end: `${state.calendarMonth.getFullYear()}-12-31`
+      }) : Promise.resolve()
     ]);
   } catch (error) {
     if (!state.days.size) {
@@ -3193,6 +3848,7 @@ async function loadApplication(user) {
   syncHomeClock();
   updateSyncStatus();
   flushQueue();
+  flushProjectQueue();
   offerLegacyMigration();
 }
 
@@ -3205,6 +3861,9 @@ function showAuth() {
   state.calendarSharingService = null;
   state.user = null;
   state.days.clear();
+  state.projects.clear();
+  state.allocations.clear();
+  state.projectDataLoaded = false;
   state.sundayHolidayRecoveryDays = [];
   state.summaryYearDays = [];
   state.summaryPreviousYearDays = [];
@@ -3283,7 +3942,7 @@ function registerServiceWorker() {
     window.location.reload();
   });
   navigator.serviceWorker
-    .register("./sw.v3.2.2.js", { updateViaCache: "none" })
+    .register("./sw.v3.3.0.js", { updateViaCache: "none" })
     .then((registration) => registration.update())
     .catch(() => {});
 }
@@ -3405,6 +4064,98 @@ function bindEvents() {
     updateExpanded();
   });
   initSettingsAccordion();
+  $("#projects-enabled").addEventListener("change", () => {
+    $("#project-settings-content").hidden = !$("#projects-enabled").checked;
+    updateSettingsSummaries();
+    if ($("#projects-enabled").checked && !state.projectDataLoaded) {
+      fetchProjectData({ force: true }).then(() => renderProjectSettings(true)).catch((error) => {
+        $("#project-settings-status").textContent = `Commesse non caricate: ${friendlyError(error)}. Esegui la migration 3.3.0 prima di attivare la funzione.`;
+      });
+    }
+  });
+  $("#add-project").addEventListener("click", async () => {
+    const code = $("#project-code").value.trim().toUpperCase();
+    const description = $("#project-description").value.trim();
+    if (!code || !description) {
+      (!code ? $("#project-code") : $("#project-description")).focus();
+      return showToast("Inserisci codice e descrizione breve della commessa.");
+    }
+    if ([...state.projects.values()].some((project) => project.code.toLocaleLowerCase("it") === code.toLocaleLowerCase("it"))) {
+      $("#project-code").focus();
+      return showToast("Esiste già una commessa con questo codice.");
+    }
+    try {
+      await upsertProject({ id: crypto.randomUUID(), user_id: state.user.id, code, description, is_active: true });
+      $("#project-code").value = "";
+      $("#project-description").value = "";
+      showToast("Commessa aggiunta.");
+    } catch (error) {
+      showToast(`Commessa non aggiunta: ${friendlyError(error)}`);
+    }
+  });
+  $("#add-today-allocation").addEventListener("click", () => openAllocationDialog(isoDateLocal()));
+  $("#add-day-allocation").addEventListener("click", () => openAllocationDialog($("#day-date").value));
+  $("#close-allocation-dialog").addEventListener("click", () => $("#allocation-dialog").close());
+  $("#allocation-dialog").addEventListener("cancel", () => { state.editingAllocationId = null; });
+  $("#allocation-project").addEventListener("change", (event) => renderRecentProjects(event.target.value));
+  $$('[data-quick-minutes]').forEach((button) => button.addEventListener("click", () => {
+    const current = Number($("#allocation-duration").value) || 0;
+    $("#allocation-duration").value = String(Math.min(1440, current + Number(button.dataset.quickMinutes)));
+    $("#allocation-start").value = "";
+    $("#allocation-end").value = "";
+  }));
+  ["#allocation-start", "#allocation-end"].forEach((selector) => $(selector).addEventListener("input", () => {
+    if ($("#allocation-start").value || $("#allocation-end").value) $("#allocation-duration").value = "";
+  }));
+  $("#allocation-duration").addEventListener("input", () => {
+    if ($("#allocation-duration").value) {
+      $("#allocation-start").value = "";
+      $("#allocation-end").value = "";
+    }
+  });
+  $("#allocation-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const errorBox = $("#allocation-error");
+    errorBox.hidden = true;
+    try {
+      const id = $("#allocation-id").value || crypto.randomUUID();
+      const date = $("#allocation-date").value;
+      const projectId = $("#allocation-project").value;
+      const start = $("#allocation-start").value || null;
+      const end = $("#allocation-end").value || null;
+      const rangeMinutes = minutesFromTimeRange(start, end);
+      const duration = rangeMinutes ?? clampInt($("#allocation-duration").value, 1, 1440, 0);
+      if (!projectId) throw new Error("Seleziona una commessa.");
+      if (!duration) throw new Error("Inserisci un intervallo oppure una durata.");
+      if (intervalsOverlap(date, start, end, id)) throw new Error("Questo intervallo si sovrappone a un’attività già registrata.");
+      await saveAllocation({
+        id,
+        user_id: state.user.id,
+        project_id: projectId,
+        work_date: date,
+        start_time: start,
+        end_time: end,
+        duration_minutes: duration,
+        note: $("#allocation-note").value.trim()
+      });
+      $("#allocation-dialog").close();
+      state.editingAllocationId = null;
+      showToast("Attività salvata.");
+    } catch (error) {
+      errorBox.textContent = friendlyError(error);
+      errorBox.hidden = false;
+      errorBox.focus();
+    }
+  });
+  $("#delete-allocation").addEventListener("click", async () => {
+    const id = $("#allocation-id").value;
+    const date = $("#allocation-date").value;
+    if (!id) return;
+    await deleteAllocation(id, date);
+    $("#allocation-dialog").close();
+    state.editingAllocationId = null;
+    showToast("Attività eliminata.");
+  });
   $$(".location-option").forEach((button) => button.addEventListener("click", async () => {
     updateHeroMode(button.dataset.location);
     updateLocationChoice(button.dataset.location);
@@ -3574,10 +4325,12 @@ function bindEvents() {
   $("#delete-day").addEventListener("click", async () => {
     const date = $("#day-date").value;
     const before = structuredClone(state.days.get(date));
+    const beforeAllocations = allocationsForDate(date).map((allocation) => structuredClone(allocation));
     await deleteDay(date, { silent: true });
     $("#day-dialog").close();
     showToast("Giornata eliminata.", async () => {
       await saveDay(before, { silent: true });
+      for (const allocation of beforeAllocations) await saveAllocation(allocation);
       showToast("Giornata ripristinata.");
     });
   });
@@ -3779,6 +4532,10 @@ function bindEvents() {
       show_distribution: $("#summary-show-distribution").checked,
       show_annual_table: $("#summary-show-annual-table").checked
     };
+    familySettings.projects_enabled = $("#projects-enabled").checked;
+    familySettings.default_project_id = familySettings.projects_enabled && $("#default-project").value
+      ? $("#default-project").value
+      : null;
     familySettings.contract_settings = {
       ...familySettings.contract_settings,
       sunday_holiday_rule: $("input[name='sunday-holiday-rule']:checked")?.value || "none",
@@ -3850,7 +4607,16 @@ function bindEvents() {
   $("#export-data").addEventListener("click", async () => {
     const { data, error } = await state.supabase.from("work_days").select("*").order("work_date");
     if (error) return showToast(`Backup non creato: ${friendlyError(error)}`);
-    const backup = { version: 2, exported_at: new Date().toISOString(), profile: state.profile, days: data || [] };
+    let projectData = {};
+    if (projectsEnabled()) {
+      const [projectsResult, allocationsResult] = await Promise.all([
+        state.supabase.from("work_projects").select("*").order("code"),
+        state.supabase.from("work_allocations").select("*").order("work_date")
+      ]);
+      if (projectsResult.error || allocationsResult.error) return showToast(`Backup non creato: ${friendlyError(projectsResult.error || allocationsResult.error)}`);
+      projectData = { projects: projectsResult.data || [], allocations: allocationsResult.data || [] };
+    }
+    const backup = { version: projectsEnabled() ? 3 : 2, exported_at: new Date().toISOString(), profile: state.profile, days: data || [], ...projectData };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -3881,8 +4647,21 @@ function bindEvents() {
         data.forEach((day) => syncSundayHolidayRecoveryUsage(normalizeDay(day)));
         persistLocalCache();
       }
+      if (Array.isArray(backup.projects) && backup.projects.length) {
+        const projectPayload = backup.projects.map((project) => ({ ...normalizeProject(project), user_id: state.user.id }));
+        const projectResult = await state.supabase.from("work_projects").upsert(projectPayload, { onConflict: "id" }).select();
+        if (projectResult.error) throw projectResult.error;
+        (projectResult.data || []).forEach((project) => state.projects.set(project.id, normalizeProject(project)));
+      }
+      if (Array.isArray(backup.allocations) && backup.allocations.length) {
+        const allocationPayload = backup.allocations.map((allocation) => ({ ...normalizeAllocation(allocation), user_id: state.user.id }));
+        const allocationResult = await state.supabase.from("work_allocations").upsert(allocationPayload, { onConflict: "id" }).select();
+        if (allocationResult.error) throw allocationResult.error;
+        (allocationResult.data || []).forEach(setAllocationInState);
+        persistProjectCache();
+      }
       renderCurrentViews();
-      showToast(`${payload.length} giornate importate o aggiornate.`);
+      showToast(`${payload.length} giornate importate o aggiornate${Array.isArray(backup.allocations) ? ` · ${backup.allocations.length} attività` : ""}.`);
     } catch (error) {
       showToast(`Importazione non riuscita: ${friendlyError(error)}`);
     } finally {
@@ -3890,7 +4669,7 @@ function bindEvents() {
     }
   });
 
-  window.addEventListener("online", () => flushQueue());
+  window.addEventListener("online", () => { flushQueue(); flushProjectQueue(); });
   window.addEventListener("offline", () => updateSyncStatus());
 }
 

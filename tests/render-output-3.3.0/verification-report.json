@@ -1,0 +1,81 @@
+{
+  "baseline_disabled_mobile": {
+    "scrollWidth": 390,
+    "viewport": 390,
+    "overflow": false,
+    "featureVisible": false,
+    "minActionHeight": 46,
+    "openSettings": [
+      "profile-settings"
+    ],
+    "projectSettingsVisible": false
+  },
+  "current_disabled_mobile": {
+    "scrollWidth": 390,
+    "viewport": 390,
+    "overflow": false,
+    "featureVisible": false,
+    "minActionHeight": 46,
+    "openSettings": [
+      "profile-settings"
+    ],
+    "projectSettingsVisible": false
+  },
+  "baseline_disabled_desktop": {
+    "scrollWidth": 1440,
+    "viewport": 1440,
+    "overflow": false,
+    "featureVisible": false,
+    "minActionHeight": 46,
+    "openSettings": [
+      "profile-settings"
+    ],
+    "projectSettingsVisible": false
+  },
+  "current_disabled_desktop": {
+    "scrollWidth": 1440,
+    "viewport": 1440,
+    "overflow": false,
+    "featureVisible": false,
+    "minActionHeight": 46,
+    "openSettings": [
+      "profile-settings"
+    ],
+    "projectSettingsVisible": false
+  },
+  "projects_mobile": {
+    "scrollWidth": 390,
+    "viewport": 390,
+    "overflow": false,
+    "featureVisible": true,
+    "minActionHeight": 44,
+    "openSettings": [
+      "profile-settings"
+    ],
+    "projectSettingsVisible": false
+  },
+  "projects_desktop": {
+    "scrollWidth": 1440,
+    "viewport": 1440,
+    "overflow": false,
+    "featureVisible": true,
+    "minActionHeight": 44,
+    "openSettings": [
+      "profile-settings"
+    ],
+    "projectSettingsVisible": false
+  },
+  "projects_settings_mobile": {
+    "scrollWidth": 390,
+    "viewport": 390,
+    "overflow": false,
+    "featureVisible": false,
+    "minActionHeight": 46,
+    "openSettings": [
+      "project-settings"
+    ],
+    "projectSettingsVisible": true
+  },
+  "disabled_mobile_pixel_diff": 0.0,
+  "disabled_desktop_pixel_diff": 0.0
+}

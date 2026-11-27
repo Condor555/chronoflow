@@ -19,17 +19,18 @@ const byId = (items) => [...items].sort((a,b) => a.id.localeCompare(b.id));
 
 const macroIds = [
   'profile-settings', 'work-mode-settings', 'ticket-settings', 'leave-settings',
-  'family-settings', 'notification-settings', 'calendar-sharing-settings', 'account-data-settings'
+  'family-settings', 'project-settings', 'notification-settings', 'calendar-sharing-settings', 'account-data-settings'
 ];
 
-test('Impostazioni espone soltanto le otto macro-sezioni concordate', () => {
+test('Impostazioni espone le otto macro-sezioni 3.2.2 più Commesse opzionale', () => {
   const macros = [...settings.matchAll(/<details id="([^"]+)" class="details-card settings-disclosure" data-settings-section/g)].map((match) => match[1]);
   assert.deepEqual(macros, macroIds);
-  assert.equal((settings.match(/data-settings-section/g) || []).length, 8);
+  assert.equal((settings.match(/data-settings-section/g) || []).length, 9);
   assert.match(settings, /<strong>Giornata di lavoro<\/strong>/);
   assert.match(settings, /<strong>Modalità e straordinari<\/strong>/);
   assert.match(settings, /<strong>Ferie, festività e recuperi<\/strong>/);
   assert.match(settings, /<strong>Famiglia e congedi<\/strong>/);
+  assert.match(settings, /<strong>Commesse<\/strong>/);
   assert.match(settings, /<strong>Account e dati<\/strong>/);
 });
 
@@ -50,7 +51,7 @@ test('single-open accordion conserva ARIA, focus e scroll mobile', () => {
 test('il refactor non perde o duplica alcun controllo dati della build corrente', () => {
   assert.deepEqual(byId(currentControls), byId(expectedControls));
   assert.equal(new Set(currentControls.map((item) => item.id)).size, currentControls.length);
-  assert.equal(currentControls.length, 52);
+  assert.equal(currentControls.length, 56);
 });
 
 test('validazione apre la macro corretta prima di focalizzare un controllo invalido', () => {
