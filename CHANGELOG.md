@@ -1,3 +1,12 @@
+# Chrono Flow 3.1.0 — Ripristino UI cumulativo
+
+- Ripristinata integralmente la UI/UX 2.9.4: Oggi, Calendario personale, Riepilogo, Impostazioni e Profilo/account.
+- Integrata la condivisione calendario 3.0.x in `Calendario → Il mio / Condivisi`, con caricamento lazy e fallback isolato.
+- Conservate le correzioni Supabase, routing e service worker della 3.0.5.
+- Aggiunta uscita automatica Smart Working quando lo straordinario Smart è disattivato.
+- Nessuna modifica a `src/config.js`, SQL, RLS o dati.
+- 136 test automatici superati.
+
 # Changelog
 
 ## 3.0.0 — 2026-11-26

@@ -1,10 +1,10 @@
 {
   "name": "chrono-flow",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check src/app.mjs && node --check src/calendar-sharing.mjs && node --check src/calendar-sharing-view.mjs && node --test tests/*.test.mjs"
+    "check": "node --check src/app.js && node --check src/smart-auto-exit.mjs && node --check src/calendar-sharing.v3.0.5.mjs && node --check src/calendar-sharing-view.v3.0.5.mjs && node --check sw.v3.1.0.js && node --test tests/*.test.mjs"
   }
 }

@@ -27,15 +27,15 @@ async function graph(entry) {
   return files;
 }
 
-test('bootstrap usa un entry point e un grafo Calendar immutabili', async () => {
+test('bootstrap ripristinato usa app 3.1 e mantiene il grafo Calendar stabile e lazy', async () => {
   const index = await readFile(join(root, 'index.html'), 'utf8');
-  const worker = await readFile(join(root, 'sw.v3.0.5.js'), 'utf8');
-  assert.match(index, /src=["']src\/app\.v3\.0\.5\.mjs["']/);
+  const worker = await readFile(join(root, 'sw.v3.1.0.js'), 'utf8');
+  assert.match(index, /src=["']src\/app\.js\?v=3\.1\.0["']/);
   assert.doesNotMatch(index, /src\/app\.mjs/);
   for (const path of [
-    'app.v3.0.5.mjs', 'calendar-record.v3.0.5.mjs', 'calendar-privacy.v3.0.5.mjs',
-    'calendar-sharing.v3.0.5.mjs', 'calendar-sharing-view.v3.0.5.mjs', 'route-controller.v3.0.5.mjs'
-  ]) assert.match(worker, new RegExp(path.replaceAll('.', '\\.')));
+    'app.js?v=3.1.0', 'calendar-record.v3.0.5.mjs', 'calendar-privacy.v3.0.5.mjs',
+    'calendar-sharing.v3.0.5.mjs', 'calendar-sharing-view.v3.0.5.mjs', 'smart-auto-exit.mjs'
+  ]) assert.match(worker, new RegExp(path.replaceAll('.', '\\.').replace('?', '\\?')));
   assert.doesNotMatch(worker, /src\/calendar-sharing-view\.mjs['"]/);
 });
 
@@ -46,9 +46,9 @@ test('il grafo Calendar non dereferenzia clock_in/clock_out direttamente', async
   }
 });
 
-test('il bootstrap non torna ai moduli Supabase duplicati o a SUPABASE_ANON_KEY', async () => {
-  const files = await graph('src/app.v3.0.5.mjs');
-  const app = files.get('src/app.v3.0.5.mjs');
+test('il bootstrap ripristinato non torna ai moduli Supabase duplicati o a SUPABASE_ANON_KEY', async () => {
+  const files = await graph('src/app.js');
+  const app = files.get('src/app.js');
   assert.match(app, /from\s+['"]\.\/supabase-client\.v3\.0\.3\.mjs['"]/);
   assert.doesNotMatch(app, /from\s+['"]\.\/supabase-client\.mjs['"]/);
   assert.doesNotMatch(app, /^import[^\n]+calendar-sharing/m, 'Calendar non deve bloccare il bootstrap statico');

@@ -172,7 +172,7 @@ export function secondsToDuration(totalSeconds) {
 
 export function calculateDay(events = [], targetMinutes = 456, overtimeThreshold = 10, now = new Date()) {
   const ordered = [...events]
-    .filter((event) => event && event.type && event.at)
+    .filter((event) => event && !event.superseded && event.type && event.at)
     .sort((a, b) => new Date(a.at) - new Date(b.at));
 
   let workingSince = null;

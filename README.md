@@ -1,3 +1,14 @@
+# Chrono Flow 3.1.0 — UI ripristinata e calendario condiviso
+
+Questa release ripristina integralmente l’esperienza 2.9.4 e conserva condivisione calendario e correzioni di stabilità 3.0.5. La navigazione principale è **Oggi · Calendario · Riepilogo · Impostazioni**, con Profilo/account separato.
+
+La nuova regola Smart Working chiude automaticamente la giornata all’uscita calcolata quando lo straordinario Smart è disattivato. `src/config.js`, SQL, RLS e dati restano invariati.
+
+- Audit: `docs/RESTORATION_AUDIT_2.9.4_TO_3.0.5.md`
+- Installazione patch: `docs/INSTALLAZIONE_PATCH_3.1.0.md`
+
+---
+
 # Chrono Flow 3.0.0 — Condivisione calendario
 
 Questa release aggiunge la condivisione del calendario con utenti specifici, in sola lettura, senza esporre direttamente le tabelle personali.

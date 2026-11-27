@@ -8,7 +8,7 @@ const [html, css, app, liveClock, sw, homeDisplay] = await Promise.all([
   readFile(new URL("styles.css", root), "utf8"),
   readFile(new URL("src/app.js", root), "utf8"),
   readFile(new URL("src/live-clock.mjs", root), "utf8"),
-  readFile(new URL("sw.js", root), "utf8"),
+  readFile(new URL("sw.v3.1.0.js", root), "utf8"),
   readFile(new URL("src/home-display.mjs", root), "utf8")
 ]);
 
@@ -25,7 +25,7 @@ test("MonthSelector Chrono Flow sostituisce i controlli month nativi", () => {
 test("tutte le card Impostazioni usano progressive disclosure con riepilogo", () => {
   const expected = [
     "profile-settings", "work-mode-settings", "leave-settings", "ticket-settings", "absence-settings",
-    "summary-preferences", "notification-settings", "family-settings", "holiday-settings", "security-settings", "data-settings"
+    "summary-preferences", "calendar-sharing-settings", "notification-settings", "family-settings", "holiday-settings", "security-settings", "data-settings"
   ];
   for (const id of expected) {
     assert.match(html, new RegExp(`<details id=["']${id}["'][^>]*settings-disclosure`));
@@ -114,8 +114,9 @@ test("card timer usa esattamente i colori delle pill per Ufficio, Casa e Trasfer
   assert.match(homeDisplay, /mode-office/);
   assert.match(homeDisplay, /mode-smart/);
   assert.match(homeDisplay, /mode-travel/);
-  assert.match(sw, /url\.pathname\.endsWith\("\/styles\.css"\)/);
-  assert.match(sw, /url\.pathname\.endsWith\("\/src\/home-display\.mjs"\)/);
+  assert.match(sw, /\.\/styles\.css/);
+  assert.match(sw, /\.\/src\/home-display\.mjs/);
+  assert.match(sw, /isCodeOrStyle|codeOrStyle/);
 
   const luminance = (hex) => {
     const channels = hex.match(/[a-f\d]{2}/gi).map((value) => Number.parseInt(value, 16) / 255)

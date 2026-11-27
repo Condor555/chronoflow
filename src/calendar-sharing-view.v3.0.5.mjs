@@ -51,14 +51,20 @@ function details(value) {
 }
 
 export class CalendarSharingView {
-  constructor(root, service, { announce = () => {}, logger = console } = {}) {
+  constructor(root, service, {
+    announce = () => {},
+    logger = console,
+    includeMine = true,
+    initialSection = includeMine ? 'mine' : 'shared'
+  } = {}) {
     this.root = root;
     this.service = service;
     this.announce = announce;
     this.logger = logger;
+    this.includeMine = includeMine;
     const now = new Date();
     this.state = {
-      section: 'mine', year: now.getFullYear(), month: now.getMonth(), week: toIsoDate(now),
+      section: initialSection, year: now.getFullYear(), month: now.getMonth(), week: toIsoDate(now),
       dashboard: null, incoming: [], calendars: [], selectedSpace: null, compareSpaces: [], entries: new Map(), busy: false, error: null
     };
     this.onClick = this.onClick.bind(this);
@@ -77,6 +83,15 @@ export class CalendarSharingView {
     this.root.removeEventListener('click', this.onClick);
     this.root.removeEventListener('change', this.onChange);
     this.root.removeEventListener('submit', this.onSubmit);
+  }
+
+  async setSection(section) {
+    const allowed = this.includeMine
+      ? new Set(['mine', 'shared', 'compare', 'settings'])
+      : new Set(['shared', 'compare', 'settings']);
+    this.state.section = allowed.has(section) ? section : (this.includeMine ? 'mine' : 'shared');
+    this.safeRender();
+    await this.loadVisibleEntries();
   }
 
   async refresh() {
@@ -157,7 +172,7 @@ export class CalendarSharingView {
           <button class="icon-button" data-action="refresh" aria-label="Aggiorna calendario">↻</button>
         </div>
         <div class="segmented" role="tablist" aria-label="Sezioni calendario">
-          ${this.tab('mine', 'Il mio')}${this.tab('shared', `Condivisi${pendingCount ? ` · ${pendingCount}` : ''}`)}${this.tab('compare', 'Confronta')}
+          ${this.includeMine ? this.tab('mine', 'Il mio') : ''}${this.tab('shared', `Condivisi${pendingCount ? ` · ${pendingCount}` : ''}`)}${this.tab('compare', 'Confronta')}
         </div>
         ${s.busy ? '<p class="calendar-status" role="status">Caricamento calendario…</p>' : ''}
         ${s.error ? `<div class="notice-card" role="alert"><strong>Calendario temporaneamente non disponibile</strong><p>${esc(s.error)}</p></div>` : ''}
@@ -260,7 +275,7 @@ export class CalendarSharingView {
   async onClick(event) {
     const button = event.target.closest('button');
     if (!button) return;
-    if (button.dataset.section) { this.state.section = button.dataset.section; this.safeRender(); await this.loadVisibleEntries(); return; }
+    if (button.dataset.section) { await this.setSection(button.dataset.section); return; }
     if (button.dataset.action === 'refresh') return this.refresh();
     if (button.dataset.month) { const next = shiftMonth(this.state.year, this.state.month, Number(button.dataset.month)); Object.assign(this.state, next); this.safeRender(); return this.loadVisibleEntries(); }
     if (button.dataset.week) { this.state.week = toIsoDate(addDays(this.state.week, Number(button.dataset.week))); this.safeRender(); return this.loadVisibleEntries(); }

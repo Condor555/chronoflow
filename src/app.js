@@ -39,16 +39,17 @@ import {
   isIosDevice,
   isStandaloneMode
 } from "./pwa-install.mjs";
+import { supabase, hasSupabaseConfig } from "./supabase-client.v3.0.3.mjs";
+import {
+  formatAutomaticExitTime,
+  reconcileSmartAutomaticExit,
+  smartAutomaticExitAt,
+  smartAutomaticExitEnabled
+} from "./smart-auto-exit.mjs";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
-// ORARI_CONFIG resta supportato per non interrompere installazioni già configurate.
-const config = window.CHRONO_FLOW_CONFIG || window.ORARI_CONFIG || {};
-const configured = /^https?:\/\//.test(config.supabaseUrl || "")
-  && !String(config.supabaseUrl).includes("TUO-PROGETTO")
-  && typeof config.supabaseAnonKey === "string"
-  && config.supabaseAnonKey.length > 40
-  && !config.supabaseAnonKey.includes("LA-TUA");
+const configured = hasSupabaseConfig();
 
 const DEFAULT_PROFILE = {
   display_name: "",
@@ -107,7 +108,12 @@ const state = {
   notificationTarget: null,
   deferredInstallPrompt: null,
   undo: null,
-  busy: false
+  busy: false,
+  autoExitSaving: false,
+  calendarScope: "mine",
+  calendarSharingService: null,
+  calendarSharingView: null,
+  calendarSharingLoading: null
 };
 
 const homeClock = createLiveClock({ tick: renderTodayTick, intervalMs: 1000 });
@@ -345,6 +351,44 @@ function calculateTrackedDay(day, now = new Date()) {
     breakForType(state.profile, effectiveType),
     now
   );
+}
+
+function smartAutoExitPolicy(day, now = new Date()) {
+  const effectiveType = day.actual_type || day.planned_type || "office";
+  const automatic = smartAutomaticExitEnabled(effectiveType, overtimeSettings());
+  const autoExitAt = automatic
+    ? smartAutomaticExitAt({
+      events: day.events,
+      targetMinutes: state.profile.target_minutes,
+      standardBreakMinutes: breakForType(state.profile, effectiveType),
+      now
+    })
+    : null;
+  return { automatic, autoExitAt };
+}
+
+function reconcileDayAutomaticExit(day, now = new Date()) {
+  const effectiveType = day.actual_type || day.planned_type || "office";
+  return reconcileSmartAutomaticExit(day, {
+    overtimeSettings: overtimeSettings(),
+    targetMinutes: state.profile.target_minutes,
+    standardBreakMinutes: breakForType(state.profile, effectiveType),
+    now
+  });
+}
+
+async function closeSmartDayWhenDue(day, now = new Date()) {
+  if (state.autoExitSaving || !state.user) return false;
+  const reconciled = reconcileDayAutomaticExit(day, now);
+  if (!reconciled.changed || !reconciled.closed) return false;
+  state.autoExitSaving = true;
+  try {
+    await saveDay(reconciled.day, { silent: true, skipAutoExitReconcile: true });
+    showToast(`Giornata Smart conclusa automaticamente alle ${formatAutomaticExitTime(reconciled.autoExitAt)}.`);
+    return true;
+  } finally {
+    state.autoExitSaving = false;
+  }
 }
 
 const INSTALL_DISMISSAL_KEY = "chrono-flow:pwa-install-dismissed-at";
@@ -774,8 +818,9 @@ function syncSummaryYearDay(day) {
   }
 }
 
-async function saveDay(day, { silent = false } = {}) {
-  const normalized = normalizeDay(day);
+async function saveDay(day, { silent = false, skipAutoExitReconcile = false } = {}) {
+  let normalized = normalizeDay(day);
+  if (!skipAutoExitReconcile) normalized = normalizeDay(reconcileDayAutomaticExit(normalized).day);
   state.days.set(normalized.work_date, normalized);
   syncSummaryYearDay(normalized);
   syncSundayHolidayRecoveryUsage(normalized);
@@ -808,6 +853,7 @@ async function saveDay(day, { silent = false } = {}) {
   syncChildLinkedUsage(saved);
   persistLocalCache();
   updateSyncStatus();
+  syncProjectionForDay(saved).catch((error) => console.warn("[Chrono Flow] proiezione calendario non aggiornata", error));
   return data;
 }
 
@@ -831,7 +877,102 @@ async function deleteDay(date, { silent = false } = {}) {
 
   const { error } = await state.supabase.from("work_days").delete().eq("user_id", state.user.id).eq("work_date", date);
   if (error) queueOperation({ op: "delete", work_date: date });
+  else deleteProjectionForDay(date).catch((caught) => console.warn("[Chrono Flow] proiezione calendario non eliminata", caught));
   updateSyncStatus();
+}
+
+async function calendarSharingService() {
+  if (state.calendarSharingService) return state.calendarSharingService;
+  const { CalendarSharingService } = await import("./calendar-sharing.v3.0.5.mjs");
+  state.calendarSharingService = new CalendarSharingService(state.supabase);
+  await state.calendarSharingService.ensurePersonalSpace();
+  return state.calendarSharingService;
+}
+
+function projectionForDay(day) {
+  const normalized = normalizeDay(day);
+  const effectiveType = normalized.actual_type || normalized.planned_type || "office";
+  const result = calculateTrackedDay(normalized, lastEventTime(normalized));
+  return {
+    work_date: normalized.work_date,
+    mode: effectiveType === "absence" ? null : effectiveType,
+    is_absent: effectiveType === "absence",
+    generic_absence_label: effectiveType === "absence" ? "Assente" : null,
+    clock_in: result.firstEntry ? formatTime(result.firstEntry) : null,
+    clock_out: result.lastExit ? formatTime(result.lastExit) : null,
+    overtime_minutes: result.overtimeMinutes,
+    meal_voucher: ticketForDay(state.profile, normalized),
+    leave_balance_days: null,
+    absence_type: normalized.absence_type,
+    personal_notes: normalized.notes || null,
+    children_info: normalized.child_id ? { child_id: normalized.child_id } : null
+  };
+}
+
+async function syncProjectionForDay(day) {
+  if (!state.calendarSharingService || !navigator.onLine) return;
+  await state.calendarSharingService.upsertProjection([projectionForDay(day)]);
+}
+
+async function deleteProjectionForDay(date) {
+  if (!state.calendarSharingService || !navigator.onLine) return;
+  await state.calendarSharingService.deleteProjection(date, date);
+}
+
+async function syncLoadedCalendarProjection() {
+  if (!navigator.onLine) return;
+  const service = await calendarSharingService();
+  const entries = [...state.days.values()].map(projectionForDay);
+  if (entries.length) await service.upsertProjection(entries);
+}
+
+async function ensureCalendarSharingView(section = "shared") {
+  if (state.calendarSharingView) {
+    await state.calendarSharingView.setSection(section);
+    return state.calendarSharingView;
+  }
+  if (state.calendarSharingLoading) return state.calendarSharingLoading;
+  const root = $("#calendar-sharing-root");
+  root.innerHTML = '<div class="empty-state compact" role="status" aria-busy="true"><p>Caricamento calendari condivisi…</p></div>';
+  state.calendarSharingLoading = (async () => {
+    const [{ CalendarSharingView }, service] = await Promise.all([
+      import("./calendar-sharing-view.v3.0.5.mjs"),
+      calendarSharingService()
+    ]);
+    await syncLoadedCalendarProjection();
+    const view = new CalendarSharingView(root, service, {
+      includeMine: false,
+      initialSection: section,
+      announce: (message, kind) => showToast(message, null, kind === "error")
+    });
+    state.calendarSharingView = view;
+    await view.init();
+    return view;
+  })().catch((error) => {
+    console.error("[Chrono Flow] calendario condiviso", error);
+    root.innerHTML = '<section class="empty-state" role="alert"><h2>Calendari condivisi non disponibili</h2><p>Il calendario personale continua a funzionare. Riprova più tardi.</p><button class="button secondary" type="button" data-calendar-retry>Riprova</button></section>';
+    throw error;
+  }).finally(() => { state.calendarSharingLoading = null; });
+  return state.calendarSharingLoading;
+}
+
+async function setCalendarScope(scope, { section = "shared" } = {}) {
+  const selected = scope === "shared" ? "shared" : "mine";
+  state.calendarScope = selected;
+  const mine = $("#calendar-personal-panel");
+  const shared = $("#calendar-shared-panel");
+  mine.hidden = selected !== "mine";
+  shared.hidden = selected !== "shared";
+  $$('[data-calendar-scope]').forEach((button) => {
+    const active = button.dataset.calendarScope === selected;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  if (selected === "mine") {
+    renderCalendar();
+    return;
+  }
+  await ensureCalendarSharingView(section);
 }
 
 async function flushQueue() {
@@ -997,18 +1138,20 @@ function sundayHolidayRecoveryError(absenceType, workDate) {
 
 function calculationNow(day) {
   if (day.work_date === isoDateLocal()) return new Date();
-  const dates = (day.events || []).map((event) => new Date(event.at)).filter((date) => !Number.isNaN(date.getTime()));
+  const dates = (day.events || []).filter((event) => !event?.superseded).map((event) => new Date(event.at)).filter((date) => !Number.isNaN(date.getTime()));
   return dates.length ? new Date(Math.max(...dates.map((date) => date.getTime()))) : new Date(`${day.work_date}T23:59:00`);
 }
 
-async function showExitNotification(forecast, entryKey) {
+async function showExitNotification(forecast, entryKey, automatic = false) {
   const preferences = notificationPreferences();
   if (!preferences.enabled || preferences.notifiedEntry === entryKey || Notification.permission !== "granted") return;
-  const body = `Uscita prevista alle ${formatTime(forecast)}. Ricordati di registrare l’uscita.`;
+  const body = automatic
+    ? `Uscita automatica alle ${formatTime(forecast)}. Non è richiesta una registrazione manuale.`
+    : `Uscita prevista alle ${formatTime(forecast)}. Ricordati di registrare l’uscita.`;
   try {
     if ("serviceWorker" in navigator) {
       const registration = await navigator.serviceWorker.ready;
-      await registration.showNotification("Chrono Flow · È ora di uscire", {
+      await registration.showNotification(automatic ? "Chrono Flow · Uscita automatica" : "Chrono Flow · È ora di uscire", {
         body,
         icon: "./icons/icon-192.png",
         badge: "./icons/icon-192.png",
@@ -1016,7 +1159,7 @@ async function showExitNotification(forecast, entryKey) {
         renotify: false
       });
     } else {
-      new Notification("Chrono Flow · È ora di uscire", { body, icon: "./icons/icon-192.png" });
+      new Notification(automatic ? "Chrono Flow · Uscita automatica" : "Chrono Flow · È ora di uscire", { body, icon: "./icons/icon-192.png" });
     }
     saveNotificationPreferences({ notifiedEntry: entryKey });
   } catch {
@@ -1037,7 +1180,8 @@ function scheduleExitNotification(day, result, forecast) {
   if (!target) return;
   state.notificationTarget = target;
   const delay = Math.max(0, target.getTime() - Date.now());
-  state.notificationTimer = window.setTimeout(() => showExitNotification(forecast, entryKey), Math.min(delay, 2147483647));
+  const automatic = smartAutoExitPolicy(day).automatic;
+  state.notificationTimer = window.setTimeout(() => showExitNotification(forecast, entryKey, automatic), Math.min(delay, 2147483647));
 }
 
 function updateLocationChoice(effectiveType) {
@@ -1052,6 +1196,7 @@ function updateHeroMode(effectiveType) {
 
 function updateTodayLiveDisplay(day, effectiveType, result, forecast) {
   const isLive = ["working", "paused"].includes(result.state);
+  const autoExit = smartAutoExitPolicy(day);
   const displayedWorkedSeconds = result.ordinaryWorkedSeconds;
   const scheduleComplete = isLive && result.remainingSeconds <= 0;
   $("#worked-value").textContent = isLive
@@ -1065,8 +1210,15 @@ function updateTodayLiveDisplay(day, effectiveType, result, forecast) {
 
   const primary = $("#primary-action");
   const exit = $("#exit-action");
+  const autoExitNote = $("#smart-auto-exit-note");
   primary.disabled = effectiveType === "absence";
-  exit.hidden = !isLive || effectiveType === "absence";
+  exit.hidden = !isLive || effectiveType === "absence" || autoExit.automatic;
+  autoExitNote.hidden = !autoExit.automatic || !autoExit.autoExitAt;
+  if (!autoExitNote.hidden) {
+    autoExitNote.textContent = result.state === "finished"
+      ? `Uscita registrata automaticamente alle ${formatAutomaticExitTime(result.lastExit || autoExit.autoExitAt)}`
+      : `Uscita automatica alle ${formatAutomaticExitTime(autoExit.autoExitAt)}`;
+  }
 
   if (effectiveType === "absence") {
     $("#work-state-label").textContent = ABSENCE_TYPES[day.absence_type] || "Assenza";
@@ -1086,9 +1238,11 @@ function updateTodayLiveDisplay(day, effectiveType, result, forecast) {
     $("#work-main-caption").textContent = scheduleComplete
       ? result.overtimeSeconds > 0
         ? `Monte ore completato · straordinario +${secondsToDuration(result.overtimeSeconds)}.`
-        : "Hai completato il monte ore previsto."
+        : autoExit.automatic
+          ? "Monte ore completato. La giornata viene chiusa automaticamente."
+          : "Hai completato il monte ore previsto."
       : result.defaultBreakAppliedSeconds > 0
-        ? `La pausa configurata è inclusa. Restano ${secondsToDuration(result.remainingSeconds)} di lavoro.`
+        ? `${autoExit.automatic ? "La pausa configurata determina l’uscita automatica. " : "La pausa configurata è inclusa. "}Restano ${secondsToDuration(result.remainingSeconds)} di lavoro.`
         : `Restano ${secondsToDuration(result.remainingSeconds)} di lavoro.`;
     primary.textContent = "Inizia pausa";
   } else if (result.state === "paused") {
@@ -1112,6 +1266,7 @@ function renderTodayTick() {
   const now = new Date();
   const date = isoDateLocal(now);
   const day = state.days.get(date) || defaultDay(date);
+  void closeSmartDayWhenDue(day, now);
   const effectiveType = day.actual_type || day.planned_type || "office";
   const result = calculateTrackedDay(day, now);
   const forecast = forecastExit(day.events, state.profile.target_minutes, breakForType(state.profile, effectiveType), now);
@@ -1181,7 +1336,7 @@ async function recordAction(type) {
 }
 
 function renderCalendar() {
-  if (!state.user) return;
+  if (!state.user || state.calendarScope !== "mine") return;
   const month = state.calendarMonth;
   renderMonthSelector("calendar", month);
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -1240,7 +1395,7 @@ function renderCalendar() {
 }
 
 function clockValueForEvent(events, type) {
-  const event = (events || []).find((item) => item.type === type);
+  const event = (events || []).find((item) => item.type === type && !item.superseded);
   if (!event?.at) return "";
   const parts = new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
@@ -1251,6 +1406,40 @@ function clockValueForEvent(events, type) {
   const hour = parts.find((part) => part.type === "hour")?.value;
   const minute = parts.find((part) => part.type === "minute")?.value;
   return hour && minute ? `${hour}:${minute}` : "";
+}
+
+function updateDayAutoExitEditor() {
+  const date = $("#day-date").value;
+  const planned = $("#day-planned-type").value || "office";
+  const actual = $("#day-actual-type").value || null;
+  const effectiveType = actual || planned;
+  const automatic = smartAutomaticExitEnabled(effectiveType, overtimeSettings());
+  let autoExitAt = null;
+  if (automatic && date && $("#day-entry-time").value) {
+    try {
+      const events = eventsFromLocalTimes(date, {
+        entry: $("#day-entry-time").value,
+        pauseStart: $("#day-pause-start-time").value,
+        pauseEnd: $("#day-pause-end-time").value,
+        exit: ""
+      });
+      autoExitAt = smartAutomaticExitAt({
+        events,
+        targetMinutes: state.profile.target_minutes,
+        standardBreakMinutes: breakForType(state.profile, effectiveType),
+        now: new Date()
+      });
+    } catch {
+      autoExitAt = null;
+    }
+  }
+  $("#day-exit-time").disabled = automatic;
+  $("#day-auto-exit-hint").hidden = !automatic;
+  $("#day-auto-exit-hint").textContent = automatic
+    ? autoExitAt
+      ? `Uscita automatica alle ${formatAutomaticExitTime(autoExitAt)}. Modificando ingresso, pausa o durata verrà ricalcolata.`
+      : "L’uscita verrà calcolata automaticamente dopo aver indicato l’ingresso."
+    : "";
 }
 
 function openDayDialog(date) {
@@ -1267,6 +1456,7 @@ function openDayDialog(date) {
   $("#day-pause-start-time").value = clockValueForEvent(day.events, "pause");
   $("#day-pause-end-time").value = clockValueForEvent(day.events, "resume");
   $("#day-exit-time").value = clockValueForEvent(day.events, "exit");
+  updateDayAutoExitEditor();
   $("#day-saturday-note").hidden = !isWorkingSaturday(day);
   $("#delete-day").hidden = !state.days.has(date);
   toggleAbsenceFields("day");
@@ -2731,7 +2921,7 @@ function showScreen(name) {
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
   });
-  if (name === "calendar") renderCalendar();
+  if (name === "calendar") void setCalendarScope("mine");
   syncHomeClock();
   if (name === "summary") {
     renderSummary();
@@ -2885,7 +3075,8 @@ async function loadApplication(user) {
   $("#bulk-start").value ||= isoDateLocal();
   $("#bulk-end").value ||= isoDateLocal();
   renderAccount();
-  renderToday();
+  state.calendarScope = "mine";
+  showScreen("today");
   syncHomeClock();
   updateSyncStatus();
   flushQueue();
@@ -2894,6 +3085,9 @@ async function loadApplication(user) {
 
 function showAuth() {
   homeClock.stop();
+  state.calendarSharingView?.destroy();
+  state.calendarSharingView = null;
+  state.calendarSharingService = null;
   state.user = null;
   state.days.clear();
   state.sundayHolidayRecoveryDays = [];
@@ -2974,7 +3168,7 @@ function registerServiceWorker() {
     window.location.reload();
   });
   navigator.serviceWorker
-    .register("./sw.js", { updateViaCache: "none" })
+    .register("./sw.v3.1.0.js", { updateViaCache: "none" })
     .then((registration) => registration.update())
     .catch(() => {});
 }
@@ -2982,14 +3176,12 @@ function registerServiceWorker() {
 async function initialize() {
   bindEvents();
   setupInstallExperience();
-  if (!configured || !window.supabase?.createClient) {
+  if (!configured || !supabase) {
     $("#loading-view").hidden = true;
     $("#configuration-view").hidden = false;
     return;
   }
-  state.supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-  });
+  state.supabase = supabase;
   state.supabase.auth.onAuthStateChange((event, session) => {
     if (event === "INITIAL_SESSION") return;
     if (event === "SIGNED_OUT") {
@@ -3076,6 +3268,24 @@ function bindEvents() {
   });
 
   $$(".nav-item").forEach((button) => button.addEventListener("click", () => showScreen(button.dataset.target)));
+  $$('[data-calendar-scope]').forEach((button) => button.addEventListener("click", () => {
+    setCalendarScope(button.dataset.calendarScope).catch((error) => {
+      console.error("[Chrono Flow] apertura calendario condiviso", error);
+      showToast("Calendari condivisi non disponibili. Il tuo calendario personale resta utilizzabile.");
+    });
+  }));
+  $("#calendar-shared-panel").addEventListener("click", (event) => {
+    if (!event.target.closest("[data-calendar-retry]")) return;
+    state.calendarSharingView = null;
+    ensureCalendarSharingView("shared").catch(() => {});
+  });
+  $("#open-calendar-sharing-settings").addEventListener("click", () => {
+    showScreen("calendar");
+    setCalendarScope("shared", { section: "settings" }).catch((error) => {
+      console.error("[Chrono Flow] impostazioni condivisione", error);
+      showToast("Impostazioni di condivisione non disponibili. Riprova più tardi.");
+    });
+  });
   $$('[data-disclosure]').forEach((details) => {
     const summary = details.querySelector(":scope > summary");
     const updateExpanded = () => summary?.setAttribute("aria-expanded", String(details.open));
@@ -3198,11 +3408,14 @@ function bindEvents() {
   ["#calendar-month-select", "#calendar-year-select"].forEach((selector) => {
     $(selector).addEventListener("change", () => selectMonth("calendar", selectedMonthFromControls("calendar", state.calendarMonth)));
   });
-  $("#day-planned-type").addEventListener("change", () => toggleAbsenceFields("day"));
-  $("#day-actual-type").addEventListener("change", () => toggleAbsenceFields("day"));
+  $("#day-planned-type").addEventListener("change", () => { toggleAbsenceFields("day"); updateDayAutoExitEditor(); });
+  $("#day-actual-type").addEventListener("change", () => { toggleAbsenceFields("day"); updateDayAutoExitEditor(); });
   $("#day-absence-type").addEventListener("change", () => toggleAbsenceFields("day"));
   $("#day-child-id").addEventListener("change", () => updateChildPolicyHint("day"));
   $("#today-child-id").addEventListener("change", () => updateChildPolicyHint("today"));
+  ["#day-entry-time", "#day-pause-start-time", "#day-pause-end-time"].forEach((selector) => {
+    $(selector).addEventListener("input", updateDayAutoExitEditor);
+  });
   $("#close-day-dialog").addEventListener("click", () => $("#day-dialog").close());
   $("#day-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -3225,12 +3438,15 @@ function bindEvents() {
     day.notes = $("#day-notes").value.trim();
     if (effectiveType !== "absence") {
       try {
-        day.events = eventsFromLocalTimes(date, {
+        const automaticExitHistory = day.events
+          .filter((item) => item?.type === "exit" && item.auto_exit === true)
+          .map((item) => ({ ...item, superseded: true, superseded_reason: "manual_day_edit", superseded_at: new Date().toISOString() }));
+        day.events = [...automaticExitHistory, ...eventsFromLocalTimes(date, {
           entry: $("#day-entry-time").value,
           pauseStart: $("#day-pause-start-time").value,
           pauseEnd: $("#day-pause-end-time").value,
-          exit: $("#day-exit-time").value
-        });
+          exit: $("#day-exit-time").disabled ? "" : $("#day-exit-time").value
+        })];
       } catch (error) {
         showToast(friendlyError(error));
         return;
@@ -3492,6 +3708,12 @@ function bindEvents() {
       return showToast(`Impostazioni non salvate: ${friendlyError(error)}`);
     }
     state.profile = { ...DEFAULT_PROFILE, ...data, family_settings: normalizeFamilySettings(data.family_settings) };
+    const today = isoDateLocal();
+    const currentDay = state.days.get(today);
+    if (currentDay) {
+      const reconciled = reconcileDayAutomaticExit(currentDay, new Date());
+      if (reconciled.changed) await saveDay(reconciled.day, { silent: true, skipAutoExitReconcile: true });
+    }
     renderAccount();
     renderToday();
     renderSettings();

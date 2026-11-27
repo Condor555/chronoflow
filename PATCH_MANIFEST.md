@@ -1,53 +1,68 @@
-# PATCH manifest — Chrono Flow 2.9.4 → 3.0.0
+# PATCH manifest — Chrono Flow 3.0.5 → 3.1.0
 
-Il pacchetto PATCH contiene soltanto file nuovi o modificati. I percorsi sono relativi alla root della repository.
+La patch contiene esclusivamente file nuovi o modificati rispetto alla 3.0.5 ricostruita dalle hotfix ufficiali.
 
-## File modificati (9)
+## Garanzie
 
-| Percorso | Motivo |
-|---|---|
-| `CHANGELOG.md` | Release Condivisione Calendario e correzione palette pill. |
-| `README.md` | Architettura, installazione e test. |
-| `SECURITY.md` | Confini RLS e dati sensibili. |
-| `SHA256SUMS` | Integrità dei file consegnati. |
-| `index.html` | Accesso alle viste Home/Calendario e bootstrap moduli. |
-| `package.json` | Comandi di test/check. |
-| `styles.css` | UI calendario mobile-first e pill ricondotte alla palette delle card. Le card mantengono gradienti/decorazioni. |
-| `sw.js` | Cache 3.0.0 e nuovi moduli. |
-| `src/app.mjs` | Montaggio vista calendario, sessione autenticata e navigazione. |
+- `src/config.js` escluso e invariato.
+- Nessun file SQL incluso o modificato.
+- Nessuna modifica a RLS, tabelle o dati.
+- Moduli Calendar 3.0.5 mantenuti e caricati in modo lazy.
+- Service worker 3.1 network-first con pulizia cache precedenti.
+- Suite: 136 test superati, 0 errori.
 
-## File nuovi (13)
+## File nuovi (26)
 
-| Percorso | Scopo |
-|---|---|
-| `PATCH_MANIFEST.md` | Questo inventario. |
-| `docs/INSTALLAZIONE_BROWSER.md` | Procedura GitHub/Supabase e collaudo. |
-| `docs/INTEGRAZIONE_BASELINE_2.9.4.md` | Hook di sincronizzazione non distruttivo. |
-| `src/calendar-date.mjs` | Intervalli mese/settimana. |
-| `src/calendar-privacy.mjs` | Default privacy e sanitizzazione. |
-| `src/calendar-sharing.mjs` | Client RPC, inviti, revoche e proiezione. |
-| `src/calendar-sharing-view.mjs` | UI Il mio/Condivisi/Confronta/Privacy. |
-| `src/supabase-client.mjs` | Client autenticato riutilizzabile. |
-| `supabase/migrations/20261126_001_calendar_sharing.sql` | Tabelle, indici, RLS e RPC. |
-| `tests/calendar-sharing.test.mjs` | Privacy, date e adapter 2.9.4. |
-| `tests/security-contract.test.mjs` | Contratto RLS e masking. |
-| `tests/home-theme.test.mjs` | Contratto palette pill/card. |
-| `tests/home-theme.browser.html` | Test DOM/computed-style reale e contrasto WCAG. |
+- `.nojekyll`
+- `docs/CALCULATION_RULES.md`
+- `docs/INSTALLAZIONE_PATCH_3.1.0.md`
+- `docs/RESTORATION_AUDIT_2.9.4_TO_3.0.5.md`
+- `docs/UX_AUDIT.md`
+- `icons/apple-touch-icon.png`
+- `icons/icon-192.png`
+- `icons/icon-512.png`
+- `icons/icon-maskable-512.png`
+- `icons/icon-maskable.svg`
+- `icons/icon.svg`
+- `src/app.js`
+- `src/calculations.mjs`
+- `src/live-clock.mjs`
+- `src/migration.mjs`
+- `src/pwa-install.mjs`
+- `src/smart-auto-exit.mjs`
+- `sw.v3.1.0.js`
+- `tests/calculations.test.mjs`
+- `tests/home-display.test.mjs`
+- `tests/live-clock.test.mjs`
+- `tests/migration.test.mjs`
+- `tests/pwa-install.test.mjs`
+- `tests/smart-auto-exit.test.mjs`
+- `tests/ui-audit.test.mjs`
+- `tests/ui-restoration-v3.1.0.test.mjs`
 
-## File invariati ed esclusi
+## File modificati (16)
 
-- `src/config.js`: escluso per non sovrascrivere URL e chiave Supabase.
-- `src/home-display.mjs`: escluso; nessuna modifica alle logiche timer/modalità.
-- `manifest.webmanifest`, `LICENSE` e ogni altro file 2.9.4: esclusi.
+- `CHANGELOG.md`
+- `PATCH_MANIFEST.md`
+- `README.md`
+- `SHA256SUMS`
+- `index.html`
+- `manifest.webmanifest`
+- `package.json`
+- `src/calendar-sharing-view.v3.0.5.mjs`
+- `src/home-display.mjs`
+- `styles.css`
+- `tests/bootstrap-config-2.9.4.test.mjs`
+- `tests/home-theme.browser.html`
+- `tests/home-theme.test.mjs`
+- `tests/import-graph-v3.0.5.test.mjs`
+- `tests/service-worker-reload.test.mjs`
+- `tests/service-worker-v3.0.5.test.mjs`
 
-## Correzione cromatica finale
+## Installazione
 
-La richiesta più recente annulla il precedente allineamento “card uguale alla pill”. La card è la sorgente di verità e resta visivamente invariata. Per ogni modalità la pill usa il token finale della stessa palette (`--office-card-to`, `--smart-card-to`, `--travel-card-to`) con foreground e bordo accessibili. I test verificano il valore computed-style della pill, il contrasto WCAG AA, la sincronizzazione DOM e la permanenza del gradiente della card.
+Vedi `docs/INSTALLAZIONE_PATCH_3.1.0.md`.
 
-## Ordine di applicazione
+## Audit
 
-1. Caricare i file della PATCH su GitHub mantenendo questi percorsi.
-2. Conservare il `src/config.js` già configurato.
-3. Eseguire in Supabase il file SQL della migrazione.
-4. Attendere GitHub Pages e riaprire la PWA.
-5. Eseguire il collaudo con due account descritto in `docs/INSTALLAZIONE_BROWSER.md`.
+Vedi `docs/RESTORATION_AUDIT_2.9.4_TO_3.0.5.md`.
